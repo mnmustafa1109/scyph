@@ -68,11 +68,17 @@ where
     /// 2. **Header Parsing**: Extracts the `Authorization` header and ensures it uses the `Bearer` scheme.
     /// 3. **Token Verification**: Validates the JWT signature and expiration using [`verify_token`].
     /// 4. **Revocation Check**: Queries [`AuthCacheService`] to verify the token's `jti` is not blacklisted.
-    /// 5. **Caching**: Inserts the parsed [`AuthUser`] into request extensions for downstream handlers.
+    /// 5. **Caching**: Inserts the parsed [`AuthUser`] and [`Claims::Role`] into request extensions for downstream handlers.
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, AppError> {
-        // Fast-path: if a parent middleware or extractor already verified the user, return it
+        // Fast-path: if already verified, ensure both user and role are available
         if let Some(user) = parts.extensions.get::<AuthUser<C>>() {
-            return Ok(user.clone());
+            let role = *user.claims.role();
+            let user = user.clone();
+
+            if parts.extensions.get::<C::Role>().is_none() {
+                parts.extensions.insert(role);
+            }
+            return Ok(user);
         }
 
         let auth_header = parts
@@ -90,6 +96,7 @@ where
 
         let claims = data.claims;
         let jti = claims.jti();
+        let role = *claims.role();
 
         if !jti.is_empty() && state.auth_cache().is_token_revoked(jti).await {
             return Err(AppError::Unauthorized("Token has been revoked".into()));
@@ -100,7 +107,8 @@ where
             claims,
         };
 
-        // Cache in request extensions for subsequent middleware or route handlers
+        // Cache role and user in request extensions
+        parts.extensions.insert(role);
         parts.extensions.insert(user.clone());
 
         Ok(user)
