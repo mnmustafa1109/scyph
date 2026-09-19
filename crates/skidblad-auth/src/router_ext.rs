@@ -1,4 +1,6 @@
-// /crates/skidblad-auth/src/router_ext.rs
+//! Router extension traits for declarative role protection in Axum.
+//!
+//! Provides [`RoleRouterExt`], which adds `.require_roles(...)` to Axum [`Router`](axum::Router).
 
 use axum::{Router, extract::Extension, middleware::from_fn};
 use skidblad_core::traits::Claims;
@@ -8,9 +10,31 @@ use crate::{
     middleware::{AllowedRoles, require_roles_layer},
 };
 
+/// Fluent extension trait adding role-based route protection methods to Axum [`Router`].
 pub trait RoleRouterExt<S> {
-    /// Protects all routes currently in this Router instance.
-    /// Runs authentication extraction followed by static role validation.
+    /// Protects all routes currently configured in this [`Router`] instance with role requirements.
+    ///
+    /// Applies role validation middleware checking whether the authenticated user possesses one of the
+    /// specified static `roles`.
+    ///
+    /// # Arguments
+    ///
+    /// * `roles` - Static slice of allowed roles.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use axum::{Router, routing::get};
+    /// use skidblad_auth::RoleRouterExt;
+    ///
+    /// #[derive(Clone, Copy, PartialEq, Eq)]
+    /// enum UserRole { Admin, Moderator }
+    ///
+    /// // Protected admin router
+    /// // let admin_routes = Router::new()
+    /// //     .route("/dashboard", get(|| async { "Admin Dashboard" }))
+    /// //     .require_roles::<MyClaims>(&[UserRole::Admin]);
+    /// ```
     fn require_roles<C>(self, roles: &'static [C::Role]) -> Self
     where
         S: AuthExtractorState<C> + Clone + Send + Sync + 'static,

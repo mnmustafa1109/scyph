@@ -1,3 +1,8 @@
+//! Role-based access control (RBAC) middleware for Axum routes.
+//!
+//! Evaluates authenticated user credentials extracted upstream and restricts access to routes
+//! based on allowed roles.
+
 use axum::{
     extract::{Extension, Request},
     middleware::Next,
@@ -5,11 +10,21 @@ use axum::{
 };
 use skidblad_core::{error::AppError, traits::Claims};
 
-/// Zero-allocation wrapper holding a borrowed slice of permitted roles.
+/// Container struct holding a static slice of permitted roles for route access.
+///
+/// Used as an Axum [`Extension`] to configure role requirements on routes.
 #[derive(Clone, Copy)]
 pub struct AllowedRoles<R: 'static>(pub &'static [R]);
 
-/// Checks if the authenticated user has one of the allowed roles.
+/// Middleware function enforcing role-based authorization rules.
+///
+/// Inspects the request extensions for the user's role (inserted upstream by an authentication
+/// extractor or middleware) and compares it against [`AllowedRoles`].
+///
+/// # Errors
+///
+/// - Returns [`AppError::Unauthorized`] if no user role is present in request extensions.
+/// - Returns [`AppError::Forbidden`] if the user's role is not in the list of allowed roles.
 pub async fn require_roles_layer<C: Claims>(
     Extension(allowed): Extension<AllowedRoles<C::Role>>,
     request: Request,
@@ -25,7 +40,7 @@ pub async fn require_roles_layer<C: Claims>(
         }
     };
 
-    // 2. Fix Bug 1: pass reference to `contains`
+    // 2. Pass reference to `contains`
     if allowed.0.contains(&user_role) {
         Ok(next.run(request).await)
     } else {
