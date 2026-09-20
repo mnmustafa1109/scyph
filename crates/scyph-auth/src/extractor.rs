@@ -7,8 +7,8 @@ use axum::{
     extract::FromRequestParts,
     http::{header::AUTHORIZATION, request::Parts},
 };
-use secrecy::SecretString;
 use scyph_core::{error::AppError, traits::Claims};
+use secrecy::SecretString;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -98,7 +98,11 @@ where
         let jti = claims.jti();
         let role = *claims.role();
 
-        if !jti.is_empty() && state.auth_cache().is_token_revoked(jti).await {
+        if jti.is_empty() {
+            return Err(AppError::Unauthorized("Token jti claim is missing".into()));
+        }
+
+        if state.auth_cache().is_token_revoked(jti).await {
             return Err(AppError::Unauthorized("Token has been revoked".into()));
         }
 

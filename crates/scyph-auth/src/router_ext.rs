@@ -2,7 +2,7 @@
 //!
 //! Provides [`RoleRouterExt`], which adds `.require_roles(...)` to Axum [`Router`](axum::Router).
 
-use axum::{Router, extract::Extension, middleware::from_fn};
+use axum::{Router, extract::Extension, middleware::from_fn_with_state};
 use scyph_core::traits::Claims;
 
 use crate::{
@@ -35,19 +35,19 @@ pub trait RoleRouterExt<S> {
     /// //     .route("/dashboard", get(|| async { "Admin Dashboard" }))
     /// //     .require_roles::<MyClaims>(&[UserRole::Admin]);
     /// ```
-    fn require_roles<C>(self, roles: &'static [C::Role]) -> Self
+    fn require_roles<C>(self, state: S, roles: &'static [C::Role]) -> Self
     where
         S: AuthExtractorState<C> + Clone + Send + Sync + 'static,
         C: Claims;
 }
 
 impl<S> RoleRouterExt<S> for Router<S> {
-    fn require_roles<C>(self, roles: &'static [C::Role]) -> Self
+    fn require_roles<C>(self, state: S, roles: &'static [C::Role]) -> Self
     where
         S: AuthExtractorState<C> + Clone + Send + Sync + 'static,
         C: Claims,
     {
         self.layer(Extension(AllowedRoles(roles)))
-            .route_layer(from_fn(require_roles_layer::<C>))
+            .route_layer(from_fn_with_state(state, require_roles_layer::<S, C>))
     }
 }

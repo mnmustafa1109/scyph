@@ -6,6 +6,7 @@
 //! - [`Action`]: Standard enumeration of CRUD and custom actions used in policy evaluation.
 
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use uuid::Uuid;
 
 /// Marker trait representing a role or permission identifier usable for authorization.
@@ -76,7 +77,7 @@ pub trait Claims: serde::de::DeserializeOwned + Serialize + Send + Sync + Clone 
 ///
 /// Marked as `#[non_exhaustive]` to allow future action extensions via [`Action::Custom`]
 /// without breaking existing match patterns in downstream crates.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum Action {
     /// Create a new entity or resource.
@@ -90,5 +91,5 @@ pub enum Action {
     /// List or search collections of resources.
     List,
     /// Custom domain-specific action identified by a static string slice.
-    Custom(&'static str),
+    Custom(Cow<'static, str>),
 }

@@ -21,15 +21,13 @@ pub struct AuthCacheService<P: Clone + Send + Sync + 'static> {
 }
 
 impl<P: Clone + Send + Sync + 'static> AuthCacheService<P> {
-    /// Creates a new `AuthCacheService` with specified capacity and profile TTL.
-    ///
-    /// The token blacklist cache is automatically initialized with a max capacity of `max_capacity`
-    /// and a default TTL of 1 hour (3600 seconds).
+    /// Creates a new `AuthCacheService` with specified capacity, profile TTL, and token blacklist TTL.
     ///
     /// # Arguments
     ///
     /// * `max_capacity` - Maximum number of profile records and revoked tokens to store in memory.
-    /// * `ttl_secs` - Time-to-live in seconds for cached user profiles.
+    /// * `profile_ttl_secs` - Time-to-live in seconds for cached user profiles.
+    /// * `blacklist_ttl_secs` - Time-to-live in seconds for revoked JWT tokens (should match or exceed maximum JWT expiration).
     ///
     /// # Examples
     ///
@@ -39,17 +37,17 @@ impl<P: Clone + Send + Sync + 'static> AuthCacheService<P> {
     /// #[derive(Clone)]
     /// struct UserProfile { id: uuid::Uuid, is_active: bool }
     ///
-    /// let cache = AuthCacheService::<UserProfile>::new(10_000, 300);
+    /// let cache = AuthCacheService::<UserProfile>::new(10_000, 300, 3600);
     /// ```
-    pub fn new(max_capacity: u64, ttl_secs: u64) -> Self {
+    pub fn new(max_capacity: u64, profile_ttl_secs: u64, blacklist_ttl_secs: u64) -> Self {
         Self {
             profile: Cache::builder()
                 .max_capacity(max_capacity)
-                .time_to_live(Duration::from_secs(ttl_secs))
+                .time_to_live(Duration::from_secs(profile_ttl_secs))
                 .build(),
             blacklist: Cache::builder()
                 .max_capacity(max_capacity)
-                .time_to_live(Duration::from_secs(3600))
+                .time_to_live(Duration::from_secs(blacklist_ttl_secs))
                 .build(),
         }
     }
