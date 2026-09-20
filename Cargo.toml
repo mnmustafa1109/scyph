@@ -1,5 +1,5 @@
 [package]
-name = "skidblad"
+name = "scyph"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,13 +9,18 @@ description = "A collection of modular, independently usable Rust crates providi
 
 [workspace]
 resolver = "3"
-members = [".", "crates/skidblad-core", "crates/skidblad-auth"]
+members = [
+  ".",
+  "crates/scyph-core",
+  "crates/scyph-auth",
+  "crates/scyph-abac",
+]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/mnmustafa1109/skidblad"
+repository = "https://github.com/mnmustafa1109/scyph"
 rust-version = "1.98.1"
 
 [workspace.dependencies]
@@ -32,6 +37,14 @@ argon2 = "0.6.0"
 password-hash = { version = "0.6.1", features = ["rand_core"] }
 secrecy = { version = "0.10.3", features = ["serde"] }
 moka = { version = "0.12.16", features = ["future"] }
+sqlx = { version = "0.9.0", features = [
+  "postgres",
+  "uuid",
+  "chrono",
+  "runtime-tokio",
+  "tls-rustls-ring",
+] }
+cedar-policy = "4.13.0"
 
 # ── Shared release profile for peak performance ──────────────────────────────
 [profile.release]

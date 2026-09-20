@@ -3,7 +3,7 @@
 //! Provides [`RoleRouterExt`], which adds `.require_roles(...)` to Axum [`Router`](axum::Router).
 
 use axum::{Router, extract::Extension, middleware::from_fn};
-use skidblad_core::traits::Claims;
+use scyph_core::traits::Claims;
 
 use crate::{
     extractor::AuthExtractorState,
@@ -25,7 +25,7 @@ pub trait RoleRouterExt<S> {
     ///
     /// ```rust,no_run
     /// use axum::{Router, routing::get};
-    /// use skidblad_auth::RoleRouterExt;
+    /// use scyph_auth::RoleRouterExt;
     ///
     /// #[derive(Clone, Copy, PartialEq, Eq)]
     /// enum UserRole { Admin, Moderator }

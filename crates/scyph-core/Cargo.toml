@@ -1,12 +1,12 @@
-# crates/skidblad-core/Cargo.toml
+# crates/scyph-core/Cargo.toml
 [package]
-name = "skidblad-core"
+name = "scyph-core"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Core error types, response envelope, and base traits for skidblad"
+description = "Core error types, response envelope, and base traits for scyph"
 
 [dependencies]
 axum = { workspace = true }

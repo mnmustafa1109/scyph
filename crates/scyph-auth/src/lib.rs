@@ -1,6 +1,6 @@
-//! # Skidblad Auth
+//! # Scyph Auth
 //!
-//! `skidblad-auth` provides authentication and authorization utilities for Axum applications.
+//! `scyph-auth` provides authentication and authorization utilities for Axum applications.
 //!
 //! ## Key Modules
 //! - **[`cache`]**: High-performance in-memory caching for user profiles and JWT token revocation (blacklisting).

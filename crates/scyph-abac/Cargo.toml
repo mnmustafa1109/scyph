@@ -1,0 +1,20 @@
+# crates/scyph-abac/Cargo.toml
+[package]
+name = "scyph-abac"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "AbacPolicy trait and SQLx filter injection for scyph backends"
+
+[features]
+cedar = ["dep:cedar-policy"]
+
+[dependencies]
+scyph-core = { path = "../scyph-core", version = "0.1" }
+scyph-auth = { path = "../scyph-auth", version = "0.1" }
+sqlx = { workspace = true }
+tracing = { workspace = true }
+cedar-policy = { workspace = true, optional = true }
+uuid = { workspace = true }

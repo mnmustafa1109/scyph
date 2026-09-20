@@ -1,6 +1,6 @@
-# crates/skidblad-auth/Cargo.toml
+# crates/scyph-auth/Cargo.toml
 [package]
-name = "skidblad-auth"
+name = "scyph-auth"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -9,7 +9,7 @@ repository.workspace = true
 description = "JWT extractor, Argon2 password, moka auth cache, and token blacklist for Axum"
 
 [dependencies]
-skidblad-core = { path = "../skidblad-core", version = "0.1" }
+scyph-core = { path = "../scyph-core", version = "0.1" }
 axum = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }

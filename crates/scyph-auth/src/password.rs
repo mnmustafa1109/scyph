@@ -39,7 +39,7 @@ pub enum PasswordError {
 /// # Examples
 ///
 /// ```rust
-/// use skidblad_auth::hash_password;
+/// use scyph_auth::hash_password;
 /// use secrecy::SecretString;
 ///
 /// let password = SecretString::from("my_secure_password_123");
@@ -68,7 +68,7 @@ pub fn hash_password(pw: &SecretString) -> Result<String, PasswordError> {
 /// # Examples
 ///
 /// ```rust
-/// use skidblad_auth::{hash_password, verify_password};
+/// use scyph_auth::{hash_password, verify_password};
 /// use secrecy::SecretString;
 ///
 /// let password = SecretString::from("my_secret_password");

@@ -1,13 +1,13 @@
 //! Standardized JSON response envelopes and pagination models.
 //!
-//! This module provides consistent API response structures across Skidblad applications:
+//! This module provides consistent API response structures across Scyph applications:
 //! - [`ApiResponse<T>`]: General envelope for single objects, lists, or custom messages.
 //! - [`PagedResponse<T>`]: Pagination envelope containing item lists and pagination metadata.
 //!
 //! # Examples
 //!
 //! ```rust
-//! use skidblad_core::ApiResponse;
+//! use scyph_core::ApiResponse;
 //!
 //! let response = ApiResponse::ok("Success data");
 //! assert!(response.success);
@@ -46,7 +46,7 @@ impl<T: Serialize> ApiResponse<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use skidblad_core::ApiResponse;
+    /// use scyph_core::ApiResponse;
     ///
     /// let res = ApiResponse::ok("User updated");
     /// assert_eq!(res.data, Some("User updated"));
@@ -69,7 +69,7 @@ impl<T: Serialize> ApiResponse<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use skidblad_core::ApiResponse;
+    /// use scyph_core::ApiResponse;
     ///
     /// let res = ApiResponse::ok_msg(42, "Calculated value");
     /// assert_eq!(res.message, "Calculated value");
@@ -91,7 +91,7 @@ impl<T: Serialize> ApiResponse<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use skidblad_core::ApiResponse;
+    /// use scyph_core::ApiResponse;
     /// use axum::response::IntoResponse;
     ///
     /// let res = ApiResponse::created("new_resource_id");
@@ -114,7 +114,7 @@ impl ApiResponse<()> {
     /// # Examples
     ///
     /// ```rust
-    /// use skidblad_core::ApiResponse;
+    /// use scyph_core::ApiResponse;
     ///
     /// let response = ApiResponse::no_content();
     /// ```

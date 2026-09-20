@@ -16,14 +16,14 @@ impl<T> Authorizable for T where T: Copy + Eq + Send + Sync + 'static {}
 
 /// Core trait to implement on your application's custom JWT claims struct.
 ///
-/// Implementing `Claims` allows Skidblad's authentication middleware and extractors
+/// Implementing `Claims` allows Scyph's authentication middleware and extractors
 /// to read the user subject ID (`sub`), expiration timestamp (`exp`), unique JWT ID (`jti`),
 /// and role type (`Role`).
 ///
 /// # Examples
 ///
 /// ```rust
-/// use skidblad_core::Claims;
+/// use scyph_core::Claims;
 /// use uuid::Uuid;
 /// use serde::{Serialize, Deserialize};
 ///

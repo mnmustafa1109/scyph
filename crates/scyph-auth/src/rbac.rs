@@ -3,8 +3,8 @@
 //! Provides inline authorization functions for checking user claims and roles inside request handlers.
 
 use crate::extractor::AuthUser;
-use skidblad_core::error::AppError;
-use skidblad_core::traits::Claims;
+use scyph_core::error::AppError;
+use scyph_core::traits::Claims;
 
 /// Validates that an authenticated user's claims satisfy a custom role predicate function.
 ///
@@ -22,8 +22,8 @@ use skidblad_core::traits::Claims;
 /// # Examples
 ///
 /// ```rust
-/// use skidblad_auth::{AuthUser, require_role};
-/// use skidblad_core::Claims;
+/// use scyph_auth::{AuthUser, require_role};
+/// use scyph_core::Claims;
 /// use serde::{Serialize, Deserialize};
 /// use uuid::Uuid;
 ///

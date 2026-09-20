@@ -4,7 +4,7 @@
 
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, TokenData, Validation, decode, encode};
 use secrecy::{ExposeSecret, SecretString};
-use skidblad_core::traits::Claims;
+use scyph_core::traits::Claims;
 
 /// Errors returned during JWT creation, decoding, or signature verification.
 #[derive(Debug, thiserror::Error)]
@@ -38,8 +38,8 @@ pub enum JwtError {
 /// # Examples
 ///
 /// ```rust
-/// use skidblad_auth::create_token;
-/// use skidblad_core::Claims;
+/// use scyph_auth::create_token;
+/// use scyph_core::Claims;
 /// use secrecy::SecretString;
 /// use serde::{Serialize, Deserialize};
 /// use uuid::Uuid;
@@ -92,8 +92,8 @@ pub fn create_token<C: Claims>(claims: &C, secret: &SecretString) -> Result<Stri
 /// # Examples
 ///
 /// ```rust
-/// use skidblad_auth::{create_token, verify_token};
-/// use skidblad_core::Claims;
+/// use scyph_auth::{create_token, verify_token};
+/// use scyph_core::Claims;
 /// use secrecy::SecretString;
 /// use serde::{Serialize, Deserialize};
 /// use uuid::Uuid;

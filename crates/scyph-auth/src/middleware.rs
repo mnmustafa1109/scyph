@@ -8,7 +8,7 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use skidblad_core::{error::AppError, traits::Claims};
+use scyph_core::{error::AppError, traits::Claims};
 
 /// Container struct holding a static slice of permitted roles for route access.
 ///

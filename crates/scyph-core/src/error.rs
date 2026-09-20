@@ -1,7 +1,7 @@
-//! Standardized HTTP error handling for Skidblad backends.
+//! Standardized HTTP error handling for Scyph backends.
 //!
 //! This module provides [`AppError`], the canonical error envelope used across
-//! Skidblad services. It follows the [RFC 7807 Problem Details](https://tools.ietf.org/html/rfc7807)
+//! Scyph services. It follows the [RFC 7807 Problem Details](https://tools.ietf.org/html/rfc7807)
 //! format for HTTP APIs.
 //!
 //! # Key Features
@@ -12,7 +12,7 @@
 //! # Examples
 //!
 //! ```rust
-//! use skidblad_core::AppError;
+//! use scyph_core::AppError;
 //! use axum::http::StatusCode;
 //!
 //! fn find_user(id: u64) -> Result<String, AppError> {
@@ -32,7 +32,7 @@ use serde_json::json;
 use thiserror::Error;
 use tracing::error;
 
-/// The canonical error type for all Skidblad-based HTTP backends.
+/// The canonical error type for all Scyph-based HTTP backends.
 ///
 /// `AppError` maps domain and runtime errors into standardized HTTP status codes
 /// and RFC 7807 Problem Details JSON responses when returned from Axum handlers.
@@ -108,7 +108,7 @@ impl AppError {
     /// # Examples
     ///
     /// ```rust
-    /// use skidblad_core::AppError;
+    /// use scyph_core::AppError;
     ///
     /// let parse_result: Result<i32, _> = "invalid".parse();
     /// let app_err = parse_result.map_err(|e| AppError::internal_from(e, "Failed to parse integer"));
@@ -134,7 +134,7 @@ impl AppError {
     /// # Examples
     ///
     /// ```rust
-    /// use skidblad_core::AppError;
+    /// use scyph_core::AppError;
     ///
     /// let err = AppError::internal("Database connection pool exhausted");
     /// assert_eq!(err.status(), axum::http::StatusCode::INTERNAL_SERVER_ERROR);
@@ -164,7 +164,7 @@ impl AppError {
     /// # Examples
     ///
     /// ```rust
-    /// use skidblad_core::AppError;
+    /// use scyph_core::AppError;
     /// use axum::http::StatusCode;
     ///
     /// let err = AppError::NotFound("Item missing".into());
@@ -191,7 +191,7 @@ impl AppError {
     /// # Examples
     ///
     /// ```rust
-    /// use skidblad_core::AppError;
+    /// use scyph_core::AppError;
     ///
     /// let err = AppError::Unauthorized("Invalid token".into());
     /// assert_eq!(err.code(), "UNAUTHORIZED");

@@ -34,7 +34,7 @@ impl<P: Clone + Send + Sync + 'static> AuthCacheService<P> {
     /// # Examples
     ///
     /// ```rust
-    /// use skidblad_auth::AuthCacheService;
+    /// use scyph_auth::AuthCacheService;
     ///
     /// #[derive(Clone)]
     /// struct UserProfile { id: uuid::Uuid, is_active: bool }

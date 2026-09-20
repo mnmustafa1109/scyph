@@ -1,7 +1,7 @@
-//! # Skidblad Core
+//! # Scyph Core
 //!
-//! `skidblad-core` provides the foundational building blocks for web applications built
-//! with the Skidblad framework.
+//! `scyph-core` provides the foundational building blocks for web applications built
+//! with the Scyph framework.
 //!
 //! ## Overview
 //!
@@ -13,11 +13,11 @@
 //! ## Quick Example
 //!
 //! ```rust
-//! use skidblad_core::{ApiResponse, AppError};
+//! use scyph_core::{ApiResponse, AppError};
 //! use axum::http::StatusCode;
 //!
 //! async fn example_handler() -> Result<ApiResponse<&'static str>, AppError> {
-//!     Ok(ApiResponse::ok("Hello, Skidblad!"))
+//!     Ok(ApiResponse::ok("Hello, Scyph!"))
 //! }
 //! ```
 

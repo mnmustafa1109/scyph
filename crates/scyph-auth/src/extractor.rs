@@ -8,7 +8,7 @@ use axum::{
     http::{header::AUTHORIZATION, request::Parts},
 };
 use secrecy::SecretString;
-use skidblad_core::{error::AppError, traits::Claims};
+use scyph_core::{error::AppError, traits::Claims};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -24,8 +24,8 @@ use crate::{cache::AuthCacheService, jwt::verify_token};
 /// # Examples
 ///
 /// ```rust,no_run
-/// use skidblad_auth::AuthUser;
-/// use skidblad_core::Claims;
+/// use scyph_auth::AuthUser;
+/// use scyph_core::Claims;
 ///
 /// async fn handler<C: Claims>(user: AuthUser<C>) -> String {
 ///     format!("Hello, user {}", user.id)
