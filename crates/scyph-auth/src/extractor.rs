@@ -54,6 +54,8 @@ pub trait AuthExtractorState<C: Claims>: Send + Sync + 'static {
     fn auth_cache(&self) -> &Arc<AuthCacheService<Self::CachePool>>;
 }
 
+use tracing::{debug, warn};
+
 impl<S, C> FromRequestParts<S> for AuthUser<C>
 where
     S: AuthExtractorState<C> + Send + Sync,
@@ -78,6 +80,7 @@ where
             if parts.extensions.get::<C::Role>().is_none() {
                 parts.extensions.insert(role);
             }
+            debug!(user_id = %user.id, "AuthUser retrieved from request extensions (fast-path)");
             return Ok(user);
         }
 
@@ -85,24 +88,32 @@ where
             .headers
             .get(AUTHORIZATION)
             .and_then(|v| v.to_str().ok())
-            .ok_or_else(|| AppError::Unauthorized("Missing Authorization header".into()))?;
+            .ok_or_else(|| {
+                warn!("Authentication failed: Missing Authorization header");
+                AppError::Unauthorized("Missing Authorization header".into())
+            })?;
 
         let token = auth_header.strip_prefix("Bearer ").ok_or_else(|| {
+            warn!("Authentication failed: Invalid Authorization scheme (expected Bearer)");
             AppError::Unauthorized("Invalid Authorization scheme; expected Bearer".into())
         })?;
 
-        let data = verify_token::<C>(token, state.jwt_secret())
-            .map_err(|e| AppError::Unauthorized(e.to_string()))?;
+        let data = verify_token::<C>(token, state.jwt_secret()).map_err(|e| {
+            warn!(error = %e, "Authentication failed: JWT verification failed");
+            AppError::Unauthorized(e.to_string())
+        })?;
 
         let claims = data.claims;
         let jti = claims.jti();
         let role = *claims.role();
 
         if jti.is_empty() {
+            warn!("Authentication failed: Token jti claim is missing");
             return Err(AppError::Unauthorized("Token jti claim is missing".into()));
         }
 
         if state.auth_cache().is_token_revoked(jti).await {
+            warn!(jti = %jti, "Authentication failed: Token has been revoked");
             return Err(AppError::Unauthorized("Token has been revoked".into()));
         }
 
@@ -110,6 +121,8 @@ where
             id: claims.subject(),
             claims,
         };
+
+        debug!(user_id = %user.id, "Successfully authenticated user via Bearer JWT");
 
         // Cache role and user in request extensions
         parts.extensions.insert(role);

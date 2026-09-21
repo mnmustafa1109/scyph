@@ -17,6 +17,8 @@ use scyph_core::{error::AppError, traits::Claims};
 #[derive(Clone, Copy)]
 pub struct AllowedRoles<R: 'static>(pub &'static [R]);
 
+use tracing::{debug, warn};
+
 /// Combined authentication and role authorization middleware layer.
 ///
 /// Extracts and verifies the user's JWT credentials, checks token revocation, and enforces
@@ -44,8 +46,17 @@ where
 
     // 3. Verify user's role against allowed list
     if !allowed.0.contains(user.claims.role()) {
+        warn!(
+            user_id = %user.id,
+            "RBAC Authorization failed: Insufficient role permissions"
+        );
         return Err(AppError::Forbidden("Insufficient permissions".into()));
     }
+
+    debug!(
+        user_id = %user.id,
+        "RBAC Authorization passed for route"
+    );
 
     // 4. Reconstruct request with parts (containing AuthUser extensions) and body
     let request = Request::from_parts(parts, body);

@@ -6,6 +6,7 @@ use cedar_policy::{
 use scyph_auth::AuthUser;
 use scyph_core::{Action, AppError, Claims};
 use std::str::FromStr;
+use tracing::{debug, warn};
 
 use super::{entity::IntoCedarEntity, error::CedarError};
 
@@ -74,8 +75,24 @@ impl CedarAuthorizer {
             .authorizer
             .is_authorized(&request, &self.policies, entities);
         match response.decision() {
-            Decision::Allow => Ok(()),
-            Decision::Deny => Err(CedarError::AccessDenied),
+            Decision::Allow => {
+                debug!(
+                    principal = %principal,
+                    action = %action,
+                    resource = %resource,
+                    "Cedar authorization decision: ALLOW"
+                );
+                Ok(())
+            }
+            Decision::Deny => {
+                warn!(
+                    principal = %principal,
+                    action = %action,
+                    resource = %resource,
+                    "Cedar authorization decision: DENY"
+                );
+                Err(CedarError::AccessDenied)
+            }
         }
     }
 

@@ -70,12 +70,23 @@ pub trait AuthUserEnforceExt<C: Claims> {
     ) -> Result<(), AppError>;
 }
 
+use tracing::{debug, warn};
+
 impl<C: Claims> AuthUserEnforceExt<C> for AuthUser<C> {
     fn enforce<P: AbacPolicy<Claims = C>>(
         &self,
         resource: &P::Resource,
         action: Action,
     ) -> Result<(), AppError> {
-        P::check(self, resource, action)
+        match P::check(self, resource, action.clone()) {
+            Ok(()) => {
+                debug!(user_id = %self.id, action = ?action, "ABAC policy check passed");
+                Ok(())
+            }
+            Err(err) => {
+                warn!(user_id = %self.id, action = ?action, error = %err, "ABAC policy check failed");
+                Err(err)
+            }
+        }
     }
 }
