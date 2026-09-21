@@ -25,6 +25,10 @@ pub use scyph_abac as abac;
 /// Database connection pooling and transaction lifecycle helpers.
 pub use scyph_db as db;
 
+#[cfg(feature = "health")]
+/// Kubernetes liveness and readiness health checks.
+pub use scyph_health as health;
+
 /// Convenient prelude re-exporting common framework types for single-line imports (`use scyph::prelude::*;`).
 pub mod prelude {
     pub use scyph_core::{
@@ -42,6 +46,9 @@ pub mod prelude {
 
     #[cfg(feature = "db")]
     pub use scyph_db::{begin, build_pool, commit, rollback, run_migrations, run_seeds};
+
+    #[cfg(feature = "health")]
+    pub use scyph_health::{HealthRegistry, ServiceStatus, Status, health_routes};
 }
 
 // ── Convenient Top-Level Re-exports ──────────────────────────────────────────
