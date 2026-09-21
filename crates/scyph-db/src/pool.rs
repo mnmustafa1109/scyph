@@ -13,11 +13,8 @@ use tracing::info;
 ///
 /// # Errors
 ///
-/// Returns [`sqlx::Error`] if connecting to PostgreSQL fails.
-///
-/// # Panics
-///
-/// Panics if `DATABASE_URL` is missing or if connection limits cannot be parsed into `u32`.
+/// Returns [`sqlx::Error::Configuration`] if `DATABASE_URL` is missing or limits are invalid,
+/// or [`sqlx::Error`] if connecting to PostgreSQL fails.
 ///
 /// # Examples
 ///
@@ -30,16 +27,18 @@ use tracing::info;
 /// }
 /// ```
 pub async fn build_pool() -> Result<PgPool, sqlx::Error> {
-    let url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let url = env::var("DATABASE_URL")
+        .map_err(|_| sqlx::Error::Configuration("DATABASE_URL environment variable must be set".into()))?;
+
     let max_conn = env::var("MAX_CONNECTIONS")
         .unwrap_or_else(|_| "5".to_string())
         .parse::<u32>()
-        .expect("MAX_CONNECTIONS must be a valid u32");
+        .map_err(|e| sqlx::Error::Configuration(format!("MAX_CONNECTIONS must be a valid u32: {e}").into()))?;
 
     let min_conn = env::var("MIN_CONNECTIONS")
         .unwrap_or_else(|_| "1".to_string())
         .parse::<u32>()
-        .expect("MIN_CONNECTIONS must be a valid u32");
+        .map_err(|e| sqlx::Error::Configuration(format!("MIN_CONNECTIONS must be a valid u32: {e}").into()))?;
 
     info!(
         max_connections = max_conn,
