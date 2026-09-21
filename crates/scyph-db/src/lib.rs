@@ -14,6 +14,6 @@ pub mod pool;
 /// Database transaction lifecycle wrappers.
 pub mod transaction;
 
-pub use migrate::{run_migrationes, run_seeds};
+pub use migrate::{run_migrations, run_seeds};
 pub use pool::build_pool;
 pub use transaction::{begin, commit, rollback};

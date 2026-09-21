@@ -6,10 +6,25 @@ use tracing::info;
 
 /// Runs compiled SQL migrations from the `./migrations` directory against the database pool.
 ///
+/// # Arguments
+///
+/// * `pool` - Reference to the PostgreSQL connection pool [`PgPool`].
+///
 /// # Panics
 ///
 /// Panics if migration execution fails against the database.
-pub async fn run_migrationes(pool: &PgPool) {
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use scyph_db::run_migrations;
+/// use sqlx::PgPool;
+///
+/// async fn init_db(pool: &PgPool) {
+///     run_migrations(pool).await;
+/// }
+/// ```
+pub async fn run_migrations(pool: &PgPool) {
     info!("Running database migrations");
     sqlx::migrate!("./migrations")
         .run(pool)
@@ -20,11 +35,27 @@ pub async fn run_migrationes(pool: &PgPool) {
 
 /// Executes database seed files if the environment variable `RUN_SEEDS` is set to `"true"` or `"1"`.
 ///
-/// Executes common seed data (`./seeds/common`) and environment-specific seeds based on `APP_ENV`.
+/// Executes common seed data (`./seeds/common`) and environment-specific seeds (`./seeds/prod` or `./seeds/beta`)
+/// based on the `APP_ENV` environment variable.
+///
+/// # Arguments
+///
+/// * `pool` - Reference to the PostgreSQL connection pool [`PgPool`].
 ///
 /// # Panics
 ///
 /// Panics if seed execution fails against the database.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use scyph_db::run_seeds;
+/// use sqlx::PgPool;
+///
+/// async fn seed_db(pool: &PgPool) {
+///     run_seeds(pool).await;
+/// }
+/// ```
 pub async fn run_seeds(pool: &PgPool) {
     let run = std::env::var("RUN_SEEDS")
         .map(|v| v == "true" || v == "1")
@@ -48,7 +79,7 @@ pub async fn run_seeds(pool: &PgPool) {
             sqlx::migrate!("./seeds/prod")
                 .run(pool)
                 .await
-                .expect("Failed to run development seed data insertion");
+                .expect("Failed to run production seed data insertion");
         }
         "beta" => {
             sqlx::migrate!("./seeds/beta")

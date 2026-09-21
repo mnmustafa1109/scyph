@@ -18,6 +18,17 @@ use tracing::info;
 /// # Panics
 ///
 /// Panics if `DATABASE_URL` is missing or if connection limits cannot be parsed into `u32`.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use scyph_db::build_pool;
+///
+/// async fn setup() {
+///     std::env::set_var("DATABASE_URL", "postgres://postgres:password@localhost/mydb");
+///     let pool = build_pool().await.expect("Pool created");
+/// }
+/// ```
 pub async fn build_pool() -> Result<PgPool, sqlx::Error> {
     let url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let max_conn = env::var("MAX_CONNECTIONS")
