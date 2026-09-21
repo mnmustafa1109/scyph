@@ -1,0 +1,1 @@
+-- Placeholder migration file for sqlx::migrate!

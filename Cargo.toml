@@ -14,6 +14,7 @@ members = [
   "crates/scyph-core",
   "crates/scyph-auth",
   "crates/scyph-abac",
+  "crates/scyph-db",
 ]
 
 [workspace.package]
@@ -43,6 +44,10 @@ sqlx = { version = "0.9.0", features = [
   "chrono",
   "runtime-tokio",
   "tls-rustls-ring",
+  "json",
+  "rust_decimal",
+  "macros",
+  "migrate",
 ] }
 cedar-policy = "4.13.0"
 
