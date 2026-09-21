@@ -25,11 +25,30 @@ pub use scyph_abac as abac;
 /// Database connection pooling and transaction lifecycle helpers.
 pub use scyph_db as db;
 
+/// Convenient prelude re-exporting common framework types for single-line imports (`use scyph::prelude::*;`).
+pub mod prelude {
+    pub use scyph_core::{
+        Action, ApiResponse, AppError, Authorizable, Claims, PagedResponse, Result,
+    };
+
+    #[cfg(feature = "auth")]
+    pub use scyph_auth::{
+        AuthCacheService, AuthUser, OptionalAuthUser, RoleRouterExt, hash_password,
+        hash_password_async, require_role, verify_password, verify_password_async,
+    };
+
+    #[cfg(feature = "abac")]
+    pub use scyph_abac::{AbacPolicy, AuthUserEnforceExt, FilterBuilder};
+
+    #[cfg(feature = "db")]
+    pub use scyph_db::{begin, build_pool, commit, rollback, run_migrations, run_seeds};
+}
+
 // ── Convenient Top-Level Re-exports ──────────────────────────────────────────
 pub use scyph_core::{Action, ApiResponse, AppError, Authorizable, Claims, PagedResponse, Result};
 
 #[cfg(feature = "auth")]
-pub use scyph_auth::AuthUser;
+pub use scyph_auth::{AuthUser, OptionalAuthUser};
 
 #[cfg(feature = "abac")]
 pub use scyph_abac::{AbacPolicy, FilterBuilder};
