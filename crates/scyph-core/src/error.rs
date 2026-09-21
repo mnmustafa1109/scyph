@@ -69,6 +69,14 @@ pub enum AppError {
     #[error("Payment required: {0}")]
     PaymentRequired(String),
 
+    /// 429 Too Many Requests — Client has exceeded rate limit thresholds.
+    #[error("Too many requests: {0}")]
+    TooManyRequests(String),
+
+    /// 503 Service Unavailable — Server is temporarily overloaded or under maintenance.
+    #[error("Service unavailable: {0}")]
+    ServiceUnavailable(String),
+
     /// 500 Internal Server Error — Unexpected internal failure.
     ///
     /// The full error context is logged via `tracing::error!`, but the client receives an
@@ -179,6 +187,8 @@ impl AppError {
             Self::Conflict(_) => StatusCode::CONFLICT,
             Self::UnprocessableEntity(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::PaymentRequired(_) => StatusCode::PAYMENT_REQUIRED,
+            Self::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
+            Self::ServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
             Self::Internal { .. } => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Custom { status, .. } => *status,
         }
@@ -205,6 +215,8 @@ impl AppError {
             Self::Conflict(_) => "CONFLICT",
             Self::UnprocessableEntity(_) => "UNPROCESSABLE_ENTITY",
             Self::PaymentRequired(_) => "PAYMENT_REQUIRED",
+            Self::TooManyRequests(_) => "TOO_MANY_REQUESTS",
+            Self::ServiceUnavailable(_) => "SERVICE_UNAVAILABLE",
             Self::Internal { .. } => "INTERNAL_SERVER_ERROR",
             Self::Custom { code, .. } => code.as_str(),
         }
