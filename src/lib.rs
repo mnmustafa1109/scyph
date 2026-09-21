@@ -1,18 +1,35 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+//! # Scyph
+//!
+//! `scyph` is a modular framework for building production-grade web services with Axum.
+//!
+//! ## Feature Flags
+//!
+//! - `auth`: Enables authentication (JWT, Argon2id, Moka caching, RBAC).
+//! - `abac`: Enables Attribute-Based Access Control (SQL FilterBuilder, Cedar engine).
+//! - `db`: Enables PostgreSQL pool management, transaction helpers, and migrations.
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#![warn(missing_docs)]
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+/// Core foundational building blocks (RFC 7807 AppError, ApiResponse, Claims).
+pub use scyph_core as core;
 
-pub fn subtract(left: u64, right: u64) -> u64 {
-    left - right
-}
+#[cfg(feature = "auth")]
+/// Authentication and role-based access control.
+pub use scyph_auth as auth;
+
+#[cfg(feature = "abac")]
+/// Attribute-based access control policies and Cedar policy engine integration.
+pub use scyph_abac as abac;
+
+#[cfg(feature = "db")]
+/// Database connection pooling and transaction lifecycle helpers.
+pub use scyph_db as db;
+
+// ── Convenient Top-Level Re-exports ──────────────────────────────────────────
+pub use scyph_core::{Action, ApiResponse, AppError, Authorizable, Claims, PagedResponse, Result};
+
+#[cfg(feature = "auth")]
+pub use scyph_auth::AuthUser;
+
+#[cfg(feature = "abac")]
+pub use scyph_abac::{AbacPolicy, FilterBuilder};

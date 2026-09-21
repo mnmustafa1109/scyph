@@ -36,7 +36,7 @@ pub mod traits;
 pub use error::AppError;
 
 #[doc(inline)]
-pub use response::{ApiResponse, PagedResponse};
+pub use response::{ApiResponse, PagedResponse, Result};
 
 #[doc(inline)]
 pub use traits::{Action, Authorizable, Claims};

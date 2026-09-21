@@ -7,6 +7,18 @@ repository.workspace = true
 rust-version.workspace = true
 description = "A collection of modular, independently usable Rust crates providing cross-cutting concerns for production Axum backends (auth, RFC 7807 errors, DB, health, telemetry, jobs, and more)."
 
+[features]
+default = ["auth", "db"]
+auth = ["dep:scyph-auth"]
+abac = ["dep:scyph-abac"]
+db = ["dep:scyph-db"]
+
+[dependencies]
+scyph-core = { path = "crates/scyph-core", version = "0.1.0" }
+scyph-auth = { path = "crates/scyph-auth", version = "0.1.0", optional = true }
+scyph-abac = { path = "crates/scyph-abac", version = "0.1.0", optional = true }
+scyph-db = { path = "crates/scyph-db", version = "0.1.0", optional = true }
+
 [workspace]
 resolver = "3"
 members = [
