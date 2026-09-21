@@ -23,4 +23,6 @@ pub use filter::FilterBuilder;
 pub use policy::AbacPolicy;
 
 #[cfg(feature = "cedar")]
-pub use cedar::{CedarAuthorizer, CedarEntityBuilder, CedarError, IntoCedarEntity};
+pub use cedar::{
+    CedarAuthorizer, CedarEntityBuilder, CedarError, CedarSchemaBuilder, CedarType, IntoCedarEntity,
+};
