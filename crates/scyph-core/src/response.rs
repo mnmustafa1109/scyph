@@ -153,6 +153,50 @@ pub struct PagedResponse<T: Serialize> {
     pub next_cursor: Option<String>,
 }
 
+impl<T: Serialize> PagedResponse<T> {
+    /// Creates a new [`PagedResponse`] envelope with offset pagination metadata.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - Page item records vector.
+    /// * `total` - Total count of matching records across all pages.
+    /// * `page` - Current 1-indexed page number.
+    /// * `per_page` - Number of items requested per page.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use scyph_core::PagedResponse;
+    ///
+    /// let paged = PagedResponse::new(vec!["item1", "item2"], 10, 1, 2);
+    /// assert!(paged.has_next);
+    /// assert_eq!(paged.total, 10);
+    /// ```
+    pub fn new(data: Vec<T>, total: i64, page: i64, per_page: i64) -> Self {
+        let has_next = (page * per_page) < total;
+        Self {
+            success: true,
+            message: "OK".into(),
+            data,
+            total,
+            page,
+            per_page,
+            has_next,
+            next_cursor: None,
+        }
+    }
+
+    /// Attaches an optional cursor token string for cursor-based pagination continuation.
+    ///
+    /// # Arguments
+    ///
+    /// * `cursor` - Continuation token string for fetching the next page.
+    pub fn with_cursor(mut self, cursor: impl Into<String>) -> Self {
+        self.next_cursor = Some(cursor.into());
+        self
+    }
+}
+
 impl<T: Serialize + Send> IntoResponse for PagedResponse<T> {
     fn into_response(self) -> Response {
         (StatusCode::OK, Json(self)).into_response()
