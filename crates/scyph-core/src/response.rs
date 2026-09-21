@@ -14,12 +14,16 @@
 //! assert_eq!(response.message, "OK");
 //! ```
 
+use crate::AppError;
 use axum::{
     Json,
     http::StatusCode,
     response::{IntoResponse, Response},
 };
 use serde::Serialize;
+
+/// Standardized [`Result`](std::result::Result) type alias defaulting the error type to [`AppError`].                                                                                                      
+pub type Result<T, E = AppError> = std::result::Result<T, E>;
 
 /// Standard JSON envelope for successful API responses.
 ///
