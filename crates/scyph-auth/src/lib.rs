@@ -38,7 +38,7 @@ pub mod router_ext;
 pub use cache::AuthCacheService;
 
 #[doc(inline)]
-pub use extractor::{AuthExtractorState, AuthUser};
+pub use extractor::{AuthExtractorState, AuthUser, OptionalAuthUser};
 
 #[doc(inline)]
 pub use jwt::{JwtError, create_token, verify_token};
@@ -47,7 +47,7 @@ pub use jwt::{JwtError, create_token, verify_token};
 pub use middleware::{AllowedRoles, require_roles_layer};
 
 #[doc(inline)]
-pub use password::{PasswordError, hash_password, verify_password};
+pub use password::{PasswordError, hash_password, hash_password_async, verify_password, verify_password_async};
 
 #[doc(inline)]
 pub use rbac::require_role;

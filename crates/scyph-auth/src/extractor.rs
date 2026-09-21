@@ -39,6 +39,31 @@ pub struct AuthUser<C: Claims> {
     pub claims: C,
 }
 
+/// Optional authenticated user extractor for public or hybrid endpoints.
+///
+/// Wraps an `Option<AuthUser<C>>`. If a valid `Authorization` header is present,
+/// evaluates to `Some(AuthUser)`. If missing or invalid, evaluates to `None` without rejecting the HTTP request.
+///
+/// # Type Parameters
+///
+/// * `C` - Application claims type implementing [`Claims`].
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// use scyph_auth::OptionalAuthUser;
+/// use scyph_core::Claims;
+///
+/// async fn public_or_private_handler<C: Claims>(user: OptionalAuthUser<C>) -> String {
+///     match user.0 {
+///         Some(user) => format!("Hello authenticated user {}", user.id),
+///         None => "Hello guest visitor".into(),
+///     }
+/// }
+/// ```
+#[derive(Debug, Clone)]
+pub struct OptionalAuthUser<C: Claims>(pub Option<AuthUser<C>>);
+
 /// Interface that application state (`S`) must implement to enable [`AuthUser`] extraction.
 ///
 /// Your Axum application state must provide access to the JWT signing secret and the
@@ -129,5 +154,19 @@ where
         parts.extensions.insert(user.clone());
 
         Ok(user)
+    }
+}
+
+impl<S, C> FromRequestParts<S> for OptionalAuthUser<C>
+where
+    S: AuthExtractorState<C> + Send + Sync,
+    C: Claims,
+{
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        Ok(Self(
+            AuthUser::<C>::from_request_parts(parts, state).await.ok(),
+        ))
     }
 }
