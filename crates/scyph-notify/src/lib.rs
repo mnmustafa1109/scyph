@@ -37,6 +37,9 @@ pub use traits::{
     PushNotification, PushService, PushTemplate,
 };
 
+#[cfg(all(feature = "email", feature = "fcm"))]
+pub use traits::{CompositeNotification, NotificationBroadcaster};
+
 #[cfg(feature = "email")]
 pub use email::LettreSMTPService;
 

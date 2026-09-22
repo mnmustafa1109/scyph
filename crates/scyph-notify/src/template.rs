@@ -42,6 +42,9 @@ impl TemplateEngine {
 
     /// Renders a strongly-typed [`EmailTemplate`] into an [`EmailMessage`].
     ///
+    /// If `template.text()` is `None` and the HTML template name ends with `.html` (e.g. `"welcome.html"`),
+    /// automatically attempts to render a matching `.txt` template (e.g. `"welcome.txt"`) for plaintext body fallback.
+    ///
     /// # Arguments
     ///
     /// * `template` - Strongly-typed email template implementing [`EmailTemplate`].
@@ -54,12 +57,23 @@ impl TemplateEngine {
         template: &E,
     ) -> Result<EmailMessage, NotifyError> {
         let ctx = tera::Context::from_serialize(&template.context())?;
-        let html = self.render(template.template_name(), &ctx)?;
+        let html_name = template.template_name();
+        let html = self.render(html_name, &ctx)?;
+
+        let text = if let Some(t) = template.text() {
+            Some(t)
+        } else if html_name.ends_with(".html") {
+            let txt_name = html_name.replace(".html", ".txt");
+            self.render(&txt_name, &ctx).ok()
+        } else {
+            None
+        };
+
         Ok(EmailMessage {
             to: template.to(),
             subject: template.subject(),
             html,
-            text: template.text(),
+            text,
         })
     }
 }
