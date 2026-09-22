@@ -1,6 +1,7 @@
 //! PostgreSQL database connection pool builder.
 
 use crate::DbError;
+use secrecy::{ExposeSecret, SecretString};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::env;
 use tracing::info;
@@ -28,8 +29,10 @@ use tracing::info;
 /// }
 /// ```
 pub async fn build_pool() -> Result<PgPool, DbError> {
-    let url = env::var("DATABASE_URL")
-        .map_err(|_| DbError::Configuration("DATABASE_URL environment variable must be set".into()))?;
+    let url = SecretString::from(
+        env::var("DATABASE_URL")
+            .map_err(|_| DbError::Configuration("DATABASE_URL environment variable must be set".into()))?,
+    );
 
     let max_conn = env::var("MAX_CONNECTIONS")
         .unwrap_or_else(|_| "5".to_string())
@@ -50,7 +53,7 @@ pub async fn build_pool() -> Result<PgPool, DbError> {
     let pool = PgPoolOptions::new()
         .max_connections(max_conn)
         .min_connections(min_conn)
-        .connect(&url)
+        .connect(url.expose_secret())
         .await?;
 
     Ok(pool)
