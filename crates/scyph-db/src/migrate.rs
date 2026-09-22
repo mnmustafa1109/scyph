@@ -1,5 +1,4 @@
-//! Database migrations and seed data execution helpers.
-
+use crate::DbError;
 use sqlx::PgPool;
 use std::env;
 use tracing::info;
@@ -13,9 +12,9 @@ use tracing::info;
 ///
 /// * `pool` - Reference to the PostgreSQL connection pool [`PgPool`].
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if migration execution fails against the database.
+/// Returns [`DbError::Migration`] if loading migrations or running them fails.
 ///
 /// # Examples
 ///
@@ -24,28 +23,24 @@ use tracing::info;
 /// use sqlx::PgPool;
 ///
 /// async fn init_db(pool: &PgPool) {
-///     run_migrations(pool).await;
+///     run_migrations(pool).await.expect("Migrations failed");
 /// }
 /// ```
-pub async fn run_migrations(pool: &PgPool) {
+pub async fn run_migrations(pool: &PgPool) -> Result<(), DbError> {
     let dir = env::var("MIGRATIONS_DIR").unwrap_or_else(|_| "./migrations".to_string());
     let path = std::path::Path::new(&dir);
 
     if !path.exists() {
         info!(migrations_dir = %dir, "Migrations directory does not exist, skipping migrations");
-        return;
+        return Ok(());
     }
 
     info!(migrations_dir = %dir, "Running database migrations");
-    let migrator = sqlx::migrate::Migrator::new(path)
-        .await
-        .expect("Failed to load database migrations directory");
+    let migrator = sqlx::migrate::Migrator::new(path).await?;
 
-    migrator
-        .run(pool)
-        .await
-        .expect("Failed to run database migrations");
+    migrator.run(pool).await?;
     info!("Migrations completed successfully");
+    Ok(())
 }
 
 /// Executes database seed files if the environment variable `RUN_SEEDS` is set to `"true"` or `"1"`.
@@ -58,9 +53,9 @@ pub async fn run_migrations(pool: &PgPool) {
 ///
 /// * `pool` - Reference to the PostgreSQL connection pool [`PgPool`].
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if seed execution fails against the database.
+/// Returns [`DbError::Migration`] if loading seeds or executing them fails.
 ///
 /// # Examples
 ///
@@ -69,17 +64,17 @@ pub async fn run_migrations(pool: &PgPool) {
 /// use sqlx::PgPool;
 ///
 /// async fn seed_db(pool: &PgPool) {
-///     run_seeds(pool).await;
+///     run_seeds(pool).await.expect("Seeds failed");
 /// }
 /// ```
-pub async fn run_seeds(pool: &PgPool) {
+pub async fn run_seeds(pool: &PgPool) -> Result<(), DbError> {
     let run = env::var("RUN_SEEDS")
         .map(|v| v == "true" || v == "1")
         .unwrap_or(false);
 
     if !run {
         info!("Skipping seed data insertion (RUN_SEEDS not set to true)");
-        return;
+        return Ok(());
     }
 
     let seeds_base = env::var("SEEDS_DIR").unwrap_or_else(|_| "./seeds".to_string());
@@ -88,27 +83,19 @@ pub async fn run_seeds(pool: &PgPool) {
 
     let common_path = std::path::Path::new(&seeds_base).join("common");
     if common_path.exists() {
-        let migrator = sqlx::migrate::Migrator::new(common_path)
-            .await
-            .expect("Failed to load common seed directory");
-        migrator
-            .run(pool)
-            .await
-            .expect("Failed to run common seed data insertion");
+        let migrator = sqlx::migrate::Migrator::new(common_path).await?;
+        migrator.run(pool).await?;
         info!("Common seed data insertion completed");
     }
 
     let env_path = std::path::Path::new(&seeds_base).join(&env_name);
     if env_path.exists() {
-        let migrator = sqlx::migrate::Migrator::new(env_path)
-            .await
-            .expect("Failed to load environment seed directory");
-        migrator
-            .run(pool)
-            .await
-            .expect("Failed to run environment seed data insertion");
+        let migrator = sqlx::migrate::Migrator::new(env_path).await?;
+        migrator.run(pool).await?;
         info!(app_env = %env_name, "Environment seed data insertion completed");
     } else {
         info!(path = ?env_path, "No specific seed data directory found for environment: {}", env_name);
     }
+
+    Ok(())
 }

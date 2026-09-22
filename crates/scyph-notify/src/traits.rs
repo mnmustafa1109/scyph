@@ -1,6 +1,6 @@
 //! Notification traits and message data structures.
 
-use scyph_core::AppError;
+use crate::NotifyError;
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -20,7 +20,7 @@ pub struct EmailMessage {
 /// Abstract contract for asynchronous email delivery services.
 pub trait EmailService: Send + Sync + 'static {
     /// Sends an [`EmailMessage`] asynchronously.
-    fn send(&self, msg: EmailMessage) -> impl Future<Output = Result<(), AppError>> + Send;
+    fn send(&self, msg: EmailMessage) -> impl Future<Output = Result<(), NotifyError>> + Send;
 }
 
 /// Push notification payload for delivery via [`PushService`].
@@ -46,7 +46,7 @@ pub trait PushService: Send + Sync + 'static {
     fn send(
         &self,
         notification: PushNotification,
-    ) -> impl Future<Output = Result<(), AppError>> + Send;
+    ) -> impl Future<Output = Result<(), NotifyError>> + Send;
 }
 
 /// In-app notification record structure.
@@ -67,14 +67,18 @@ pub struct InAppNotification {
 /// Abstract repository contract for storing and querying in-app user notifications.
 pub trait NotificationRepository: Send + Sync + 'static {
     /// Creates a new [`InAppNotification`] record in the repository.
-    fn create(&self, n: InAppNotification) -> impl Future<Output = Result<(), AppError>> + Send;
+    fn create(&self, n: InAppNotification) -> impl Future<Output = Result<(), NotifyError>> + Send;
     /// Marks an in-app notification as read for a given user.
-    fn mark_read(&self, id: Uuid, user: Uuid) -> impl Future<Output = Result<(), AppError>> + Send;
+    fn mark_read(
+        &self,
+        id: Uuid,
+        user: Uuid,
+    ) -> impl Future<Output = Result<(), NotifyError>> + Send;
     /// Marks all unread in-app notifications as read for a specific user.
-    fn mark_all_read(&self, user: Uuid) -> impl Future<Output = Result<(), AppError>> + Send;
+    fn mark_all_read(&self, user: Uuid) -> impl Future<Output = Result<(), NotifyError>> + Send;
     /// Lists all unread notifications for a specified user.
     fn list_unread(
         &self,
         user: Uuid,
-    ) -> impl Future<Output = Result<Vec<InAppNotification>, AppError>> + Send;
+    ) -> impl Future<Output = Result<Vec<InAppNotification>, NotifyError>> + Send;
 }

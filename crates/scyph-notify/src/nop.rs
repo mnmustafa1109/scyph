@@ -1,8 +1,9 @@
 //! No-op push notification service implementation.
 
-use scyph_core::AppError;
-
-use crate::traits::{PushNotification, PushService};
+use crate::{
+    traits::{PushNotification, PushService},
+    NotifyError,
+};
 
 /// A dummy no-op [`PushService`] implementation that silently succeeds without delivering notifications.
 ///
@@ -11,7 +12,7 @@ use crate::traits::{PushNotification, PushService};
 pub struct NoPushService;
 
 impl PushService for NoPushService {
-    async fn send(&self, _: PushNotification) -> Result<(), AppError> {
+    async fn send(&self, _: PushNotification) -> Result<(), NotifyError> {
         Ok(())
     }
 }

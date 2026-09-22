@@ -2,7 +2,6 @@
 
 use gcp_auth::{CustomServiceAccount, TokenProvider};
 use reqwest::Client;
-use scyph_core::AppError;
 use secrecy::{ExposeSecret, SecretString};
 use serde_json::json;
 use std::env;
@@ -10,6 +9,7 @@ use std::env;
 use crate::{
     traits::{PushNotification, PushService},
     util::send_fcm_request,
+    NotifyError,
 };
 
 /// FCM push notification service using Google Firebase v1 REST API.
@@ -26,27 +26,24 @@ impl FcmPushService {
     ///
     /// # Errors
     ///
-    /// Returns [`AppError::Internal`] if environment variables are missing, credentials are invalid,
+    /// Returns [`NotifyError`] if environment variables are missing, credentials are invalid,
     /// or dry-run validation fails.
-    pub async fn from_env() -> Result<Self, AppError> {
+    pub async fn from_env() -> Result<Self, NotifyError> {
         let project_id = env::var("FCM_PROJECT_ID")
-            .map_err(|e| AppError::internal_from(e, "FCM_PROJECT_ID must be set"))?;
+            .map_err(|_| NotifyError::Configuration("FCM_PROJECT_ID must be set".into()))?;
 
         let service_account_json = SecretString::from(
             env::var("FCM_SERVICE_ACCOUNT_JSON")
-                .map_err(|e| AppError::internal_from(e, "FCM_SERVICE_ACCOUNT_JSON must be set"))?,
+                .map_err(|_| NotifyError::Configuration("FCM_SERVICE_ACCOUNT_JSON must be set".into()))?,
         );
 
-        let auth = CustomServiceAccount::from_json(service_account_json.expose_secret())
-            .map_err(|e| AppError::internal_from(e, "Invalid FCM service account JSON"))?;
-
+        let auth = CustomServiceAccount::from_json(service_account_json.expose_secret())?;
         let client = Client::new();
 
         // 1. Fetch access token to verify credentials and scope access
         let token = auth
             .token(&["https://www.googleapis.com/auth/firebase.messaging"])
-            .await
-            .map_err(|e| AppError::internal_from(e, "Failed to acquire FCM OAuth token"))?;
+            .await?;
 
         // 2. Dry-run request to test permissions (validate_only: true)
         let test_payload = json!({
@@ -82,12 +79,11 @@ impl FcmPushService {
 }
 
 impl PushService for FcmPushService {
-    async fn send(&self, n: PushNotification) -> Result<(), AppError> {
+    async fn send(&self, n: PushNotification) -> Result<(), NotifyError> {
         let token = self
             .auth
             .token(&["https://www.googleapis.com/auth/firebase.messaging"])
-            .await
-            .map_err(|e| AppError::internal_from(e, "FCM auth token"))?;
+            .await?;
 
         let mut notification_map = serde_json::Map::new();
         notification_map.insert("title".to_string(), json!(n.title));

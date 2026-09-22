@@ -49,7 +49,10 @@ pub mod prelude {
     pub use scyph_abac::{AbacPolicy, AuthUserEnforceExt, FilterBuilder};
 
     #[cfg(feature = "db")]
-    pub use scyph_db::{begin, build_pool, commit, rollback, run_migrations, run_seeds};
+    pub use scyph_db::{begin, build_pool, commit, rollback, run_migrations, run_seeds, DbError};
+
+    #[cfg(feature = "notify")]
+    pub use scyph_notify::NotifyError;
 
     #[cfg(all(feature = "db", feature = "health"))]
     pub use scyph_db::DbHealthExt;
@@ -68,3 +71,9 @@ pub use scyph_auth::{AuthUser, OptionalAuthUser};
 
 #[cfg(feature = "abac")]
 pub use scyph_abac::{AbacPolicy, FilterBuilder};
+
+#[cfg(feature = "db")]
+pub use scyph_db::DbError;
+
+#[cfg(feature = "notify")]
+pub use scyph_notify::NotifyError;

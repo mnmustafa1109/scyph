@@ -16,5 +16,6 @@ scyph-core = { path = "../scyph-core", version = "0.1" }
 scyph-health = { path = "../scyph-health", version = "0.1", optional = true }
 sqlx = { workspace = true }
 secrecy = { workspace = true }
+thiserror = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true }

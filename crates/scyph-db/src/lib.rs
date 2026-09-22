@@ -18,6 +18,10 @@ pub mod transaction;
 /// Extension traits for automated PostgreSQL pool health checks.
 pub mod health;
 
+/// Database error type definitions.
+pub mod error;
+
+pub use error::DbError;
 pub use migrate::{run_migrations, run_seeds};
 pub use pool::build_pool;
 pub use transaction::{begin, commit, rollback};

@@ -26,6 +26,10 @@ pub mod fcm;
 /// Health check extensions for notification services.
 pub mod health;
 
+/// Notification error type definitions.
+pub mod error;
+
+pub use error::NotifyError;
 pub use nop::NoPushService;
 pub use traits::{
     EmailMessage, EmailService, InAppNotification, NotificationRepository, PushNotification,

@@ -1,16 +1,17 @@
 use std::env;
 
 use lettre::{
-    AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
-    address::AddressError,
-    message::{MultiPart, SinglePart, header::ContentType},
+    message::{header::ContentType, MultiPart, SinglePart},
     transport::smtp::authentication::Credentials,
+    AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
 };
-use scyph_core::AppError;
 use secrecy::{ExposeSecret, SecretString};
 use tracing::info;
 
-use crate::traits::{EmailMessage, EmailService};
+use crate::{
+    traits::{EmailMessage, EmailService},
+    NotifyError,
+};
 
 /// SMTP email delivery service implementation using `lettre`.
 pub struct LettreSMTPService {
@@ -24,38 +25,34 @@ impl LettreSMTPService {
     ///
     /// # Errors
     ///
-    /// Returns [`AppError::Internal`] if environment variables are missing, invalid, or if the SMTP connection test fails.
-    pub async fn from_env() -> Result<Self, AppError> {
+    /// Returns [`NotifyError`] if environment variables are missing, invalid, or if the SMTP connection test fails.
+    pub async fn from_env() -> Result<Self, NotifyError> {
         let host = env::var("SMTP_HOST")
-            .map_err(|e| AppError::internal_from(e, "SMTP_HOST must be set"))?;
+            .map_err(|_| NotifyError::Configuration("SMTP_HOST must be set".into()))?;
         let port: u16 = env::var("SMTP_PORT")
-            .map_err(|e| AppError::internal_from(e, "SMTP_PORT must be set"))?
+            .map_err(|_| NotifyError::Configuration("SMTP_PORT must be set".into()))?
             .parse()
-            .map_err(|e| AppError::internal_from(e, "SMTP_PORT must be a valid u16"))?;
+            .map_err(|e| NotifyError::Configuration(format!("SMTP_PORT must be a valid u16: {e}")))?;
         let username = env::var("SMTP_USERNAME")
-            .map_err(|e| AppError::internal_from(e, "SMTP_USERNAME must be set"))?;
+            .map_err(|_| NotifyError::Configuration("SMTP_USERNAME must be set".into()))?;
         let password = SecretString::from(
             env::var("SMTP_PASSWORD")
-                .map_err(|e| AppError::internal_from(e, "SMTP_PASSWORD must be set"))?,
+                .map_err(|_| NotifyError::Configuration("SMTP_PASSWORD must be set".into()))?,
         );
         let from = env::var("SMTP_FROM")
-            .map_err(|e| AppError::internal_from(e, "SMTP_FROM must be set"))?;
+            .map_err(|_| NotifyError::Configuration("SMTP_FROM must be set".into()))?;
 
         let creds = Credentials::new(username, password.expose_secret().to_string());
-        let transport = AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&host)
-            .map_err(|e| AppError::internal_from(e, "Failed to create SMTP transport"))?
+        let transport = AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&host)?
             .port(port)
             .credentials(creds)
             .build();
 
-        let connected = transport
-            .test_connection()
-            .await
-            .map_err(|e| AppError::internal_from(e, "SMTP connection test failed"))?;
+        let connected = transport.test_connection().await?;
 
         if !connected {
-            return Err(AppError::internal(
-                "SMTP server returned negative response during connection test",
+            return Err(NotifyError::Configuration(
+                "SMTP server returned negative response during connection test".into(),
             ));
         }
 
@@ -69,48 +66,36 @@ impl LettreSMTPService {
 }
 
 impl EmailService for LettreSMTPService {
-    async fn send(&self, msg: EmailMessage) -> Result<(), AppError> {
+    async fn send(&self, msg: EmailMessage) -> Result<(), NotifyError> {
         for recipient in &msg.to {
-            let builder =
-                Message::builder()
-                    .from(self.from.parse().map_err(|e: AddressError| {
-                        AppError::internal_from(e, "parse from address")
-                    })?)
-                    .to(recipient.parse().map_err(|e: AddressError| {
-                        AppError::internal_from(e, "parse to address")
-                    })?)
-                    .subject(&msg.subject);
+            let builder = Message::builder()
+                .from(self.from.parse()?)
+                .to(recipient.parse()?)
+                .subject(&msg.subject);
 
             let email = if let Some(text) = &msg.text {
-                builder
-                    .multipart(
-                        MultiPart::alternative()
-                            .singlepart(
-                                SinglePart::builder()
-                                    .header(ContentType::TEXT_PLAIN)
-                                    .body(text.clone()),
-                            )
-                            .singlepart(
-                                SinglePart::builder()
-                                    .header(ContentType::TEXT_HTML)
-                                    .body(msg.html.clone()),
-                            ),
-                    )
-                    .map_err(|e| AppError::internal_from(e, "build multipart email message"))?
+                builder.multipart(
+                    MultiPart::alternative()
+                        .singlepart(
+                            SinglePart::builder()
+                                .header(ContentType::TEXT_PLAIN)
+                                .body(text.clone()),
+                        )
+                        .singlepart(
+                            SinglePart::builder()
+                                .header(ContentType::TEXT_HTML)
+                                .body(msg.html.clone()),
+                        ),
+                )?
             } else {
-                builder
-                    .singlepart(
-                        SinglePart::builder()
-                            .header(ContentType::TEXT_HTML)
-                            .body(msg.html.clone()),
-                    )
-                    .map_err(|e| AppError::internal_from(e, "build singlepart email message"))?
+                builder.singlepart(
+                    SinglePart::builder()
+                        .header(ContentType::TEXT_HTML)
+                        .body(msg.html.clone()),
+                )?
             };
 
-            self.transport
-                .send(email)
-                .await
-                .map_err(|e| AppError::internal_from(e, format!("send email to {}", recipient)))?;
+            self.transport.send(email).await?;
             info!(recipient = %recipient, subject = %msg.subject, "Email sent successfully");
         }
         Ok(())
