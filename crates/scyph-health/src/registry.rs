@@ -2,6 +2,7 @@
 
 use std::{
     collections::HashMap,
+    fmt::Display,
     sync::{Arc, RwLock},
 };
 
@@ -23,9 +24,10 @@ pub trait IntoHealthResult {
     fn into_health_result(self) -> Result<(), HealthFailure>;
 }
 
-impl<T, E: std::fmt::Display> IntoHealthResult for Result<T, E> {
+impl<T, E: Display> IntoHealthResult for Result<T, E> {
     fn into_health_result(self) -> Result<(), HealthFailure> {
-        self.map(|_| ()).map_err(|e| HealthFailure::Transient(e.to_string()))
+        self.map(|_| ())
+            .map_err(|e| HealthFailure::Transient(e.to_string()))
     }
 }
 
@@ -81,7 +83,7 @@ impl HealthRegistry {
     /// * `fut` - Async health check future yielding any `Result<(), E>` or `Result<(), HealthFailure>`.
     pub async fn check<F, R>(&self, name: &str, required: bool, fut: F)
     where
-        F: std::future::Future<Output = R>,
+        F: Future<Output = R>,
         R: IntoHealthResult,
     {
         let prev_status = self.0.read().unwrap().get(name).map(|s| s.status);
