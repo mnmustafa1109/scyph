@@ -49,7 +49,10 @@ pub mod prelude {
     pub use scyph_abac::{AbacPolicy, AuthUserEnforceExt, FilterBuilder};
 
     #[cfg(feature = "db")]
-    pub use scyph_db::{begin, build_pool, commit, rollback, run_migrations, run_seeds, DbError};
+    pub use scyph_db::{
+        begin, build_pool, commit, rollback, run_migrations, run_migrations_from, run_seeds,
+        run_seeds_from, DbError,
+    };
 
     #[cfg(feature = "notify")]
     pub use scyph_notify::{
