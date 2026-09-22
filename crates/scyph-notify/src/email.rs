@@ -1,3 +1,10 @@
+//! SMTP email delivery service implementation powered by `lettre`.
+//!
+//! ### Connection Pooling & Transport Reuse
+//!
+//! `LettreSMTPService` maintains a single, persistent [`AsyncSmtpTransport`] instance.
+//! All email dispatches reuse this underlying transport connection pool rather than opening a new TCP/TLS socket on every send operation.
+
 use std::env;
 
 use lettre::{
@@ -14,18 +21,27 @@ use crate::{
 };
 
 /// SMTP email delivery service implementation using `lettre`.
+///
+/// Wraps a persistent StartTLS-relayed [`AsyncSmtpTransport`] pool and default `from` sender email address.
+/// Reuses transport connections across all send operations.
 pub struct LettreSMTPService {
     transport: AsyncSmtpTransport<Tokio1Executor>,
     from: String,
 }
 
 impl LettreSMTPService {
-    /// Constructs a [`LettreSMTPService`] from environment variables (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM`),
-    /// performing an active SMTP handshake test to verify server reachability and authentication credentials.
+    /// Constructs a [`LettreSMTPService`] instance by reading environment variables:
+    /// - `SMTP_HOST` (e.g. `"smtp.mailgun.org"`)
+    /// - `SMTP_PORT` (e.g. `587`)
+    /// - `SMTP_USERNAME` (e.g. `"postmaster@mg.example.com"`)
+    /// - `SMTP_PASSWORD` (sensitive, wrapped in [`SecretString`])
+    /// - `SMTP_FROM` (e.g. `"noreply@example.com"`)
+    ///
+    /// Performs an active SMTP handshake test during initialization to verify network reachability and authentication credentials.
     ///
     /// # Errors
     ///
-    /// Returns [`NotifyError`] if environment variables are missing, invalid, or if the SMTP connection test fails.
+    /// Returns [`NotifyError::Configuration`] if environment variables are missing, invalid, or if the SMTP connection test fails.
     pub async fn from_env() -> Result<Self, NotifyError> {
         let host = env::var("SMTP_HOST")
             .map_err(|_| NotifyError::Configuration("SMTP_HOST must be set".into()))?;
@@ -59,13 +75,21 @@ impl LettreSMTPService {
         Ok(Self { transport, from })
     }
 
-    /// Exposes a reference to the inner [`AsyncSmtpTransport`].
+    /// Exposes a reference to the inner persistent [`AsyncSmtpTransport`].
     pub fn transport(&self) -> &AsyncSmtpTransport<Tokio1Executor> {
         &self.transport
     }
 }
 
 impl EmailService for LettreSMTPService {
+    /// Sends an [`EmailMessage`] asynchronously to all listed recipients using the shared transport pool.
+    ///
+    /// Automatically builds a `multipart/alternative` email payload containing both HTML and plaintext bodies
+    /// if `msg.text` is present; otherwise builds a `text/html` singlepart email.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`NotifyError`] if building the `lettre::Message` fails or if transport transmission fails.
     async fn send(&self, msg: EmailMessage) -> Result<(), NotifyError> {
         for recipient in &msg.to {
             let builder = Message::builder()

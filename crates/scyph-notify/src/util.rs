@@ -1,21 +1,27 @@
 //! HTTP utility helpers for Firebase Cloud Messaging (FCM) API calls.
+//!
+//! Provides lower-level REST helpers for dispatching authenticated OAuth2 JSON payloads
+//! to the Google Firebase Cloud Messaging v1 REST endpoint.
 
 use crate::NotifyError;
 use reqwest::{Client, Response, StatusCode};
 use serde_json::Value;
 
-/// Sends an authenticated JSON HTTP POST request to the Google Firebase Cloud Messaging v1 API.
+/// Sends an authenticated JSON HTTP POST request to the Google Firebase Cloud Messaging v1 API (`https://fcm.googleapis.com/v1/projects/{project_id}/messages:send`).
+///
+/// Encapsulates Bearer token header formatting, JSON body serialization, and HTTP status code inspection.
 ///
 /// # Arguments
 ///
-/// * `client` - Shared [`reqwest::Client`] instance.
-/// * `project_id` - FCM project identifier.
-/// * `access_token` - OAuth 2.0 access token string.
-/// * `payload` - JSON payload value to send in the request body.
+/// * `client` - Reference to shared persistent [`reqwest::Client`].
+/// * `project_id` - Google Cloud FCM project identifier string.
+/// * `access_token` - OAuth 2.0 Bearer access token string acquired from `gcp_auth`.
+/// * `payload` - JSON body payload value.
 ///
 /// # Errors
 ///
-/// Returns [`NotifyError`] if the HTTP request fails or if the FCM endpoint returns an error status.
+/// Returns [`NotifyError::Configuration`] if HTTP 403 Forbidden is returned (indicating IAM scope or project permission issues),
+/// or [`NotifyError::Internal`] / [`NotifyError::FcmHttp`] for transport and server errors.
 pub async fn send_fcm_request(
     client: &Client,
     project_id: &str,

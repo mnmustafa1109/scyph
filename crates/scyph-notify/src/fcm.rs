@@ -1,4 +1,9 @@
-//! Firebase Cloud Messaging (FCM) push notification service.
+//! Firebase Cloud Messaging (FCM) push notification service powered by Google Firebase HTTP v1 REST API.
+//!
+//! ### HTTP Client Connection Pool Reuse
+//!
+//! `FcmPushService` maintains a persistent [`reqwest::Client`] instance.
+//! All HTTP POST requests to FCM endpoints reuse this underlying HTTP/2 connection pool instead of re-establishing TCP/TLS handshakes per push event.
 
 use gcp_auth::{CustomServiceAccount, TokenProvider};
 use reqwest::Client;
@@ -13,6 +18,9 @@ use crate::{
 };
 
 /// FCM push notification service using Google Firebase v1 REST API.
+///
+/// Encapsulates Google Cloud Service Account credentials ([`CustomServiceAccount`]), FCM project ID,
+/// and a persistent [`reqwest::Client`] connection pool.
 pub struct FcmPushService {
     project_id: String,
     auth: CustomServiceAccount,
@@ -20,14 +28,16 @@ pub struct FcmPushService {
 }
 
 impl FcmPushService {
-    /// Constructs an [`FcmPushService`] from environment variables (`FCM_PROJECT_ID` and `FCM_SERVICE_ACCOUNT_JSON`).
+    /// Constructs an [`FcmPushService`] instance from environment variables:
+    /// - `FCM_PROJECT_ID` (e.g. `"my-firebase-project-id"`)
+    /// - `FCM_SERVICE_ACCOUNT_JSON` (raw JSON contents of Google Service Account credentials file, sensitive).
     ///
-    /// Performs an initial dry-run validation request against Firebase to verify permissions.
+    /// Performs an initial dry-run validation request (`"validate_only": true`) against Firebase to verify IAM permissions and API scope.
     ///
     /// # Errors
     ///
-    /// Returns [`NotifyError`] if environment variables are missing, credentials are invalid,
-    /// or dry-run validation fails.
+    /// Returns [`NotifyError::Configuration`] if environment variables are missing, service account JSON is invalid,
+    /// or if the Firebase dry-run handshake fails.
     pub async fn from_env() -> Result<Self, NotifyError> {
         let project_id = env::var("FCM_PROJECT_ID")
             .map_err(|_| NotifyError::Configuration("FCM_PROJECT_ID must be set".into()))?;
@@ -62,7 +72,7 @@ impl FcmPushService {
         })
     }
 
-    /// Exposes a reference to the FCM project identifier string.
+    /// Exposes a reference to the FCM Google Cloud project identifier string.
     pub fn project_id(&self) -> &str {
         &self.project_id
     }
@@ -72,13 +82,22 @@ impl FcmPushService {
         &self.auth
     }
 
-    /// Exposes a reference to the inner [`Client`].
+    /// Exposes a reference to the inner persistent [`Client`].
     pub fn client(&self) -> &Client {
         &self.client
     }
 }
 
 impl PushService for FcmPushService {
+    /// Sends a [`PushNotification`] payload asynchronously using Google Firebase Cloud Messaging v1 REST API.
+    ///
+    /// Fetches an OAuth2 bearer token from `gcp_auth`, formats FCM notification parameters,
+    /// configures platform-specific sound settings for Android (`android.notification.sound`) and iOS APNS (`apns.payload.aps.sound`),
+    /// and posts the JSON payload over the shared HTTP client pool.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`NotifyError`] if acquiring OAuth2 bearer tokens fails or if the FCM endpoint returns an HTTP error.
     async fn send(&self, n: PushNotification) -> Result<(), NotifyError> {
         let token = self
             .auth

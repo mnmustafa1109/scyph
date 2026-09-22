@@ -1,14 +1,44 @@
 //! Multi-channel composite notification traits and broadcaster.
+//!
+//! Provides the [`CompositeNotification`] trait for bundling multiple communication channels (Email + Push)
+//! into a single domain event, and [`NotificationBroadcaster`] for dispatching composite events sequentially or in background Tokio tasks.
 
 use super::{email::EmailService, email::EmailTemplate, push::PushService, push::PushTemplate};
 use crate::{template::TemplateEngine, NotifyError};
 use std::sync::Arc;
 
-/// Abstract contract for multi-channel domain notifications (Email + Push).
+/// Abstract contract for multi-channel domain notifications bundling Email and Push templates.
+///
+/// Types implementing this trait define associated [`EmailTemplate`] and [`PushTemplate`] types.
+/// Returning `Some(...)` for `email()` or `push()` causes [`NotificationBroadcaster`] to dispatch across that channel.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use scyph_notify::{CompositeNotification, EmailTemplate, PushTemplate};
+///
+/// struct UserRegisteredEvent {
+///     email: MyEmailTemplate,
+///     push: MyPushTemplate,
+/// }
+///
+/// impl CompositeNotification for UserRegisteredEvent {
+///     type Email = MyEmailTemplate;
+///     type Push = MyPushTemplate;
+///
+///     fn email(&self) -> Option<Self::Email> {
+///         Some(self.email.clone())
+///     }
+///
+///     fn push(&self) -> Option<Self::Push> {
+///         Some(self.push.clone())
+///     }
+/// }
+/// ```
 pub trait CompositeNotification {
-    /// Associated email template type.
+    /// Associated email template type implementing [`EmailTemplate`].
     type Email: EmailTemplate + Send + Sync;
-    /// Associated push notification template type.
+    /// Associated push notification template type implementing [`PushTemplate`].
     type Push: PushTemplate + Send + Sync;
 
     /// Returns the optional email template payload for this notification.
@@ -23,6 +53,9 @@ pub trait CompositeNotification {
 }
 
 /// Unified multi-channel notification dispatcher for broadcasting events across Email and Push services.
+///
+/// Bundles shared [`EmailService`], [`PushService`], and [`TemplateEngine`] references.
+/// Applications can inject `NotificationBroadcaster` as Axum state for single-line multi-channel dispatch.
 #[derive(Clone)]
 pub struct NotificationBroadcaster<E: EmailService, P: PushService> {
     email_service: Arc<E>,
@@ -31,7 +64,13 @@ pub struct NotificationBroadcaster<E: EmailService, P: PushService> {
 }
 
 impl<E: EmailService, P: PushService> NotificationBroadcaster<E, P> {
-    /// Constructs a new [`NotificationBroadcaster`] instance.
+    /// Constructs a new [`NotificationBroadcaster`] instance with shared service handles.
+    ///
+    /// # Arguments
+    ///
+    /// * `email_service` - Shared [`EmailService`] implementation wrapped in [`Arc`].
+    /// * `push_service` - Shared [`PushService`] implementation wrapped in [`Arc`].
+    /// * `template_engine` - Shared [`TemplateEngine`] wrapped in [`Arc`].
     pub fn new(
         email_service: Arc<E>,
         push_service: Arc<P>,
@@ -44,7 +83,11 @@ impl<E: EmailService, P: PushService> NotificationBroadcaster<E, P> {
         }
     }
 
-    /// Broadcasts a [`CompositeNotification`] event across all configured channels (Email and Push).
+    /// Broadcasts a [`CompositeNotification`] event across all enabled channels (Email and Push) sequentially.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`NotifyError`] if template rendering or delivery fails on any enabled channel.
     pub async fn broadcast<N: CompositeNotification>(&self, event: &N) -> Result<(), NotifyError> {
         if let Some(email) = event.email() {
             self.email_service
@@ -59,7 +102,9 @@ impl<E: EmailService, P: PushService> NotificationBroadcaster<E, P> {
         Ok(())
     }
 
-    /// Broadcasts a [`CompositeNotification`] event in the background via a Tokio task.
+    /// Broadcasts a [`CompositeNotification`] event asynchronously in a background Tokio task.
+    ///
+    /// Non-blocking method that immediately returns. Any error encountered during dispatch is logged via `tracing::error!`.
     pub fn broadcast_background<N: CompositeNotification + Send + Sync + 'static>(
         self: Arc<Self>,
         event: N,

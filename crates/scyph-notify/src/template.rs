@@ -1,34 +1,40 @@
 //! Tera template rendering engine wrapper.
+//!
+//! Provides [`TemplateEngine`] for parsing, compiling, and rendering HTML and plaintext templates
+//! from a local directory or custom glob pattern.
 
 use std::env;
 
-use crate::NotifyError;
 use crate::traits::{EmailMessage, EmailTemplate};
+use crate::NotifyError;
 use tera::Tera;
 
-/// Tera template engine wrapper for parsing and rendering HTML/text templates.
+/// Tera template engine wrapper for compiling and rendering HTML/text email and notification templates.
+///
+/// Encapsulates a compiled [`Tera`] instance. Supports loading templates from environment variables (`TEMPLATES_DIR`),
+/// directory paths (`from_dir`), or file glob patterns (`from_glob`).
 pub struct TemplateEngine {
     tera: Tera,
 }
 
 impl TemplateEngine {
-    /// Constructs a [`TemplateEngine`] from environment variables (`TEMPLATES_DIR`, defaulting to `"templates/**/*"`).
+    /// Constructs a [`TemplateEngine`] by reading `TEMPLATES_DIR` (defaulting to `"templates/**/*"`).
     ///
-    /// Loads all Tera templates located in the application's root `templates/` directory.
+    /// Loads and compiles all Tera templates located in the project's root `templates/` directory.
     ///
     /// # Errors
     ///
-    /// Returns [`NotifyError::Template`] if loading or parsing templates fails.
+    /// Returns [`NotifyError::Template`] if syntax error occurs during template compilation.
     pub fn from_env() -> Result<Self, NotifyError> {
         let glob = env::var("TEMPLATES_DIR").unwrap_or_else(|_| "templates/**/*".to_string());
         Self::from_glob(&glob)
     }
 
-    /// Constructs a [`TemplateEngine`] by loading all files recursively inside a target directory.
+    /// Constructs a [`TemplateEngine`] by loading all template files recursively from a root folder path.
     ///
     /// # Arguments
     ///
-    /// * `dir` - Root templates folder path (e.g. `"templates"` or `"src/templates"`).
+    /// * `dir` - Base templates directory (e.g. `"templates"` or `"src/templates"`).
     ///
     /// # Errors
     ///
@@ -38,7 +44,7 @@ impl TemplateEngine {
         Self::from_glob(&pattern)
     }
 
-    /// Constructs a [`TemplateEngine`] by loading templates matching a file glob pattern.
+    /// Constructs a [`TemplateEngine`] by compiling templates matching a custom file glob pattern.
     ///
     /// # Arguments
     ///
@@ -53,33 +59,36 @@ impl TemplateEngine {
         Ok(Self { tera })
     }
 
-    /// Renders a compiled template with the provided [`tera::Context`].
+    /// Renders a compiled template by name using the provided [`tera::Context`].
     ///
     /// # Arguments
     ///
-    /// * `template` - Name of the template to render.
-    /// * `ctx` - Template context containing template variables.
+    /// * `template` - Name of the registered template file (e.g., `"welcome.html"`).
+    /// * `ctx` - Template context variables.
     ///
     /// # Errors
     ///
-    /// Returns [`NotifyError::Template`] if template rendering fails.
+    /// Returns [`NotifyError::Template`] if the template is not found or rendering fails.
     pub fn render(&self, template: &str, ctx: &tera::Context) -> Result<String, NotifyError> {
         let rendered = self.tera.render(template, ctx)?;
         Ok(rendered)
     }
 
-    /// Renders a strongly-typed [`EmailTemplate`] into an [`EmailMessage`].
+    /// Renders a strongly-typed [`EmailTemplate`] into a complete [`EmailMessage`] payload.
     ///
-    /// If `template.text()` is `None` and the HTML template name ends with `.html` (e.g. `"welcome.html"`),
-    /// automatically attempts to render a matching `.txt` template (e.g. `"welcome.txt"`) for plaintext body fallback.
+    /// ### Plaintext Fallback Resolution
+    /// 1. If `template.text()` returns `Some(...)`, uses that explicit plaintext string.
+    /// 2. If `template.text()` is `None` and the template name ends with `.html` (e.g. `"welcome.html"`),
+    ///    automatically attempts to render a matching `.txt` file (e.g. `"welcome.txt"`) using the same context.
+    /// 3. If no matching `.txt` file exists, plaintext body is set to `None`.
     ///
     /// # Arguments
     ///
-    /// * `template` - Strongly-typed email template implementing [`EmailTemplate`].
+    /// * `template` - Strongly-typed email template struct.
     ///
     /// # Errors
     ///
-    /// Returns [`NotifyError::Template`] if serializing context or rendering fails.
+    /// Returns [`NotifyError::Template`] if context serialization or HTML template rendering fails.
     pub fn render_email<E: EmailTemplate>(
         &self,
         template: &E,
