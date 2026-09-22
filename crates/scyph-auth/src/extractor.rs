@@ -12,7 +12,7 @@ use secrecy::SecretString;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::{cache::AuthCacheService, jwt::verify_token};
+use crate::{cache::AuthCacheService, error::AuthError, jwt::verify_token};
 
 /// Authenticated user extracted from an HTTP request.
 ///
@@ -115,17 +115,17 @@ where
             .and_then(|v| v.to_str().ok())
             .ok_or_else(|| {
                 warn!("Authentication failed: Missing Authorization header");
-                AppError::Unauthorized("Missing Authorization header".into())
+                AuthError::Unauthorized("Missing Authorization header".into())
             })?;
 
         let token = auth_header.strip_prefix("Bearer ").ok_or_else(|| {
             warn!("Authentication failed: Invalid Authorization scheme (expected Bearer)");
-            AppError::Unauthorized("Invalid Authorization scheme; expected Bearer".into())
+            AuthError::Unauthorized("Invalid Authorization scheme; expected Bearer".into())
         })?;
 
         let data = verify_token::<C>(token, state.jwt_secret()).map_err(|e| {
             warn!(error = %e, "Authentication failed: JWT verification failed");
-            AppError::Unauthorized(e.to_string())
+            AuthError::Unauthorized(e.to_string())
         })?;
 
         let claims = data.claims;
@@ -134,12 +134,12 @@ where
 
         if jti.is_empty() {
             warn!("Authentication failed: Token jti claim is missing");
-            return Err(AppError::Unauthorized("Token jti claim is missing".into()));
+            return Err(AuthError::Unauthorized("Token jti claim is missing".into()).into());
         }
 
         if state.auth_cache().is_token_revoked(jti).await {
             warn!(jti = %jti, "Authentication failed: Token has been revoked");
-            return Err(AppError::Unauthorized("Token has been revoked".into()));
+            return Err(AuthError::Unauthorized("Token has been revoked".into()).into());
         }
 
         let user = AuthUser {

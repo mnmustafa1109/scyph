@@ -34,8 +34,14 @@ pub mod rbac;
 /// Fluent extension traits for Axum [`Router`](axum::Router).
 pub mod router_ext;
 
+/// Authentication and authorization error definitions.
+pub mod error;
+
 #[doc(inline)]
 pub use cache::AuthCacheService;
+
+#[doc(inline)]
+pub use error::AuthError;
 
 #[doc(inline)]
 pub use extractor::{AuthExtractorState, AuthUser, OptionalAuthUser};

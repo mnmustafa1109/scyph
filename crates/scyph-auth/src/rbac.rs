@@ -2,13 +2,12 @@
 //!
 //! Provides inline authorization functions for checking user claims and roles inside request handlers.
 
-use crate::extractor::AuthUser;
-use scyph_core::error::AppError;
+use crate::{error::AuthError, extractor::AuthUser};
 use scyph_core::traits::Claims;
 
 /// Validates that an authenticated user's claims satisfy a custom role predicate function.
 ///
-/// Returns `Ok(())` if `predicate(&user.claims)` evaluates to `true`, or [`AppError::Forbidden`] if `false`.
+/// Returns `Ok(())` if `predicate(&user.claims)` evaluates to `true`, or [`AuthError::Forbidden`] if `false`.
 ///
 /// # Arguments
 ///
@@ -17,7 +16,7 @@ use scyph_core::traits::Claims;
 ///
 /// # Errors
 ///
-/// Returns [`AppError::Forbidden`] with message `"Insufficient role"` if the predicate evaluates to `false`.
+/// Returns [`AuthError::Forbidden`] with message `"Insufficient role"` if the predicate evaluates to `false`.
 ///
 /// # Examples
 ///
@@ -54,13 +53,13 @@ use scyph_core::traits::Claims;
 /// assert!(require_role(&user, |c| *c.role() == Role::Admin).is_ok());
 /// assert!(require_role(&user, |c| *c.role() == Role::User).is_err());
 /// ```
-pub fn require_role<C: Claims, F>(user: &AuthUser<C>, predicate: F) -> Result<(), AppError>
+pub fn require_role<C: Claims, F>(user: &AuthUser<C>, predicate: F) -> Result<(), AuthError>
 where
     F: Fn(&C) -> bool,
 {
     if predicate(&user.claims) {
         Ok(())
     } else {
-        Err(AppError::Forbidden("Insufficient role".into()))
+        Err(AuthError::Forbidden("Insufficient role".into()))
     }
 }

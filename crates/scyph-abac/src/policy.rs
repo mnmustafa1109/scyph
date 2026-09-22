@@ -48,10 +48,10 @@
 //! }
 //! ```
 
-use scyph_auth::AuthUser;
-use scyph_core::{Action, AppError, Claims};
-
+use crate::error::AbacError;
 use crate::filter::FilterBuilder;
+use scyph_auth::AuthUser;
+use scyph_core::{Action, Claims};
 
 /// Core ABAC policy trait for defining domain-level authorization rules and SQL filter injections.
 ///
@@ -77,12 +77,12 @@ pub trait AbacPolicy {
     ///
     /// # Errors
     ///
-    /// Returns [`AppError::Forbidden`] if the subject is not permitted to perform the specified action.
+    /// Returns [`AbacError::Forbidden`] if the subject is not permitted to perform the specified action.
     fn check(
         subject: &AuthUser<Self::Claims>,
         resource: &Self::Resource,
         action: Action,
-    ) -> Result<(), AppError>;
+    ) -> Result<(), AbacError>;
 
     /// Appends SQL `WHERE` conditions to a [`FilterBuilder`] based on subject attributes.
     ///

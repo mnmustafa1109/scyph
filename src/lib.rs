@@ -41,12 +41,12 @@ pub mod prelude {
 
     #[cfg(feature = "auth")]
     pub use scyph_auth::{
-        AuthCacheService, AuthUser, OptionalAuthUser, RoleRouterExt, hash_password,
-        hash_password_async, require_role, verify_password, verify_password_async,
+        hash_password, hash_password_async, require_role, verify_password, verify_password_async,
+        AuthCacheService, AuthError, AuthUser, OptionalAuthUser, RoleRouterExt,
     };
 
     #[cfg(feature = "abac")]
-    pub use scyph_abac::{AbacPolicy, AuthUserEnforceExt, FilterBuilder};
+    pub use scyph_abac::{AbacError, AbacPolicy, AuthUserEnforceExt, FilterBuilder};
 
     #[cfg(feature = "db")]
     pub use scyph_db::{
@@ -65,7 +65,7 @@ pub mod prelude {
 
     #[cfg(feature = "health")]
     pub use scyph_health::{
-        HealthFailure, HealthRegistry, IntoHealthResult, ServiceStatus, Status, health_routes,
+        health_routes, HealthFailure, HealthRegistry, IntoHealthResult, ServiceStatus, Status,
     };
 }
 
@@ -73,10 +73,10 @@ pub mod prelude {
 pub use scyph_core::{Action, ApiResponse, AppError, Authorizable, Claims, PagedResponse, Result};
 
 #[cfg(feature = "auth")]
-pub use scyph_auth::{AuthUser, OptionalAuthUser};
+pub use scyph_auth::{AuthError, AuthUser, OptionalAuthUser};
 
 #[cfg(feature = "abac")]
-pub use scyph_abac::{AbacPolicy, FilterBuilder};
+pub use scyph_abac::{AbacError, AbacPolicy, FilterBuilder};
 
 #[cfg(feature = "db")]
 pub use scyph_db::DbError;

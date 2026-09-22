@@ -11,6 +11,7 @@
 //! - **[`ext`]**: Extension trait [`AuthUserEnforceExt`] for fluent `.enforce(...)` checks on `AuthUser`.
 //! - **[`cedar`]**: (Optional feature `cedar`) AWS Cedar Policy Engine authorization with [`CedarAuthorizer`] and [`IntoCedarEntity`].
 
+pub mod error;
 pub mod ext;
 pub mod filter;
 pub mod policy;
@@ -18,6 +19,7 @@ pub mod policy;
 #[cfg(feature = "cedar")]
 pub mod cedar;
 
+pub use error::AbacError;
 pub use ext::AuthUserEnforceExt;
 pub use filter::FilterBuilder;
 pub use policy::AbacPolicy;

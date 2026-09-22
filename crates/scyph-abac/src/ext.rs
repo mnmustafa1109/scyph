@@ -39,9 +39,9 @@
 //! ```
 
 use scyph_auth::AuthUser;
-use scyph_core::{Action, AppError, Claims};
+use scyph_core::{Action, Claims};
 
-use crate::AbacPolicy;
+use crate::{error::AbacError, AbacPolicy};
 
 /// Extension trait adding fluent `.enforce(...)` authorization methods to [`AuthUser`].
 ///
@@ -62,12 +62,12 @@ pub trait AuthUserEnforceExt<C: Claims> {
     ///
     /// # Errors
     ///
-    /// Returns [`AppError::Forbidden`] if the user is not permitted to perform the specified action.
+    /// Returns [`AbacError::Forbidden`] if the user is not permitted to perform the specified action.
     fn enforce<P: AbacPolicy<Claims = C>>(
         &self,
         resource: &P::Resource,
         action: Action,
-    ) -> Result<(), AppError>;
+    ) -> Result<(), AbacError>;
 }
 
 use tracing::{debug, warn};
@@ -77,7 +77,7 @@ impl<C: Claims> AuthUserEnforceExt<C> for AuthUser<C> {
         &self,
         resource: &P::Resource,
         action: Action,
-    ) -> Result<(), AppError> {
+    ) -> Result<(), AbacError> {
         match P::check(self, resource, action.clone()) {
             Ok(()) => {
                 debug!(user_id = %self.id, action = ?action, "ABAC policy check passed");
