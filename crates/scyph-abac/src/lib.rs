@@ -9,6 +9,7 @@
 //! - **[`policy`]**: Defines the core [`AbacPolicy`] trait for domain-level authorization and SQL filter generation.
 //! - **[`filter`]**: Provides [`FilterBuilder`], a SQLx wrapper for building parameterized SQL `WHERE` clauses dynamically.
 //! - **[`ext`]**: Extension trait [`AuthUserEnforceExt`] for fluent `.enforce(...)` checks on `AuthUser`.
+//! - **[`error`]**: Defines [`AbacError`], the error type for ABAC policy enforcement and Cedar engine evaluation.
 //! - **[`cedar`]**: (Optional feature `cedar`) AWS Cedar Policy Engine authorization with [`CedarAuthorizer`] and [`IntoCedarEntity`].
 
 pub mod error;

@@ -26,8 +26,8 @@ use tracing::{debug, warn};
 ///
 /// # Errors
 ///
-/// - Returns [`AppError::Unauthorized`] if the token is missing, invalid, expired, or revoked.
-/// - Returns [`AppError::Forbidden`] if the user's role is not in the list of allowed roles.
+/// - Returns [`AuthError::Unauthorized`] if the token is missing, invalid, expired, or revoked.
+/// - Returns [`AuthError::Forbidden`] if the user's role is not in the list of allowed roles.
 pub async fn require_roles_layer<S, C>(
     State(state): State<S>,
     Extension(allowed): Extension<AllowedRoles<C::Role>>,

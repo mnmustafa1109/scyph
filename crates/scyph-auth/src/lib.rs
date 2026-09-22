@@ -10,6 +10,7 @@
 //! - **[`middleware`]**: Axum middleware for enforcing Role-Based Access Control (RBAC).
 //! - **[`rbac`]**: Predicate-based function helper for checking user roles in handlers.
 //! - **[`router_ext`]**: Extension trait ([`RoleRouterExt`]) to protect router routes easily.
+//! - **[`error`]**: Authentication and authorization error types ([`AuthError`]).
 
 #![warn(missing_docs)]
 
