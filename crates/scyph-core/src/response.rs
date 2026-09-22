@@ -152,7 +152,10 @@ pub struct PagedResponse<T: Serialize> {
     pub per_page: i64,
     /// Indicates whether another page of records exists after this page.
     pub has_next: bool,
-    /// Optional cursor token string for cursor-based pagination continuation.
+    /// Optional cursor token string for fetching the previous page in cursor-based pagination.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prev_cursor: Option<String>,
+    /// Optional cursor token string for fetching the next page in cursor-based pagination.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub next_cursor: Option<String>,
 }
@@ -172,9 +175,13 @@ impl<T: Serialize> PagedResponse<T> {
     /// ```rust
     /// use scyph_core::PagedResponse;
     ///
-    /// let paged = PagedResponse::new(vec!["item1", "item2"], 10, 1, 2);
+    /// let paged = PagedResponse::new(vec!["item1", "item2"], 10, 1, 2)
+    ///     .with_prev_cursor("cursor_prev_abc")
+    ///     .with_next_cursor("cursor_next_xyz");
     /// assert!(paged.has_next);
     /// assert_eq!(paged.total, 10);
+    /// assert_eq!(paged.prev_cursor.as_deref(), Some("cursor_prev_abc"));
+    /// assert_eq!(paged.next_cursor.as_deref(), Some("cursor_next_xyz"));
     /// ```
     pub fn new(data: Vec<T>, total: i64, page: i64, per_page: i64) -> Self {
         let has_next = (page * per_page) < total;
@@ -186,17 +193,50 @@ impl<T: Serialize> PagedResponse<T> {
             page,
             per_page,
             has_next,
+            prev_cursor: None,
             next_cursor: None,
         }
     }
 
-    /// Attaches an optional cursor token string for cursor-based pagination continuation.
+    /// Attaches an optional cursor token string for fetching the previous page in cursor pagination.
+    ///
+    /// # Arguments
+    ///
+    /// * `cursor` - Continuation token string for fetching the previous page.
+    pub fn with_prev_cursor(mut self, cursor: impl Into<String>) -> Self {
+        self.prev_cursor = Some(cursor.into());
+        self
+    }
+
+    /// Attaches an optional cursor token string for fetching the next page in cursor pagination.
     ///
     /// # Arguments
     ///
     /// * `cursor` - Continuation token string for fetching the next page.
-    pub fn with_cursor(mut self, cursor: impl Into<String>) -> Self {
+    pub fn with_next_cursor(mut self, cursor: impl Into<String>) -> Self {
         self.next_cursor = Some(cursor.into());
+        self
+    }
+
+    /// Attaches an optional next page cursor token string for cursor-based pagination continuation.
+    /// Alias for [`PagedResponse::with_next_cursor`].
+    ///
+    /// # Arguments
+    ///
+    /// * `cursor` - Continuation token string for fetching the next page.
+    pub fn with_cursor(self, cursor: impl Into<String>) -> Self {
+        self.with_next_cursor(cursor)
+    }
+
+    /// Attaches both optional previous and next cursor tokens for bi-directional cursor-based pagination.
+    ///
+    /// # Arguments
+    ///
+    /// * `prev` - Optional continuation token string for fetching the previous page.
+    /// * `next` - Optional continuation token string for fetching the next page.
+    pub fn with_cursors<S: Into<String>>(mut self, prev: Option<S>, next: Option<S>) -> Self {
+        self.prev_cursor = prev.map(|s| s.into());
+        self.next_cursor = next.map(|s| s.into());
         self
     }
 }
