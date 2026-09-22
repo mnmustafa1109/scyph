@@ -22,6 +22,10 @@ pub mod email;
 /// Firebase Cloud Messaging (FCM) push notification service implementation.
 pub mod fcm;
 
+#[cfg(feature = "health")]
+/// Health check extensions for notification services.
+pub mod health;
+
 pub use nop::NoPushService;
 pub use traits::{
     EmailMessage, EmailService, InAppNotification, NotificationRepository, PushNotification,

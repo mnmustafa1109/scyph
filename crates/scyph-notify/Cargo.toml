@@ -10,11 +10,13 @@ description = "Email (lettre/Tera), FCM push, and in-app notification traits for
 
 [features]
 default = ["email"]
-email = ["dep:lettre", "dep:tera"]
+email = ["dep:lettre", "dep:tera", "dep:secrecy"]
 fcm = ["dep:gcp_auth", "dep:reqwest"]
+health = ["dep:scyph-health"]
 
 [dependencies]
 scyph-core = { path = "../scyph-core", version = "0.1" }
+scyph-health = { path = "../scyph-health", version = "0.1.0", optional = true }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -19,30 +19,52 @@ pub struct LettreSMTPService {
 }
 
 impl LettreSMTPService {
-    /// Constructs a [`LettreSMTPService`] from environment variables (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM`).
+    /// Constructs a [`LettreSMTPService`] from environment variables (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM`),
+    /// performing an active SMTP handshake test to verify server reachability and authentication credentials.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if any required environment variable is missing or if `SMTP_PORT` is invalid.
-    pub fn from_env() -> Self {
-        let host = env::var("SMTP_HOST").expect("SMTP_HOST must be set");
+    /// Returns [`AppError::Internal`] if environment variables are missing, invalid, or if the SMTP connection test fails.
+    pub async fn from_env() -> Result<Self, AppError> {
+        let host = env::var("SMTP_HOST")
+            .map_err(|e| AppError::internal_from(e, "SMTP_HOST must be set"))?;
         let port: u16 = env::var("SMTP_PORT")
-            .expect("SMTP_PORT must be set")
+            .map_err(|e| AppError::internal_from(e, "SMTP_PORT must be set"))?
             .parse()
-            .expect("SMTP_PORT must be a valid u16");
-        let username = env::var("SMTP_USERNAME").expect("SMTP_USERNAME must be set");
-        let password =
-            SecretString::from(env::var("SMTP_PASSWORD").expect("SMTP_PASSWORD must be set"));
-        let from = env::var("SMTP_FROM").expect("SMTP_FROM must be set");
+            .map_err(|e| AppError::internal_from(e, "SMTP_PORT must be a valid u16"))?;
+        let username = env::var("SMTP_USERNAME")
+            .map_err(|e| AppError::internal_from(e, "SMTP_USERNAME must be set"))?;
+        let password = SecretString::from(
+            env::var("SMTP_PASSWORD")
+                .map_err(|e| AppError::internal_from(e, "SMTP_PASSWORD must be set"))?,
+        );
+        let from = env::var("SMTP_FROM")
+            .map_err(|e| AppError::internal_from(e, "SMTP_FROM must be set"))?;
 
         let creds = Credentials::new(username, password.expose_secret().to_string());
         let transport = AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&host)
-            .expect("Failed to create SMTP transport")
+            .map_err(|e| AppError::internal_from(e, "Failed to create SMTP transport"))?
             .port(port)
             .credentials(creds)
             .build();
 
-        Self { transport, from }
+        let connected = transport
+            .test_connection()
+            .await
+            .map_err(|e| AppError::internal_from(e, "SMTP connection test failed"))?;
+
+        if !connected {
+            return Err(AppError::internal(
+                "SMTP server returned negative response during connection test",
+            ));
+        }
+
+        Ok(Self { transport, from })
+    }
+
+    /// Exposes a reference to the inner [`AsyncSmtpTransport`].
+    pub fn transport(&self) -> &AsyncSmtpTransport<Tokio1Executor> {
+        &self.transport
     }
 }
 

@@ -61,6 +61,21 @@ impl FcmPushService {
             client,
         })
     }
+
+    /// Exposes a reference to the FCM project identifier string.
+    pub fn project_id(&self) -> &str {
+        &self.project_id
+    }
+
+    /// Exposes a reference to the inner [`CustomServiceAccount`].
+    pub fn auth(&self) -> &CustomServiceAccount {
+        &self.auth
+    }
+
+    /// Exposes a reference to the inner [`Client`].
+    pub fn client(&self) -> &Client {
+        &self.client
+    }
 }
 
 impl PushService for FcmPushService {
