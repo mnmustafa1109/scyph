@@ -1,6 +1,7 @@
 //! Tera template rendering engine wrapper.
 
 use crate::NotifyError;
+use crate::traits::{EmailMessage, EmailTemplate};
 use tera::Tera;
 
 /// Tera template engine wrapper for parsing and rendering HTML/text templates.
@@ -37,5 +38,28 @@ impl TemplateEngine {
     pub fn render(&self, template: &str, ctx: &tera::Context) -> Result<String, NotifyError> {
         let rendered = self.tera.render(template, ctx)?;
         Ok(rendered)
+    }
+
+    /// Renders a strongly-typed [`EmailTemplate`] into an [`EmailMessage`].
+    ///
+    /// # Arguments
+    ///
+    /// * `template` - Strongly-typed email template implementing [`EmailTemplate`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`NotifyError::Template`] if serializing context or rendering fails.
+    pub fn render_email<E: EmailTemplate>(
+        &self,
+        template: &E,
+    ) -> Result<EmailMessage, NotifyError> {
+        let ctx = tera::Context::from_serialize(&template.context())?;
+        let html = self.render(template.template_name(), &ctx)?;
+        Ok(EmailMessage {
+            to: template.to(),
+            subject: template.subject(),
+            html,
+            text: template.text(),
+        })
     }
 }

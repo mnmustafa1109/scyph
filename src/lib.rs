@@ -52,7 +52,10 @@ pub mod prelude {
     pub use scyph_db::{begin, build_pool, commit, rollback, run_migrations, run_seeds, DbError};
 
     #[cfg(feature = "notify")]
-    pub use scyph_notify::NotifyError;
+    pub use scyph_notify::{
+        EmailMessage, EmailService, EmailTemplate, NotifyError, PushNotification, PushService,
+        PushTemplate,
+    };
 
     #[cfg(all(feature = "db", feature = "health"))]
     pub use scyph_db::DbHealthExt;
@@ -76,4 +79,4 @@ pub use scyph_abac::{AbacPolicy, FilterBuilder};
 pub use scyph_db::DbError;
 
 #[cfg(feature = "notify")]
-pub use scyph_notify::NotifyError;
+pub use scyph_notify::{EmailTemplate, NotifyError, PushTemplate};

@@ -4,6 +4,7 @@
 /// Dummy no-op notification service implementation.
 pub mod nop;
 
+#[cfg(feature = "email")]
 /// Tera template engine wrapper for rendering email and message templates.
 pub mod template;
 
@@ -32,12 +33,15 @@ pub mod error;
 pub use error::NotifyError;
 pub use nop::NoPushService;
 pub use traits::{
-    EmailMessage, EmailService, InAppNotification, NotificationRepository, PushNotification,
-    PushService,
+    EmailMessage, EmailService, EmailTemplate, InAppNotification, NotificationRepository,
+    PushNotification, PushService, PushTemplate,
 };
 
 #[cfg(feature = "email")]
 pub use email::LettreSMTPService;
+
+#[cfg(feature = "email")]
+pub use template::TemplateEngine;
 
 #[cfg(feature = "fcm")]
 pub use fcm::FcmPushService;
