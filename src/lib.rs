@@ -47,8 +47,13 @@ pub mod prelude {
     #[cfg(feature = "db")]
     pub use scyph_db::{begin, build_pool, commit, rollback, run_migrations, run_seeds};
 
+    #[cfg(all(feature = "db", feature = "health"))]
+    pub use scyph_db::DbHealthExt;
+
     #[cfg(feature = "health")]
-    pub use scyph_health::{HealthRegistry, ServiceStatus, Status, health_routes};
+    pub use scyph_health::{
+        HealthFailure, HealthRegistry, IntoHealthResult, ServiceStatus, Status, health_routes,
+    };
 }
 
 // ── Convenient Top-Level Re-exports ──────────────────────────────────────────
