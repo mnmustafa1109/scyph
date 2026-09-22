@@ -8,8 +8,12 @@ license.workspace = true
 repository.workspace = true
 description = "PgPool builder, migration runner, seed runner, and transaction helpers"
 
+[features]
+health = ["dep:scyph-health"]
+
 [dependencies]
 scyph-core = { path = "../scyph-core", version = "0.1" }
+scyph-health = { path = "../scyph-health", version = "0.1", optional = true }
 sqlx = { workspace = true }
 secrecy = { workspace = true }
 tracing = { workspace = true }

@@ -14,6 +14,13 @@ pub mod pool;
 /// Database transaction lifecycle wrappers.
 pub mod transaction;
 
+#[cfg(feature = "health")]
+/// Extension traits for automated PostgreSQL pool health checks.
+pub mod health;
+
 pub use migrate::{run_migrations, run_seeds};
 pub use pool::build_pool;
 pub use transaction::{begin, commit, rollback};
+
+#[cfg(feature = "health")]
+pub use health::DbHealthExt;

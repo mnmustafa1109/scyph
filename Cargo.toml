@@ -12,7 +12,7 @@ default = ["auth", "db", "health"]
 auth = ["dep:scyph-auth"]
 abac = ["dep:scyph-abac"]
 db = ["dep:scyph-db"]
-health = ["dep:scyph-health"]
+health = ["dep:scyph-health", "scyph-db?/health"]
 
 [dependencies]
 scyph-core = { path = "crates/scyph-core", version = "0.1.0" }
