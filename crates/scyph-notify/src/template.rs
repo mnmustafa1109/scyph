@@ -1,5 +1,7 @@
 //! Tera template rendering engine wrapper.
 
+use std::env;
+
 use crate::NotifyError;
 use crate::traits::{EmailMessage, EmailTemplate};
 use tera::Tera;
@@ -10,6 +12,32 @@ pub struct TemplateEngine {
 }
 
 impl TemplateEngine {
+    /// Constructs a [`TemplateEngine`] from environment variables (`TEMPLATES_DIR`, defaulting to `"templates/**/*"`).
+    ///
+    /// Loads all Tera templates located in the application's root `templates/` directory.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`NotifyError::Template`] if loading or parsing templates fails.
+    pub fn from_env() -> Result<Self, NotifyError> {
+        let glob = env::var("TEMPLATES_DIR").unwrap_or_else(|_| "templates/**/*".to_string());
+        Self::from_glob(&glob)
+    }
+
+    /// Constructs a [`TemplateEngine`] by loading all files recursively inside a target directory.
+    ///
+    /// # Arguments
+    ///
+    /// * `dir` - Root templates folder path (e.g. `"templates"` or `"src/templates"`).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`NotifyError::Template`] if loading or parsing templates fails.
+    pub fn from_dir(dir: &str) -> Result<Self, NotifyError> {
+        let pattern = format!("{}/**/*", dir.trim_end_matches('/'));
+        Self::from_glob(&pattern)
+    }
+
     /// Constructs a [`TemplateEngine`] by loading templates matching a file glob pattern.
     ///
     /// # Arguments
