@@ -29,6 +29,10 @@ pub use scyph_db as db;
 /// Kubernetes liveness and readiness health checks.
 pub use scyph_health as health;
 
+#[cfg(feature = "notify")]
+/// Email, FCM push, and in-app notification services.
+pub use scyph_notify as notify;
+
 /// Convenient prelude re-exporting common framework types for single-line imports (`use scyph::prelude::*;`).
 pub mod prelude {
     pub use scyph_core::{

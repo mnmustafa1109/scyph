@@ -1,0 +1,28 @@
+# crates/scyph-notify/Cargo.toml
+[package]
+name = "scyph-notify"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Email (lettre/Tera), FCM push, and in-app notification traits for scyph"
+
+[features]
+default = ["email"]
+email = ["dep:lettre", "dep:tera"]
+fcm = ["dep:gcp_auth", "dep:reqwest"]
+
+[dependencies]
+scyph-core = { path = "../scyph-core", version = "0.1" }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+secrecy = { workspace = true, optional = true }
+lettre = { workspace = true, optional = true }
+tera = { workspace = true, optional = true }
+gcp_auth = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true }
