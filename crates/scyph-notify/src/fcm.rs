@@ -89,16 +89,41 @@ impl PushService for FcmPushService {
             .await
             .map_err(|e| AppError::internal_from(e, "FCM auth token"))?;
 
-        let payload = json!({
-            "message": {
-                "token": n.token,
-                "notification": {
-                    "title": n.title,
-                    "body": n.body
-                },
-                "data": n.data
-            }
-        });
+        let mut notification_map = serde_json::Map::new();
+        notification_map.insert("title".to_string(), json!(n.title));
+        notification_map.insert("body".to_string(), json!(n.body));
+
+        if let Some(image_url) = n.image {
+            notification_map.insert("image".to_string(), json!(image_url));
+        }
+
+        let mut message_map = serde_json::Map::new();
+        message_map.insert("token".to_string(), json!(n.token));
+        message_map.insert("notification".to_string(), json!(notification_map));
+        message_map.insert("data".to_string(), json!(n.data));
+
+        if let Some(sound) = n.sound {
+            message_map.insert(
+                "android".to_string(),
+                json!({
+                    "notification": {
+                        "sound": sound
+                    }
+                }),
+            );
+            message_map.insert(
+                "apns".to_string(),
+                json!({
+                    "payload": {
+                        "aps": {
+                            "sound": sound
+                        }
+                    }
+                }),
+            );
+        }
+
+        let payload = json!({ "message": message_map });
 
         send_fcm_request(&self.client, &self.project_id, token.as_str(), &payload).await?;
 

@@ -32,6 +32,10 @@ pub struct PushNotification {
     pub title: String,
     /// Main notification body text.
     pub body: String,
+    /// Optional image URL for rich notification banners (Android / iOS / Web).
+    pub image: Option<String>,
+    /// Optional custom notification sound / chime (e.g. `"default"`, `"chime.mp3"`).
+    pub sound: Option<String>,
     /// Additional custom key-value payload map.
     pub data: HashMap<String, String>,
 }
