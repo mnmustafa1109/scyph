@@ -8,6 +8,33 @@ use std::{
 use serde::Serialize;
 use tracing::warn;
 
+/// Classification of health check failure types.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub enum HealthFailure {
+    /// Transient error (e.g. timeout, temporary network issue) resulting in [`Status::Sick`].
+    Transient(String),
+    /// Fatal error (e.g. invalid credentials, unrecoverable state) resulting in [`Status::Deceased`].
+    Fatal(String),
+}
+
+/// Trait for converting health check outcomes into a categorized `Result<(), HealthFailure>`.
+pub trait IntoHealthResult {
+    /// Converts `self` into a [`Result<(), HealthFailure>`].
+    fn into_health_result(self) -> Result<(), HealthFailure>;
+}
+
+impl<T, E: std::fmt::Display> IntoHealthResult for Result<T, E> {
+    fn into_health_result(self) -> Result<(), HealthFailure> {
+        self.map(|_| ()).map_err(|e| HealthFailure::Transient(e.to_string()))
+    }
+}
+
+impl IntoHealthResult for Result<(), HealthFailure> {
+    fn into_health_result(self) -> Result<(), HealthFailure> {
+        self
+    }
+}
+
 /// Operational status enumeration for a tracked service component.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum Status {
@@ -44,36 +71,62 @@ impl HealthRegistry {
         Self::default()
     }
 
-    /// Evaluates an async health check future and records the outcome in the registry.
+    /// Evaluates an async health check future, applying state machine transitions
+    /// (`Sick` -> `Recovering` -> `Healthy`) and handling fatal errors (`Deceased`).
     ///
     /// # Arguments
     ///
     /// * `name` - Identifier for the tracked service component (e.g. `"database"`, `"redis"`).
     /// * `required` - If `true`, failure marks the overall application as not ready (`/readyz` returns `503`).
-    /// * `fut` - Async health check future yielding `Result<(), E>`.
-    pub async fn check<F, E>(&self, name: &str, required: bool, fut: F)
+    /// * `fut` - Async health check future yielding any `Result<(), E>` or `Result<(), HealthFailure>`.
+    pub async fn check<F, R>(&self, name: &str, required: bool, fut: F)
     where
-        F: std::future::Future<Output = Result<(), E>>,
-        E: std::fmt::Display,
+        F: std::future::Future<Output = R>,
+        R: IntoHealthResult,
     {
-        match fut.await {
+        let prev_status = self.0.read().unwrap().get(name).map(|s| s.status);
+
+        match fut.await.into_health_result() {
             Ok(()) => {
+                let next_status = match prev_status {
+                    Some(Status::Sick) => Status::Recovering,
+                    Some(Status::Recovering) | Some(Status::Healthy) | None => Status::Healthy,
+                    Some(Status::Deceased) => Status::Recovering,
+                };
+
+                let details = if next_status == Status::Recovering {
+                    Some("Probe succeeded; component is re-stabilizing".to_string())
+                } else {
+                    None
+                };
+
                 self.0.write().unwrap().insert(
                     name.to_string(),
                     ServiceStatus {
-                        status: Status::Healthy,
-                        details: None,
+                        status: next_status,
+                        details,
                         required,
                     },
                 );
             }
-            Err(e) => {
-                warn!(service = name, error = %e, required, "Service health check failed");
+            Err(HealthFailure::Transient(e)) => {
+                warn!(service = name, error = %e, required, "Service health check failed (transient)");
                 self.0.write().unwrap().insert(
                     name.to_string(),
                     ServiceStatus {
                         status: Status::Sick,
-                        details: Some(e.to_string()),
+                        details: Some(e),
+                        required,
+                    },
+                );
+            }
+            Err(HealthFailure::Fatal(e)) => {
+                warn!(service = name, error = %e, required, "Service health check failed (fatal)");
+                self.0.write().unwrap().insert(
+                    name.to_string(),
+                    ServiceStatus {
+                        status: Status::Deceased,
+                        details: Some(format!("Fatal failure: {e}")),
                         required,
                     },
                 );

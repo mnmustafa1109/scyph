@@ -11,5 +11,5 @@ pub mod registry;
 /// Axum router generators for `/healthz` and `/readyz` endpoints.
 pub mod routes;
 
-pub use registry::{HealthRegistry, ServiceStatus, Status};
+pub use registry::{HealthFailure, HealthRegistry, IntoHealthResult, ServiceStatus, Status};
 pub use routes::health_routes;
