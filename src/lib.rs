@@ -53,8 +53,8 @@ pub mod prelude {
 
     #[cfg(feature = "notify")]
     pub use scyph_notify::{
-        EmailMessage, EmailService, EmailTemplate, NotifyError, PushNotification, PushService,
-        PushTemplate,
+        EmailMessage, EmailService, EmailTemplate, NoEmailService, NoPushService, NotifyError,
+        PushNotification, PushService, PushTemplate,
     };
 
     #[cfg(all(feature = "db", feature = "health"))]
@@ -79,4 +79,4 @@ pub use scyph_abac::{AbacPolicy, FilterBuilder};
 pub use scyph_db::DbError;
 
 #[cfg(feature = "notify")]
-pub use scyph_notify::{EmailTemplate, NotifyError, PushTemplate};
+pub use scyph_notify::{EmailTemplate, NoEmailService, NoPushService, NotifyError, PushTemplate};

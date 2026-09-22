@@ -31,7 +31,7 @@ pub mod health;
 pub mod error;
 
 pub use error::NotifyError;
-pub use nop::NoPushService;
+pub use nop::{NoEmailService, NoPushService};
 pub use traits::{
     EmailMessage, EmailService, EmailTemplate, InAppNotification, NotificationRepository,
     PushNotification, PushService, PushTemplate,
