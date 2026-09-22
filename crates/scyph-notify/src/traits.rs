@@ -66,6 +66,8 @@ pub trait NotificationRepository: Send + Sync + 'static {
     fn create(&self, n: InAppNotification) -> impl Future<Output = Result<(), AppError>> + Send;
     /// Marks an in-app notification as read for a given user.
     fn mark_read(&self, id: Uuid, user: Uuid) -> impl Future<Output = Result<(), AppError>> + Send;
+    /// Marks all unread in-app notifications as read for a specific user.
+    fn mark_all_read(&self, user: Uuid) -> impl Future<Output = Result<(), AppError>> + Send;
     /// Lists all unread notifications for a specified user.
     fn list_unread(
         &self,

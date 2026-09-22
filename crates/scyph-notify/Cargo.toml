@@ -11,7 +11,7 @@ description = "Email (lettre/Tera), FCM push, and in-app notification traits for
 [features]
 default = ["email"]
 email = ["dep:lettre", "dep:tera", "dep:secrecy"]
-fcm = ["dep:gcp_auth", "dep:reqwest"]
+fcm = ["dep:gcp_auth", "dep:reqwest", "dep:secrecy"]
 health = ["dep:scyph-health"]
 
 [dependencies]

@@ -3,6 +3,7 @@
 use gcp_auth::{CustomServiceAccount, TokenProvider};
 use reqwest::Client;
 use scyph_core::AppError;
+use secrecy::{ExposeSecret, SecretString};
 use serde_json::json;
 use std::env;
 
@@ -31,10 +32,12 @@ impl FcmPushService {
         let project_id = env::var("FCM_PROJECT_ID")
             .map_err(|e| AppError::internal_from(e, "FCM_PROJECT_ID must be set"))?;
 
-        let service_account_json = env::var("FCM_SERVICE_ACCOUNT_JSON")
-            .map_err(|e| AppError::internal_from(e, "FCM_SERVICE_ACCOUNT_JSON must be set"))?;
+        let service_account_json = SecretString::from(
+            env::var("FCM_SERVICE_ACCOUNT_JSON")
+                .map_err(|e| AppError::internal_from(e, "FCM_SERVICE_ACCOUNT_JSON must be set"))?,
+        );
 
-        let auth = CustomServiceAccount::from_json(&service_account_json)
+        let auth = CustomServiceAccount::from_json(service_account_json.expose_secret())
             .map_err(|e| AppError::internal_from(e, "Invalid FCM service account JSON"))?;
 
         let client = Client::new();
