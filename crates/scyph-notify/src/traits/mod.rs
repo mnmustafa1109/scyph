@@ -1,10 +1,10 @@
 //! Abstract traits, message payloads, and domain template contracts for `scyph-notify`.
 //!
 //! Submodules define the core abstraction boundaries:
-//! - [`email`]: [`EmailMessage`] payload, [`EmailTemplate`] domain contract, and [`EmailService`] delivery trait.
-//! - [`push`]: [`PushNotification`] payload, [`PushTemplate`] domain contract, and [`PushService`] delivery trait.
-//! - [`composite`]: Multi-channel [`CompositeNotification`] and [`NotificationBroadcaster`].
-//! - [`repository`]: [`InAppNotification`] data record and [`NotificationRepository`] persistent store trait.
+//! - [`email`](crate::traits::email): [`EmailMessage`] payload, [`EmailTemplate`] domain contract, and [`EmailService`] delivery trait.
+//! - [`push`](crate::traits::push): [`PushNotification`] payload, [`PushTemplate`] domain contract, and [`PushService`] delivery trait.
+//! - [`composite`](crate::traits::composite): Multi-channel [`CompositeNotification`] and [`NotificationBroadcaster`].
+//! - [`repository`](crate::traits::repository): [`InAppNotification`] data record and [`NotificationRepository`] persistent store trait.
 
 #[cfg(all(feature = "email", feature = "fcm"))]
 /// Multi-channel composite notification traits and broadcaster.

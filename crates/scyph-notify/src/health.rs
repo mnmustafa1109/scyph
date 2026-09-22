@@ -1,7 +1,7 @@
 //! Automated health check extensions for notification services.
 //!
 //! Provides `check_health` and `check_health_named` extension methods for [`LettreSMTPService`] and [`FcmPushService`]
-//! to register automated liveness and readiness monitoring checks with a [`HealthRegistry`].
+//! to register automated liveness and readiness monitoring checks with a [`scyph_health::HealthRegistry`].
 //!
 //! ### Non-Blocking Readiness Design
 //!

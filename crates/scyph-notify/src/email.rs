@@ -2,7 +2,7 @@
 //!
 //! ### Connection Pooling & Transport Reuse
 //!
-//! `LettreSMTPService` maintains a single, persistent [`AsyncSmtpTransport`] instance.
+//! `LettreSMTPService` maintains a single, persistent [`lettre::AsyncSmtpTransport`] instance.
 //! All email dispatches reuse this underlying transport connection pool rather than opening a new TCP/TLS socket on every send operation.
 
 use std::env;
