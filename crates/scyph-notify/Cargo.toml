@@ -23,6 +23,7 @@ serde_json = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }
 uuid = { workspace = true }
+chrono = { workspace = true }
 secrecy = { workspace = true, optional = true }
 lettre = { workspace = true, optional = true }
 tera = { workspace = true, optional = true }
