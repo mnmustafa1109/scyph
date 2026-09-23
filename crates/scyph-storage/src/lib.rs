@@ -58,6 +58,9 @@
 /// Storage error type definitions and RFC 7807 problem details conversions.
 pub mod error;
 
+/// In-memory mock storage service for testing and development.
+pub mod memory;
+
 /// Multipart form data extractors and declarative file configuration traits.
 pub mod multipart;
 
@@ -80,7 +83,12 @@ pub use error::StorageError;
 pub use health::StorageHealthExt;
 
 #[doc(inline)]
-pub use multipart::{ExtractedFile, FileConfig, FileExtractor, MultiFileExtractor};
+pub use memory::InMemoryStorageService;
+
+#[doc(inline)]
+pub use multipart::{
+    ExtractedFile, FileConfig, FileExtractor, MultiFileExtractor, OptionalFileExtractor,
+};
 
 #[doc(inline)]
 pub use traits::StorageService;

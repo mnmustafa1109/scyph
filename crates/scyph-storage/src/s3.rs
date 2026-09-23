@@ -88,7 +88,6 @@ impl S3StorageService {
     /// use scyph_storage::S3StorageService;
     ///
     /// async fn setup() {
-    ///     std::env::set_var("S3_BUCKET", "my-app-uploads");
     ///     let service = S3StorageService::from_env().await.expect("S3 initialized");
     /// }
     /// ```
