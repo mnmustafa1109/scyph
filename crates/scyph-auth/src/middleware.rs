@@ -3,7 +3,7 @@
 //! Evaluates authenticated user credentials extracted upstream and restricts access to routes
 //! based on allowed roles.
 
-use crate::{error::AuthError, AuthExtractorState, AuthUser};
+use crate::{AuthExtractorState, AuthUser, error::AuthError};
 use axum::{
     extract::{Extension, FromRequestParts, Request, State},
     middleware::Next,

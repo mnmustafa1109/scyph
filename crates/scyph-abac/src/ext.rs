@@ -41,7 +41,7 @@
 use scyph_auth::AuthUser;
 use scyph_core::{Action, Claims};
 
-use crate::{error::AbacError, AbacPolicy};
+use crate::{AbacPolicy, error::AbacError};
 
 /// Extension trait adding fluent `.enforce(...)` authorization methods to [`AuthUser`].
 ///

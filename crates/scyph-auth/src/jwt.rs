@@ -3,8 +3,8 @@
 //! High-level wrapper around the [`jsonwebtoken`] library using secure types from [`secrecy`].
 
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, TokenData, Validation, decode, encode};
-use secrecy::{ExposeSecret, SecretString};
 use scyph_core::traits::Claims;
+use secrecy::{ExposeSecret, SecretString};
 
 /// Errors returned during JWT creation, decoding, or signature verification.
 #[derive(Debug, thiserror::Error)]

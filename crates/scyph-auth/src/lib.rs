@@ -54,7 +54,9 @@ pub use jwt::{JwtError, create_token, verify_token};
 pub use middleware::{AllowedRoles, require_roles_layer};
 
 #[doc(inline)]
-pub use password::{PasswordError, hash_password, hash_password_async, verify_password, verify_password_async};
+pub use password::{
+    PasswordError, hash_password, hash_password_async, verify_password, verify_password_async,
+};
 
 #[doc(inline)]
 pub use rbac::require_role;

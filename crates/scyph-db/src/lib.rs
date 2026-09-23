@@ -21,6 +21,9 @@ pub mod health;
 /// Database error type definitions.
 pub mod error;
 
+/// Internal utility helpers for filesystem and environment resolution.
+pub(crate) mod util;
+
 pub use error::DbError;
 pub use migrate::{run_migrations, run_migrations_from, run_seeds, run_seeds_from};
 pub use pool::build_pool;

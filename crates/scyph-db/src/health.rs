@@ -6,9 +6,15 @@ use sqlx::PgPool;
 /// Classifies a [`sqlx::Error`] into a [`HealthFailure::Transient`] or [`HealthFailure::Fatal`] error.
 fn classify_sqlx_error(err: &sqlx::Error) -> HealthFailure {
     match err {
-        sqlx::Error::Configuration(msg) => HealthFailure::Fatal(format!("Configuration error: {msg}")),
-        sqlx::Error::PoolClosed => HealthFailure::Fatal("Database connection pool is closed".to_string()),
-        sqlx::Error::WorkerCrashed => HealthFailure::Fatal("Database worker thread crashed".to_string()),
+        sqlx::Error::Configuration(msg) => {
+            HealthFailure::Fatal(format!("Configuration error: {msg}"))
+        }
+        sqlx::Error::PoolClosed => {
+            HealthFailure::Fatal("Database connection pool is closed".to_string())
+        }
+        sqlx::Error::WorkerCrashed => {
+            HealthFailure::Fatal("Database worker thread crashed".to_string())
+        }
         other => HealthFailure::Transient(other.to_string()),
     }
 }

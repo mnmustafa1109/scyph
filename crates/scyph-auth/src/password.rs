@@ -144,7 +144,10 @@ pub fn verify_password(pw: &SecretString, hash: &str) -> Result<(), PasswordErro
 /// assert!(verify_password_async(&password, &phc_hash).await.is_ok());
 /// # }
 /// ```
-pub async fn verify_password_async(pw: &SecretString, hash: impl Into<String>) -> Result<(), PasswordError> {
+pub async fn verify_password_async(
+    pw: &SecretString,
+    hash: impl Into<String>,
+) -> Result<(), PasswordError> {
     let password = pw.clone();
     let hash = hash.into();
     tokio::task::spawn_blocking(move || verify_password(&password, &hash))

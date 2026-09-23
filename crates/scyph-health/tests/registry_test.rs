@@ -20,10 +20,7 @@ async fn test_state_machine_transitions() {
     registry
         .check("db", true, async { Ok::<(), &str>(()) })
         .await;
-    assert_eq!(
-        registry.snapshot().await["db"].status,
-        Status::Recovering
-    );
+    assert_eq!(registry.snapshot().await["db"].status, Status::Recovering);
 
     // 4. Second probe -> Healthy
     registry

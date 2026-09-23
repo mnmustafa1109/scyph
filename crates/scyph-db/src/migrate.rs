@@ -12,40 +12,13 @@
 //!    - **`production`** (or `"prod"`) maps to **`<dir>/prod/`** (falling back to `<dir>/production/` if `<dir>/prod/` does not exist).
 //!    - Any other custom `APP_ENV` value (e.g. `"staging"`) maps directly to **`<dir>/<APP_ENV>/`**.
 
-use crate::DbError;
-use sqlx::PgPool;
-use std::{
-    env,
-    path::{Path, PathBuf},
+use crate::{
+    DbError,
+    util::{has_sql_files, resolve_target_env_path},
 };
+use sqlx::PgPool;
+use std::{env, path::Path};
 use tracing::info;
-
-/// Helper function to resolve environment string from `APP_ENV` to target folder name.
-///
-/// Maps `"development"` (or `"dev"`, or default when unset) to `"beta"` and `"production"` (or `"prod"`) to `"prod"`.
-fn resolve_env_folder(raw_env: &str) -> String {
-    match raw_env.to_lowercase().as_str() {
-        "development" | "dev" => "beta".to_string(),
-        "production" => "prod".to_string(),
-        _ => raw_env.to_string(),
-    }
-}
-
-/// Resolves the actual existing environment folder path inside `base_dir`.
-///
-/// Checks the mapped folder name (e.g., `beta` or `prod`) first, and falls back to `raw_env` if distinct.
-fn resolve_target_env_path(base_dir: &Path, raw_env: &str) -> Option<PathBuf> {
-    let mapped_name = resolve_env_folder(raw_env);
-    let mapped_path = base_dir.join(&mapped_name);
-    if mapped_path.exists() {
-        return Some(mapped_path);
-    }
-    let raw_path = base_dir.join(raw_env);
-    if raw_path.exists() {
-        return Some(raw_path);
-    }
-    None
-}
 
 /// Runs SQL migrations against the database pool from a specified directory.
 ///
@@ -74,28 +47,29 @@ pub async fn run_migrations_from(pool: &PgPool, dir: impl AsRef<Path>) -> Result
 
     let raw_env = env::var("APP_ENV").unwrap_or_else(|_| "development".to_string());
 
-    // 1. Try running root migrations directory if valid
-    if let Ok(migrator) = sqlx::migrate::Migrator::new(path).await {
+    // 1. Run root migrations directory if it contains SQL files
+    if has_sql_files(path) {
         info!(migrations_dir = ?path, "Running root database migrations");
+        let migrator = sqlx::migrate::Migrator::new(path).await?;
         migrator.run(pool).await?;
         info!("Root database migrations completed");
     }
 
-    // 2. Try running common subfolder (<dir>/common)
+    // 2. Run common subfolder (<dir>/common) if it exists and contains SQL files
     let common_path = path.join("common");
-    if common_path.exists()
-        && let Ok(migrator) = sqlx::migrate::Migrator::new(common_path.as_path()).await
-    {
+    if common_path.exists() && has_sql_files(&common_path) {
         info!(path = ?common_path, "Running common database migrations");
+        let migrator = sqlx::migrate::Migrator::new(common_path.as_path()).await?;
         migrator.run(pool).await?;
         info!("Common database migrations completed");
     }
 
-    // 3. Try running environment-specific subfolder (<dir>/beta or <dir>/prod)
+    // 3. Run environment-specific subfolder (<dir>/beta or <dir>/prod) if it exists and contains SQL files
     if let Some(env_path) = resolve_target_env_path(path, &raw_env)
-        && let Ok(migrator) = sqlx::migrate::Migrator::new(env_path.as_path()).await
+        && has_sql_files(&env_path)
     {
         info!(app_env = %raw_env, path = ?env_path, "Running environment database migrations");
+        let migrator = sqlx::migrate::Migrator::new(env_path.as_path()).await?;
         migrator.run(pool).await?;
         info!(app_env = %raw_env, "Environment database migrations completed");
     }
@@ -168,28 +142,29 @@ pub async fn run_seeds_from(pool: &PgPool, dir: impl AsRef<Path>) -> Result<(), 
     let raw_env = env::var("APP_ENV").unwrap_or_else(|_| "development".to_string());
     info!(app_env = %raw_env, seeds_dir = ?path, "Running seed data insertion");
 
-    // 1. Try running root seeds directory
-    if let Ok(migrator) = sqlx::migrate::Migrator::new(path).await {
+    // 1. Run root seeds directory if it contains SQL files
+    if has_sql_files(path) {
         info!(path = ?path, "Running root seed data insertion");
+        let migrator = sqlx::migrate::Migrator::new(path).await?;
         migrator.run(pool).await?;
         info!("Root seed data insertion completed");
     }
 
-    // 2. Try running common seeds (<dir>/common)
+    // 2. Run common seeds (<dir>/common) if it exists and contains SQL files
     let common_path = path.join("common");
-    if common_path.exists()
-        && let Ok(migrator) = sqlx::migrate::Migrator::new(common_path.as_path()).await
-    {
+    if common_path.exists() && has_sql_files(&common_path) {
         info!(path = ?common_path, "Running common seed data insertion");
+        let migrator = sqlx::migrate::Migrator::new(common_path.as_path()).await?;
         migrator.run(pool).await?;
         info!("Common seed data insertion completed");
     }
 
-    // 3. Try running environment seeds (<dir>/beta or <dir>/prod)
+    // 3. Run environment seeds (<dir>/beta or <dir>/prod) if it exists and contains SQL files
     if let Some(env_path) = resolve_target_env_path(path, &raw_env)
-        && let Ok(migrator) = sqlx::migrate::Migrator::new(env_path.as_path()).await
+        && has_sql_files(&env_path)
     {
         info!(app_env = %raw_env, path = ?env_path, "Running environment seed data insertion");
+        let migrator = sqlx::migrate::Migrator::new(env_path.as_path()).await?;
         migrator.run(pool).await?;
         info!(app_env = %raw_env, "Environment seed data insertion completed");
     }
