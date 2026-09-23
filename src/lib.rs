@@ -41,8 +41,8 @@ pub mod prelude {
 
     #[cfg(feature = "auth")]
     pub use scyph_auth::{
-        hash_password, hash_password_async, require_role, verify_password, verify_password_async,
-        AuthCacheService, AuthError, AuthUser, OptionalAuthUser, RoleRouterExt,
+        AuthCacheService, AuthError, AuthUser, OptionalAuthUser, RoleRouterExt, hash_password,
+        hash_password_async, require_role, verify_password, verify_password_async,
     };
 
     #[cfg(feature = "abac")]
@@ -50,8 +50,8 @@ pub mod prelude {
 
     #[cfg(feature = "db")]
     pub use scyph_db::{
-        begin, build_pool, commit, rollback, run_migrations, run_migrations_from, run_seeds,
-        run_seeds_from, DbError,
+        DbError, begin, build_pool, commit, rollback, run_migrations, run_migrations_from,
+        run_seeds, run_seeds_from,
     };
 
     #[cfg(feature = "notify")]
@@ -65,7 +65,7 @@ pub mod prelude {
 
     #[cfg(feature = "health")]
     pub use scyph_health::{
-        health_routes, HealthFailure, HealthRegistry, IntoHealthResult, ServiceStatus, Status,
+        HealthFailure, HealthRegistry, IntoHealthResult, ServiceStatus, Status, health_routes,
     };
 }
 
