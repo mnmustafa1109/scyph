@@ -157,9 +157,8 @@ impl S3StorageService {
     }
 
     fn normalize_key<'a>(&'a self, file_url: &'a str) -> &'a str {
-        let prefix_slash = format!("{}/", self.public_url_prefix);
-        if let Some(stripped) = file_url.strip_prefix(&prefix_slash) {
-            stripped
+        if let Some(stripped) = file_url.strip_prefix(&self.public_url_prefix) {
+            stripped.strip_prefix('/').unwrap_or(stripped)
         } else {
             file_url
         }
@@ -248,6 +247,7 @@ impl StorageService for S3StorageService {
         expires_in_seconds: u64,
     ) -> Result<String, StorageError> {
         let key = self.normalize_key(file_url);
+        let sanitized_name = download_name.replace(['"', '\r', '\n', '\\'], "");
         let expires_in = Duration::from_secs(expires_in_seconds);
         let presigning_config = PresigningConfig::expires_in(expires_in)
             .map_err(|e| StorageError::Presign(format!("Presigning config error: {e}")))?;
@@ -257,7 +257,7 @@ impl StorageService for S3StorageService {
             .get_object()
             .bucket(&self.bucket)
             .key(key)
-            .response_content_disposition(format!("attachment; filename=\"{download_name}\""))
+            .response_content_disposition(format!("attachment; filename=\"{sanitized_name}\""))
             .presigned(presigning_config)
             .await
             .map_err(|e| StorageError::Presign(format!("S3 presign download error: {key}: {e}")))?;

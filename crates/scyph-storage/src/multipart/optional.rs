@@ -83,6 +83,14 @@ where
             }
 
             let data = read_field_bytes(field, C::max_size(), &original_name).await?;
+
+            if C::enforce_magic_bytes() && !C::verify_magic_bytes(&data, &content_type) {
+                return Err(StorageError::UnsupportedMediaType(format!(
+                    "File '{original_name}' content signature does not match declared MIME type '{content_type}'"
+                ))
+                .into());
+            }
+
             let extension = C::resolve_extension(&content_type);
             let path = format!("{}/{}.{}", C::storage_path(), Uuid::now_v7(), extension);
 

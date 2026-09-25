@@ -39,6 +39,35 @@ pub trait FileConfig: Send + Sync + 'static {
         10
     }
 
+    /// Whether to inspect uploaded binary data against standard magic byte signatures (defaults to `true`).
+    ///
+    /// When enabled, uploads declaring MIME types like `image/png` or `application/pdf` must have matching
+    /// binary file header signatures, preventing MIME-spoofing attacks.
+    fn enforce_magic_bytes() -> bool {
+        true
+    }
+
+    /// Validates whether the binary payload matches the expected file signature for `content_type`.
+    ///
+    /// Provides built-in magic byte verification for JPEG, PNG, GIF, WEBP, PDF, ZIP, and Office documents.
+    /// Can be overridden for custom binary formats.
+    fn verify_magic_bytes(data: &[u8], content_type: &str) -> bool {
+        match content_type {
+            "image/png" => data.starts_with(&[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]),
+            "image/jpeg" => data.len() >= 3 && data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF,
+            "image/gif" => data.starts_with(b"GIF87a") || data.starts_with(b"GIF89a"),
+            "image/webp" => data.len() >= 12 && &data[0..4] == b"RIFF" && &data[8..12] == b"WEBP",
+            "application/pdf" => data.starts_with(b"%PDF-"),
+            "application/zip"
+            | "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            | "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => {
+                data.starts_with(&[0x50, 0x4B, 0x03, 0x04])
+            }
+            "application/x-rar-compressed" => data.starts_with(&[0x52, 0x61, 0x72, 0x21, 0x1A, 0x07]),
+            _ => true,
+        }
+    }
+
     /// Resolves the canonical file extension string for a given MIME content-type.
     ///
     /// Provides built-in mappings for common image, document, and archive types. Can be overridden
@@ -63,5 +92,44 @@ pub trait FileConfig: Send + Sync + 'static {
             "application/json" => "json",
             _ => "bin",
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct TestConfig;
+    impl FileConfig for TestConfig {
+        fn field_name() -> &'static str {
+            "test"
+        }
+        fn max_size() -> usize {
+            1024
+        }
+        fn allowed_mime_types() -> Vec<&'static str> {
+            vec!["image/png", "application/pdf"]
+        }
+        fn storage_path() -> &'static str {
+            "tests"
+        }
+    }
+
+    #[test]
+    fn test_magic_bytes_validation() {
+        let png_bytes = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00];
+        let pdf_bytes = b"%PDF-1.4 header contents";
+        let fake_png = b"NOT_A_PNG_FILE";
+
+        assert!(TestConfig::verify_magic_bytes(&png_bytes, "image/png"));
+        assert!(!TestConfig::verify_magic_bytes(fake_png, "image/png"));
+        assert!(TestConfig::verify_magic_bytes(pdf_bytes, "application/pdf"));
+    }
+
+    #[test]
+    fn test_resolve_extensions() {
+        assert_eq!(TestConfig::resolve_extension("image/png"), "png");
+        assert_eq!(TestConfig::resolve_extension("application/pdf"), "pdf");
+        assert_eq!(TestConfig::resolve_extension("custom/binary"), "bin");
     }
 }

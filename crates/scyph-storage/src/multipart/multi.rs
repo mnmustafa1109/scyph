@@ -110,20 +110,20 @@ where
         {
             let field_name = field.name().unwrap_or_default();
 
-            let is_matching_field = field_name == target_name
-                || field_name == target_plural
-                || field_name == target_array
-                || field_name == target_plural_array
-                || field_name == "files"
-                || field_name == "files[]"
-                || field_name == "file"
-                || field_name == "file[]";
+            let is_matching_field = if target_name.is_empty() || target_name == "file" || target_name == "files" {
+                field_name == "file"
+                    || field_name == "files"
+                    || field_name == "file[]"
+                    || field_name == "files[]"
+                    || target_name.is_empty()
+            } else {
+                field_name == target_name
+                    || field_name == target_plural
+                    || field_name == target_array
+                    || field_name == target_plural_array
+            };
 
-            if !is_matching_field && field.file_name().is_none() {
-                continue;
-            }
-
-            if !is_matching_field && field.file_name().is_some() && !target_name.is_empty() {
+            if !is_matching_field {
                 continue;
             }
 
@@ -154,6 +154,14 @@ where
             }
 
             let data = read_field_bytes(field, C::max_size(), &original_name).await?;
+
+            if C::enforce_magic_bytes() && !C::verify_magic_bytes(&data, &content_type) {
+                return Err(StorageError::UnsupportedMediaType(format!(
+                    "File '{original_name}' content signature does not match declared MIME type '{content_type}'"
+                ))
+                .into());
+            }
+
             let extension = C::resolve_extension(&content_type);
             let path = format!("{}/{}.{}", C::storage_path(), Uuid::now_v7(), extension);
 

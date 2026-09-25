@@ -74,17 +74,25 @@ impl InMemoryStorageService {
 
     /// Returns the total number of objects currently stored in memory.
     pub fn count(&self) -> usize {
-        self.objects.read().unwrap().len()
+        self.objects.read().unwrap_or_else(|p| p.into_inner()).len()
     }
 
     /// Returns `true` if an object exists at the specified path.
     pub fn contains(&self, path: &str) -> bool {
-        self.objects.read().unwrap().contains_key(path)
+        self.objects.read().unwrap_or_else(|p| p.into_inner()).contains_key(path)
     }
 
     /// Clears all objects stored in memory.
     pub fn clear(&self) {
-        self.objects.write().unwrap().clear();
+        self.objects.write().unwrap_or_else(|p| p.into_inner()).clear();
+    }
+
+    fn normalize_key<'a>(&'a self, file_url: &'a str) -> &'a str {
+        if let Some(stripped) = file_url.strip_prefix(&self.base_url) {
+            stripped.strip_prefix('/').unwrap_or(stripped)
+        } else {
+            file_url
+        }
     }
 }
 
@@ -95,7 +103,7 @@ impl StorageService for InMemoryStorageService {
         content_type: &str,
         data: Bytes,
     ) -> Result<String, StorageError> {
-        self.objects.write().unwrap().insert(
+        self.objects.write().unwrap_or_else(|p| p.into_inner()).insert(
             path.to_string(),
             StoredObject {
                 data,
@@ -106,11 +114,9 @@ impl StorageService for InMemoryStorageService {
     }
 
     async fn retrieve(&self, file_url: &str) -> Result<Bytes, StorageError> {
-        let key = file_url
-            .strip_prefix(&format!("{}/", self.base_url))
-            .unwrap_or(file_url);
+        let key = self.normalize_key(file_url);
 
-        let map = self.objects.read().unwrap();
+        let map = self.objects.read().unwrap_or_else(|p| p.into_inner());
         map.get(key)
             .map(|obj| obj.data.clone())
             .ok_or_else(|| StorageError::NotFound(format!("Object '{key}' not found in memory storage")))
@@ -121,11 +127,9 @@ impl StorageService for InMemoryStorageService {
         file_url: &str,
         _expires_in_seconds: u64,
     ) -> Result<String, StorageError> {
-        let key = file_url
-            .strip_prefix(&format!("{}/", self.base_url))
-            .unwrap_or(file_url);
+        let key = self.normalize_key(file_url);
 
-        let map = self.objects.read().unwrap();
+        let map = self.objects.read().unwrap_or_else(|p| p.into_inner());
         if !map.contains_key(key) {
             return Err(StorageError::NotFound(format!("Object '{key}' not found in memory storage")));
         }
@@ -151,28 +155,61 @@ impl StorageService for InMemoryStorageService {
         download_name: &str,
         _expires_in_seconds: u64,
     ) -> Result<String, StorageError> {
-        let key = file_url
-            .strip_prefix(&format!("{}/", self.base_url))
-            .unwrap_or(file_url);
+        let key = self.normalize_key(file_url);
+        let sanitized_name = download_name.replace(['"', '\r', '\n', '\\'], "");
 
-        let map = self.objects.read().unwrap();
+        let map = self.objects.read().unwrap_or_else(|p| p.into_inner());
         if !map.contains_key(key) {
             return Err(StorageError::NotFound(format!("Object '{key}' not found in memory storage")));
         }
 
-        Ok(format!("{}/{key}?download={download_name}", self.base_url))
+        Ok(format!("{}/{key}?download={sanitized_name}", self.base_url))
     }
 
     async fn delete(&self, file_url: &str) -> Result<(), StorageError> {
-        let key = file_url
-            .strip_prefix(&format!("{}/", self.base_url))
-            .unwrap_or(file_url);
+        let key = self.normalize_key(file_url);
 
-        self.objects.write().unwrap().remove(key);
+        self.objects.write().unwrap_or_else(|p| p.into_inner()).remove(key);
         Ok(())
     }
 
     async fn test_connection(&self) -> Result<(), StorageError> {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_memory_storage_crud() {
+        let storage = InMemoryStorageService::new();
+        let path = "avatars/01.png";
+        let data = Bytes::from_static(b"binary content");
+
+        // Store
+        let stored_path = storage.store(path, "image/png", data.clone()).await.unwrap();
+        assert_eq!(stored_path, path);
+        assert_eq!(storage.count(), 1);
+        assert!(storage.contains(path));
+
+        // Retrieve
+        let retrieved = storage.retrieve(path).await.unwrap();
+        assert_eq!(retrieved, data);
+
+        // View URL
+        let view_url = storage.get_view_url(path, 3600).await.unwrap();
+        assert!(view_url.contains("view=true"));
+
+        // Download URL with sanitization
+        let download_url = storage.get_download_url(path, "my\"file\r\n.png", 3600).await.unwrap();
+        assert!(download_url.contains("download=myfile.png"));
+
+        // Delete
+        storage.delete(path).await.unwrap();
+        assert_eq!(storage.count(), 0);
+        assert!(!storage.contains(path));
+        assert!(storage.retrieve(path).await.is_err());
     }
 }
