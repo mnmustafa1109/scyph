@@ -17,6 +17,11 @@ pub trait RoleRouterExt<S> {
     /// Applies role validation middleware checking whether the authenticated user possesses one of the
     /// specified static `roles`.
     ///
+    /// # Important Usage Note
+    ///
+    /// Like standard Axum layers, `.require_roles(...)` applies **only to routes configured prior to this call**.
+    /// Ensure all target routes are defined on the [`Router`] before calling `.require_roles(...)`.
+    ///
     /// # Arguments
     ///
     /// * `roles` - Static slice of allowed roles.
@@ -30,10 +35,10 @@ pub trait RoleRouterExt<S> {
     /// #[derive(Clone, Copy, PartialEq, Eq)]
     /// enum UserRole { Admin, Moderator }
     ///
-    /// // Protected admin router
+    /// // Define routes first, then call require_roles
     /// // let admin_routes = Router::new()
     /// //     .route("/dashboard", get(|| async { "Admin Dashboard" }))
-    /// //     .require_roles::<MyClaims>(&[UserRole::Admin]);
+    /// //     .require_roles::<MyClaims>(state, &[UserRole::Admin]);
     /// ```
     fn require_roles<C>(self, state: S, roles: &'static [C::Role]) -> Self
     where
