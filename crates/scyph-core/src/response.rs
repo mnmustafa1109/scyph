@@ -184,7 +184,7 @@ impl<T: Serialize> PagedResponse<T> {
     /// assert_eq!(paged.next_cursor.as_deref(), Some("cursor_next_xyz"));
     /// ```
     pub fn new(data: Vec<T>, total: i64, page: i64, per_page: i64) -> Self {
-        let has_next = (page * per_page) < total;
+        let has_next = page.saturating_mul(per_page) < total;
         Self {
             success: true,
             message: "OK".into(),
