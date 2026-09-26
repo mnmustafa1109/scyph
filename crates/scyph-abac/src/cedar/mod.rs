@@ -12,6 +12,22 @@
 //! use std::collections::HashMap;
 //! use uuid::Uuid;
 //!
+//! pub struct User { pub name: String, pub role: String }
+//! impl IntoCedarEntity for User {
+//!     fn entity_type() -> &'static str { "User" }
+//!     fn entity_id(&self) -> String { self.name.clone() }
+//!     fn to_cedar_entity(&self) -> Entity {
+//!         CedarEntityBuilder::new("User", &self.name)
+//!             .attr_string("role", &self.role)
+//!             .build()
+//!     }
+//!     fn attribute_types() -> HashMap<String, CedarType> {
+//!         let mut m = HashMap::new();
+//!         m.insert("role".to_string(), CedarType::String);
+//!         m
+//!     }
+//! }
+//!
 //! pub struct Document { pub id: Uuid, pub is_public: bool }
 //! impl IntoCedarEntity for Document {
 //!     fn entity_type() -> &'static str { "Document" }
@@ -34,13 +50,14 @@
 //!         action == Action::"Read",
 //!         resource
 //!     )
-//!     when { resource.is_public == true };
+//!     when { principal.role == "Admin" || resource.is_public == true };
 //! "#;
 //!
 //! let authorizer = CedarAuthorizer::from_str(policy_src, None).unwrap();
+//! let user = User { name: "alice".into(), role: "Admin".into() };
 //! let doc = Document { id: Uuid::new_v4(), is_public: true };
 //!
-//! assert!(authorizer.authorize("User", "alice", "Read", &doc).is_ok());
+//! assert!(authorizer.authorize(&user, "Read", &doc).is_ok());
 //! ```
 
 pub mod authorizer;

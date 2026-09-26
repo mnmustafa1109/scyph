@@ -96,11 +96,59 @@ impl CedarAuthorizer {
         }
     }
 
-    /// Evaluates authorization for a model implementing [`IntoCedarEntity`].
+    /// Evaluates authorization for a principal model `P` and resource model `R`, both implementing [`IntoCedarEntity`].
+    ///
+    /// Loads both principal and resource entity attributes into Cedar's evaluation context.
     ///
     /// # Type Parameters
     ///
-    /// * `R` - Resource type implementing [`IntoCedarEntity`].
+    /// * `P` - Principal entity model type implementing [`IntoCedarEntity`].
+    /// * `R` - Resource entity model type implementing [`IntoCedarEntity`].
+    ///
+    /// # Arguments
+    ///
+    /// * `principal` - Reference to the evaluating principal entity model (e.g. `User`).
+    /// * `action_name` - Cedar action name string (e.g. `"Read"`).
+    /// * `resource` - Reference to the target resource entity model (e.g. `Document`).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AppError::BadRequest`] if UIDs are invalid, or [`AppError::Forbidden`] if denied.
+    pub fn authorize<P: IntoCedarEntity, R: IntoCedarEntity>(
+        &self,
+        principal: &P,
+        action_name: &str,
+        resource: &R,
+    ) -> Result<(), AppError> {
+        let principal_uid = principal.to_entity_uid();
+        let resource_uid = resource.to_entity_uid();
+        let action = EntityUid::from_str(&format!("Action::\"{}\"", action_name))
+            .map_err(|e| AppError::BadRequest(e.to_string()))?;
+
+        let entities = Entities::from_entities(
+            vec![principal.to_cedar_entity(), resource.to_cedar_entity()],
+            self.schema.as_ref(),
+        )
+        .map_err(|e| AppError::Internal {
+            source: Box::new(e),
+            context: "Entities build failed".into(),
+        })?;
+
+        self.is_authorized(
+            &principal_uid,
+            &action,
+            &resource_uid,
+            Context::empty(),
+            &entities,
+        )?;
+        Ok(())
+    }
+
+    /// Evaluates authorization using string UIDs for principal type and ID when a full principal entity model is unavailable.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `R` - Resource entity model type implementing [`IntoCedarEntity`].
     ///
     /// # Arguments
     ///
@@ -112,7 +160,7 @@ impl CedarAuthorizer {
     /// # Errors
     ///
     /// Returns [`AppError::BadRequest`] if UIDs are invalid, or [`AppError::Forbidden`] if denied.
-    pub fn authorize<R: IntoCedarEntity>(
+    pub fn authorize_uids<R: IntoCedarEntity>(
         &self,
         principal_type: &str,
         principal_id: &str,
@@ -142,23 +190,50 @@ impl CedarAuthorizer {
         Ok(())
     }
 
-    /// Strongly-typed Cedar authorization check using [`AuthUser`], [`Action`], and resource model.
+    /// Strongly-typed Cedar authorization check using principal model `P`, [`Action`], and resource model `R`.
     ///
     /// # Type Parameters
     ///
-    /// * `C` - Application claims type implementing [`Claims`].
-    /// * `R` - Resource model implementing [`IntoCedarEntity`].
+    /// * `P` - Principal entity model implementing [`IntoCedarEntity`].
+    /// * `R` - Resource entity model implementing [`IntoCedarEntity`].
     ///
     /// # Arguments
     ///
-    /// * `user` - Reference to the authenticated [`AuthUser`].
+    /// * `principal` - Reference to the principal entity model (e.g. `User`).
     /// * `action` - The [`Action`] enum variant.
     /// * `resource` - Reference to a resource model implementing [`IntoCedarEntity`].
     ///
     /// # Errors
     ///
     /// Returns [`AppError::Forbidden`] if denied, or [`AppError::BadRequest`] if action mapping fails.
-    pub fn check<C: Claims, R: IntoCedarEntity>(
+    pub fn check<P: IntoCedarEntity, R: IntoCedarEntity>(
+        &self,
+        principal: &P,
+        action: Action,
+        resource: &R,
+    ) -> Result<(), AppError> {
+        let action_name = match &action {
+            Action::Create => "Create",
+            Action::Read => "Read",
+            Action::Update => "Update",
+            Action::Delete => "Delete",
+            Action::List => "List",
+            Action::Custom(name) => name.as_ref(),
+            &_ => {
+                return Err(AppError::BadRequest(format!(
+                    "Unsupported action: {:?}",
+                    action
+                )));
+            }
+        };
+
+        self.authorize(principal, action_name, resource)
+    }
+
+    /// Strongly-typed Cedar authorization check using [`AuthUser`], [`Action`], and resource model.
+    ///
+    /// Evaluates using string principal UID `"User::<user_id>"`.
+    pub fn check_user<C: Claims, R: IntoCedarEntity>(
         &self,
         user: &AuthUser<C>,
         action: Action,
@@ -179,6 +254,6 @@ impl CedarAuthorizer {
             }
         };
 
-        self.authorize("User", &user.id.to_string(), action_name, resource)
+        self.authorize_uids("User", &user.id.to_string(), action_name, resource)
     }
 }
