@@ -111,7 +111,8 @@ where
 
             if !C::allowed_mime_types().contains(&content_type.as_str()) {
                 return Err(StorageError::UnsupportedMediaType(format!(
-                    "Unsupported file type '{content_type}'. Allowed types: {:?}",
+                    "Unsupported Content-Type '{content_type}' for field '{}'. Allowed MIME types: {:?}",
+                    C::field_name(),
                     C::allowed_mime_types()
                 ))
                 .into());

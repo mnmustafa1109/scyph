@@ -29,6 +29,10 @@ pub trait FileConfig: Send + Sync + 'static {
     fn max_size() -> usize;
 
     /// Whitelist of allowed MIME Content-Type headers (e.g., `vec!["image/jpeg", "image/png"]`).
+    ///
+    /// # Note on Header Matching
+    /// Matching is performed directly against the incoming `Content-Type` header string.
+    /// Ensure expected client headers match the exact strings listed here (e.g. `"image/png"`).
     fn allowed_mime_types() -> Vec<&'static str>;
 
     /// S3 folder directory prefix where the file should be routed (e.g., `"avatars"`, `"contracts/documents"`).
