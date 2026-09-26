@@ -33,6 +33,10 @@ pub use scyph_health as health;
 /// Email, FCM push, and in-app notification services.
 pub use scyph_notify as notify;
 
+#[cfg(feature = "storage")]
+/// Object storage abstractions, multipart extractors, and AWS S3 / MinIO service implementation.
+pub use scyph_storage as storage;
+
 /// Convenient prelude re-exporting common framework types for single-line imports (`use scyph::prelude::*;`).
 pub mod prelude {
     pub use scyph_core::{
@@ -60,8 +64,20 @@ pub mod prelude {
         PushNotification, PushService, PushTemplate,
     };
 
+    #[cfg(feature = "storage")]
+    pub use scyph_storage::{
+        ExtractedFile, FileConfig, FileExtractor, InMemoryStorageService, MultiFileExtractor,
+        OptionalFileExtractor, StorageError, StorageService,
+    };
+
+    #[cfg(all(feature = "storage", feature = "s3"))]
+    pub use scyph_storage::S3StorageService;
+
     #[cfg(all(feature = "db", feature = "health"))]
     pub use scyph_db::DbHealthExt;
+
+    #[cfg(all(feature = "storage", feature = "health"))]
+    pub use scyph_storage::StorageHealthExt;
 
     #[cfg(feature = "health")]
     pub use scyph_health::{
@@ -83,3 +99,6 @@ pub use scyph_db::DbError;
 
 #[cfg(feature = "notify")]
 pub use scyph_notify::{EmailTemplate, NoEmailService, NoPushService, NotifyError, PushTemplate};
+
+#[cfg(feature = "storage")]
+pub use scyph_storage::StorageError;
