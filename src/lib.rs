@@ -45,8 +45,8 @@ pub mod prelude {
 
     #[cfg(feature = "auth")]
     pub use scyph_auth::{
-        AuthCacheService, AuthError, AuthUser, OptionalAuthUser, RoleRouterExt, hash_password,
-        hash_password_async, require_role, verify_password, verify_password_async,
+        AuthCacheService, AuthError, AuthUser, OptionalAuthUser, PasswordService, RoleRouterExt,
+        hash_password, hash_password_async, require_role, verify_password, verify_password_async,
     };
 
     #[cfg(feature = "abac")]

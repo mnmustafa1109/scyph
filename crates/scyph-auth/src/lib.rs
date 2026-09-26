@@ -55,7 +55,8 @@ pub use middleware::{AllowedRoles, require_roles_layer};
 
 #[doc(inline)]
 pub use password::{
-    PasswordError, hash_password, hash_password_async, verify_password, verify_password_async,
+    PasswordError, PasswordService, hash_password, hash_password_async, verify_password,
+    verify_password_async,
 };
 
 #[doc(inline)]
