@@ -8,7 +8,7 @@
 use std::env;
 
 use lettre::{
-    message::{header::ContentType, MultiPart, SinglePart},
+    message::{header::ContentType, Mailbox, MultiPart, SinglePart},
     transport::smtp::authentication::Credentials,
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
 };
@@ -93,7 +93,7 @@ impl EmailService for LettreSMTPService {
     /// Returns [`NotifyError`] if building the `lettre::Message` fails, if sender configuration is invalid,
     /// or if delivery to all recipients fails.
     async fn send(&self, msg: EmailMessage) -> Result<(), NotifyError> {
-        let from_mailbox = self.from.parse()?;
+        let from_mailbox: Mailbox = self.from.parse()?;
         let mut errors = Vec::new();
 
         for recipient in &msg.to {
