@@ -217,7 +217,10 @@ pub fn hash_password(pw: &SecretString) -> Result<String, PasswordError> {
 /// # }
 /// ```
 pub async fn hash_password_async(pw: &SecretString) -> Result<String, PasswordError> {
-    PasswordService::default().hash_password(pw).await
+    let password = pw.clone();
+    tokio::task::spawn_blocking(move || hash_password(&password))
+        .await
+        .map_err(|e| PasswordError::HashFailed(e.to_string()))?
 }
 
 /// Verifies a plaintext password against an Argon2 PHC formatted hash string in constant time.
@@ -255,7 +258,7 @@ pub fn verify_password(pw: &SecretString, hash: &str) -> Result<(), PasswordErro
 
 /// Verifies a plaintext password asynchronously on Tokio's blocking thread pool (`spawn_blocking`).
 ///
-/// Delegates to a default [`PasswordService`] instance.
+/// Delegates to [`verify_password`] inside Tokio's blocking task pool.
 ///
 /// # Arguments
 ///
@@ -285,6 +288,9 @@ pub async fn verify_password_async(
     pw: &SecretString,
     hash: impl Into<String>,
 ) -> Result<(), PasswordError> {
+    let password = pw.clone();
     let hash = hash.into();
-    PasswordService::default().verify_password(pw, &hash).await
+    tokio::task::spawn_blocking(move || verify_password(&password, &hash))
+        .await
+        .map_err(|e| PasswordError::HashFailed(e.to_string()))?
 }
