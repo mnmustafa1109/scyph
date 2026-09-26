@@ -14,7 +14,8 @@ abac = ["dep:scyph-abac"]
 db = ["dep:scyph-db"]
 health = ["dep:scyph-health", "scyph-db?/health", "scyph-notify?/health", "scyph-storage?/health"]
 notify = ["dep:scyph-notify"]
-storage = ["dep:scyph-storage"]
+storage = ["dep:scyph-storage", "scyph-storage/s3"]
+s3 = ["storage"]
 
 [dependencies]
 scyph-core = { path = "crates/scyph-core", version = "0.1.0" }
