@@ -13,7 +13,7 @@ use lettre::{
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
 };
 use secrecy::{ExposeSecret, SecretString};
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::{
     traits::{EmailMessage, EmailService},
@@ -86,15 +86,29 @@ impl EmailService for LettreSMTPService {
     ///
     /// Automatically builds a `multipart/alternative` email payload containing both HTML and plaintext bodies
     /// if `msg.text` is present; otherwise builds a `text/html` singlepart email.
+    /// Attempts delivery to each recipient in `msg.to`, logging per-recipient outcomes and capturing errors.
     ///
     /// # Errors
     ///
-    /// Returns [`NotifyError`] if building the `lettre::Message` fails or if transport transmission fails.
+    /// Returns [`NotifyError`] if building the `lettre::Message` fails, if sender configuration is invalid,
+    /// or if delivery to all recipients fails.
     async fn send(&self, msg: EmailMessage) -> Result<(), NotifyError> {
+        let from_mailbox = self.from.parse()?;
+        let mut errors = Vec::new();
+
         for recipient in &msg.to {
+            let to_mailbox = match recipient.parse() {
+                Ok(addr) => addr,
+                Err(e) => {
+                    warn!(recipient = %recipient, error = %e, "Invalid recipient email address format");
+                    errors.push(format!("Invalid address '{recipient}': {e}"));
+                    continue;
+                }
+            };
+
             let builder = Message::builder()
-                .from(self.from.parse()?)
-                .to(recipient.parse()?)
+                .from(from_mailbox.clone())
+                .to(to_mailbox)
                 .subject(&msg.subject);
 
             let email = if let Some(text) = &msg.text {
@@ -119,9 +133,32 @@ impl EmailService for LettreSMTPService {
                 )?
             };
 
-            self.transport.send(email).await?;
-            info!(recipient = %recipient, subject = %msg.subject, "Email sent successfully");
+            match self.transport.send(email).await {
+                Ok(_) => {
+                    info!(recipient = %recipient, subject = %msg.subject, "Email sent successfully");
+                }
+                Err(e) => {
+                    warn!(recipient = %recipient, subject = %msg.subject, error = %e, "Failed to send email to recipient");
+                    errors.push(format!("Failed to send to '{recipient}': {e}"));
+                }
+            }
         }
+
+        if !errors.is_empty() && errors.len() == msg.to.len() {
+            return Err(NotifyError::Internal(format!(
+                "Failed to deliver email to all recipients: {}",
+                errors.join("; ")
+            )));
+        } else if !errors.is_empty() {
+            warn!(
+                subject = %msg.subject,
+                "Email delivered with partial failures ({}/{} failed): {}",
+                errors.len(),
+                msg.to.len(),
+                errors.join("; ")
+            );
+        }
+
         Ok(())
     }
 }
