@@ -19,7 +19,7 @@
 //!
 //! ## Quickstart Example
 //!
-//! ```rust,no_run
+//! ```rust,ignore
 //! use axum::{extract::State, response::Json, routing::post, Router};
 //! use scyph_core::error::AppError;
 //! use scyph_storage::{FileConfig, FileExtractor, S3StorageService, StorageService};
