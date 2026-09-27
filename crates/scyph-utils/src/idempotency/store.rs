@@ -3,6 +3,7 @@
 use crate::idempotency::{config::IdempotencyConfig, error::IdempotencyError};
 use redis::{AsyncCommands, Client, RedisResult};
 use serde::Serialize;
+use std::future::Future;
 
 /// Outcome of an idempotency key lookup.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -155,5 +156,52 @@ impl IdempotencyStore {
 
         let _: () = conn.del(&redis_key).await?;
         Ok(())
+    }
+
+    /// Executes an async operation with automated idempotency management.
+    ///
+    /// Replaces 25 lines of handler boilerplate with a 1-line execution wrapper:
+    /// 1. Reserves `key` in Redis (`begin`).
+    /// 2. If `key` is new, executes closure `f()`.
+    /// 3. If `f()` succeeds (`Ok(val)`), serializes and caches `val` in Redis (`complete_json`).
+    /// 4. If `f()` fails (`Err(err)`), automatically cancels the key reservation (`cancel`).
+    /// 5. If `key` was previously seen, returns the cached response deserialized from JSON.
+    /// 6. If a concurrent request is in-flight, returns [`IdempotencyError::Conflict`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`IdempotencyError::Conflict`] if a request with `key` is in-flight,
+    /// [`IdempotencyError::Json`] / [`IdempotencyError::Redis`] on storage failures,
+    /// or passes through the inner error `E`.
+    pub async fn execute<T, E, F, Fut>(&self, key: &str, f: F) -> Result<T, E>
+    where
+        T: Serialize + serde::de::DeserializeOwned,
+        E: From<IdempotencyError>,
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = Result<T, E>>,
+    {
+        match self.begin(key).await {
+            Ok(IdempotencyCheck::New) => match f().await {
+                Ok(val) => {
+                    if let Err(e) = self.complete_json(key, &val).await {
+                        tracing::error!(key = key, error = %e, "Failed to cache idempotency response");
+                    }
+                    Ok(val)
+                }
+                Err(err) => {
+                    let _ = self.cancel(key).await;
+                    Err(err)
+                }
+            },
+            Ok(IdempotencyCheck::InProgress) => Err(E::from(IdempotencyError::Conflict(format!(
+                "A request with key '{key}' is currently in progress"
+            )))),
+            Ok(IdempotencyCheck::Seen(cached_json)) => {
+                let val = serde_json::from_str::<T>(&cached_json)
+                    .map_err(|e| E::from(IdempotencyError::Json(e)))?;
+                Ok(val)
+            }
+            Err(e) => Err(E::from(e)),
+        }
     }
 }

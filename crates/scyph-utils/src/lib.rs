@@ -37,7 +37,7 @@ pub use idempotency::{IdempotencyCheck, IdempotencyConfig, IdempotencyError, Ide
 pub use pagination::{Cursor, PageParams, PaginationError};
 
 #[doc(inline)]
-pub use webhook::{WebhookError, verify_webhook, verify_webhook_header};
+pub use webhook::{VerifiedWebhook, WebhookConfig, WebhookError, verify_webhook, verify_webhook_header};
 
 #[doc(inline)]
 pub use worker::{WorkerError, spawn_worker, spawn_worker_cancel};
