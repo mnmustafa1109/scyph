@@ -192,22 +192,22 @@ pub fn generate_thumbnail_with_format(
 
     let mut reader = ImageReader::new(Cursor::new(data))
         .with_guessed_format()
-        .map_err(|e| StorageError::validation(format!("Failed to inspect image format: {e}"), vec![]))?;
+        .map_err(|e| {
+            StorageError::validation(format!("Failed to inspect image format: {e}"), vec![])
+        })?;
 
     reader.limits(image::Limits::default());
 
-    let dynamic_img = reader.decode().map_err(|e| {
-        StorageError::validation(format!("Failed to decode image: {e}"), vec![])
-    })?;
+    let dynamic_img = reader
+        .decode()
+        .map_err(|e| StorageError::validation(format!("Failed to decode image: {e}"), vec![]))?;
 
     let thumbnail = dynamic_img.thumbnail(bound_w, bound_h);
 
     let mut output_buf = Vec::new();
     thumbnail
         .write_to(&mut Cursor::new(&mut output_buf), format)
-        .map_err(|e| {
-            StorageError::Internal(format!("Failed to encode thumbnail image: {e}"))
-        })?;
+        .map_err(|e| StorageError::Internal(format!("Failed to encode thumbnail image: {e}")))?;
 
     Ok(output_buf)
 }
@@ -372,25 +372,27 @@ pub trait StorageThumbnailExt: StorageService {
 }
 
 impl<T: StorageService + ?Sized> StorageThumbnailExt for T {
-    fn store_with_thumbnail(
+    async fn store_with_thumbnail(
         &self,
         original_key: &str,
         original_content_type: &str,
         data: Bytes,
         config: ThumbnailConfig,
-    ) -> impl Future<Output = Result<ThumbnailStoreResult, StorageError>> + Send {
-        async move {
-            let thumb_bytes = config.generate(&data)?;
-            let thumb_key = config.derive_key(original_key, DEFAULT_THUMBNAIL_SUBFOLDER);
-            let thumb_content_type = config.content_type();
+    ) -> Result<ThumbnailStoreResult, StorageError> {
+        let thumb_bytes = config.generate(&data)?;
+        let thumb_key = config.derive_key(original_key, DEFAULT_THUMBNAIL_SUBFOLDER);
+        let thumb_content_type = config.content_type();
 
-            let stored_orig = self.store(original_key, original_content_type, data).await?;
-            let stored_thumb = self.store(&thumb_key, thumb_content_type, Bytes::from(thumb_bytes)).await?;
+        let stored_orig = self
+            .store(original_key, original_content_type, data)
+            .await?;
+        let stored_thumb = self
+            .store(&thumb_key, thumb_content_type, Bytes::from(thumb_bytes))
+            .await?;
 
-            Ok(ThumbnailStoreResult {
-                original_key: stored_orig,
-                thumbnail_key: stored_thumb,
-            })
-        }
+        Ok(ThumbnailStoreResult {
+            original_key: stored_orig,
+            thumbnail_key: stored_thumb,
+        })
     }
 }
