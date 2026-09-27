@@ -12,6 +12,7 @@
 //! - **[`error`]**: Defines [`AbacError`], the error type for ABAC policy enforcement and Cedar engine evaluation.
 //! - **[`cedar`]**: (Optional feature `cedar`) AWS Cedar Policy Engine authorization with [`CedarAuthorizer`] and [`IntoCedarEntity`].
 
+/// ABAC error type definitions.
 pub mod error;
 pub mod ext;
 pub mod filter;

@@ -3,7 +3,7 @@
 //! Categorizes all possible failures occurring during multipart parsing, MIME validation,
 //! file size limits, AWS S3 operations, and environment configuration.
 
-use scyph_core::error::AppError;
+use scyph_core::{AppError, ErrorDetails};
 use thiserror::Error;
 
 /// Error type for all storage services and extractors in `scyph-storage`.
@@ -29,6 +29,15 @@ pub enum StorageError {
     #[error("Too many files: {0}")]
     TooManyFiles(String),
 
+    /// Structured validation failure for file upload parameters.
+    #[error("Storage validation failed: {message}")]
+    ValidationError {
+        /// Summary validation error message.
+        message: String,
+        /// Field-level file upload error details.
+        details: Vec<ErrorDetails>,
+    },
+
     /// Object was not found in storage.
     #[error("Object not found: {0}")]
     NotFound(String),
@@ -46,6 +55,16 @@ pub enum StorageError {
     Internal(String),
 }
 
+impl StorageError {
+    /// Constructs a [`StorageError::ValidationError`] with a summary message and field-level details.
+    pub fn validation(message: impl Into<String>, details: Vec<ErrorDetails>) -> Self {
+        Self::ValidationError {
+            message: message.into(),
+            details,
+        }
+    }
+}
+
 impl From<StorageError> for AppError {
     /// Maps a [`StorageError`] to the appropriate HTTP status code and RFC 7807 [`AppError`] response.
     fn from(err: StorageError) -> Self {
@@ -57,6 +76,9 @@ impl From<StorageError> for AppError {
             StorageError::UnsupportedMediaType(msg) => AppError::UnprocessableEntity(msg),
             StorageError::FileTooLarge(msg) => AppError::UnprocessableEntity(msg),
             StorageError::TooManyFiles(msg) => AppError::UnprocessableEntity(msg),
+            StorageError::ValidationError { message, details } => {
+                AppError::ValidationError { message, details }
+            }
             StorageError::NotFound(msg) => AppError::NotFound(msg),
             StorageError::Presign(msg) => AppError::internal(format!("Presigning error: {msg}")),
             StorageError::S3(msg) => AppError::internal(format!("S3 storage error: {msg}")),
