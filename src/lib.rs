@@ -146,7 +146,7 @@ pub mod prelude {
     #[cfg(feature = "ratelimit")]
     pub use scyph_ratelimit::{
         per_ip_layer, relaxed_layer, strict_layer, PeerRateLimitLayer, RateLimitConfig,
-        RateLimitError,
+        RateLimitError, RateLimitRouterExt,
     };
 
     #[cfg(all(feature = "db", feature = "health"))]
@@ -197,6 +197,7 @@ pub use scyph_telemetry::{
 #[cfg(feature = "ratelimit")]
 pub use scyph_ratelimit::{
     per_ip_layer, relaxed_layer, strict_layer, PeerRateLimitLayer, RateLimitConfig, RateLimitError,
+    RateLimitRouterExt,
 };
 
 #[cfg(all(feature = "realtime", feature = "health"))]

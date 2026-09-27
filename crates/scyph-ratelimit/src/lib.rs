@@ -5,22 +5,23 @@
 //!
 //! ## Overview
 //!
-//! Provides pre-configured, production-ready rate limiting layers and builder configurations:
-//! - **[`RateLimitConfig`]**: Fluent configuration builder for custom burst sizes and periods.
+//! Provides pre-configured, production-ready rate limiting layers, router extensions, and builder configurations:
+//! - **[`RateLimitRouterExt`]**: Fluent Axum `Router` extension methods (`.rate_limit_strict()`, `.rate_limit_relaxed()`, `.rate_limit(...)`).
+//! - **[`RateLimitConfig`]**: Configuration builder for custom burst sizes and periods.
 //! - **[`per_ip_layer`]**: Custom IP rate limiter layer with configurable burst capacity and replenishment interval.
 //! - **[`strict_layer`]**: Strict rate limiter (5 requests per 2 seconds) suitable for auth/login endpoints.
-//! - **[`relaxed_layer` dinners]**: High-throughput rate limiter (500 requests per 100ms) for high-traffic APIs.
+//! - **[`relaxed_layer`]**: High-throughput rate limiter (500 requests per 100ms) for high-traffic APIs.
 //! - **[`RateLimitError`]**: Strongly-typed error enum for rate limiter initialization.
 //!
 //! ## Quick Example
 //!
 //! ```rust,ignore
 //! use axum::{routing::get, Router};
-//! use scyph_ratelimit::{relaxed_layer, RateLimitConfig};
+//! use scyph_ratelimit::RateLimitRouterExt;
 //!
 //! let app = Router::new()
 //!     .route("/api/data", get(|| async { "OK" }))
-//!     .layer(relaxed_layer().expect("Rate limit layer initialized"));
+//!     .rate_limit_relaxed();
 //! ```
 
 /// Rate limit configuration builder.
@@ -32,6 +33,9 @@ pub mod error;
 /// Pre-configured rate limiting layers and key extractors.
 pub mod layer;
 
+/// Axum Router extension trait.
+pub mod router_ext;
+
 #[doc(inline)]
 pub use config::RateLimitConfig;
 
@@ -40,3 +44,6 @@ pub use error::{RateLimitError, Result};
 
 #[doc(inline)]
 pub use layer::{per_ip_layer, relaxed_layer, strict_layer, PeerRateLimitLayer};
+
+#[doc(inline)]
+pub use router_ext::RateLimitRouterExt;
