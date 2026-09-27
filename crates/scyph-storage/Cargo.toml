@@ -6,7 +6,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "StorageService trait, multipart file extractor, and S3 implementation"
+description = "StorageService trait, multipart file extractor, S3 implementation, and image thumbnail processing"
 
 [features]
 default = []
