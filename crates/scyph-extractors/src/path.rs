@@ -1,36 +1,106 @@
-// crates/scyph-extractors/src/query.rs
+//! Axum URL path parameter extractors.
+
+use crate::error::ExtractorError;
 use axum::{
-    extract::{FromRequestParts, Query},
+    extract::{FromRequestParts, Path},
     http::request::Parts,
 };
 use garde::Validate;
 use scyph_core::error::AppError;
 use serde::de::DeserializeOwned;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 
-pub struct ValidatedQuery<T>(pub T);
+/// Axum extractor for strongly-typed URL path parameters.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use scyph_extractors::path::TypedPath;
+/// use uuid::Uuid;
+///
+/// async fn user_detail_handler(
+///     TypedPath(user_id): TypedPath<Uuid>,
+/// ) -> String {
+///     format!("User ID is {}", user_id)
+/// }
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct TypedPath<T>(pub T);
 
-impl<T> Deref for ValidatedQuery<T> {
+impl<T> TypedPath<T> {
+    /// Consumes the wrapper, returning the inner path parameter `T`.
+    pub fn into_inner(self) -> T {
+        self.0
+    }
+}
+
+impl<T> Deref for TypedPath<T> {
     type Target = T;
+
     fn deref(&self) -> &T {
         &self.0
     }
 }
 
-impl<S: Send + Sync, T> FromRequestParts<S> for ValidatedQuery<T>
+impl<T> DerefMut for TypedPath<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl<S: Send + Sync, T: DeserializeOwned + Send + 'static> FromRequestParts<S> for TypedPath<T> {
+    type Rejection = AppError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let Path(value) = Path::<T>::from_request_parts(parts, state)
+            .await
+            .map_err(|e| ExtractorError::PathParse(e.to_string()))?;
+
+        Ok(TypedPath(value))
+    }
+}
+
+/// Axum extractor for URL path parameters with `garde` validation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ValidatedPath<T>(pub T);
+
+impl<T> ValidatedPath<T> {
+    /// Consumes the wrapper, returning the inner validated path parameter struct `T`.
+    pub fn into_inner(self) -> T {
+        self.0
+    }
+}
+
+impl<T> Deref for ValidatedPath<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T> DerefMut for ValidatedPath<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl<S: Send + Sync, T> FromRequestParts<S> for ValidatedPath<T>
 where
     T: DeserializeOwned + Validate + Send + 'static,
     <T as Validate>::Context: Default,
 {
     type Rejection = AppError;
 
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, AppError> {
-        let Query(value) = Query::<T>::from_request_parts(parts, state)
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let Path(value) = Path::<T>::from_request_parts(parts, state)
             .await
-            .map_err(|e| AppError::BadRequest(format!("Invalid query parameters: {e}")))?;
+            .map_err(|e| ExtractorError::PathParse(e.to_string()))?;
+
         value
             .validate_with(&Default::default())
-            .map_err(|e| AppError::UnprocessableEntity(e.to_string()))?;
-        Ok(ValidatedQuery(value))
+            .map_err(|e| ExtractorError::Validation(e.to_string()))?;
+
+        Ok(ValidatedPath(value))
     }
 }

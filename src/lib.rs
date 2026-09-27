@@ -101,6 +101,10 @@ pub use scyph_ratelimit as ratelimit;
 /// HMAC webhooks, background worker task loops, cursor pagination, and Redis API idempotency.
 pub use scyph_utils as utils;
 
+#[cfg(feature = "extractors")]
+/// Type-safe validated JSON body, query parameter, and URL path extractors.
+pub use scyph_extractors as extractors;
+
 /// Convenient prelude re-exporting common framework types for single-line imports (`use scyph::prelude::*;`).
 pub mod prelude {
     pub use scyph_core::{
@@ -162,6 +166,11 @@ pub mod prelude {
         WorkerHandle, spawn_worker, spawn_worker_cancel, verify_webhook, verify_webhook_header,
     };
 
+    #[cfg(feature = "extractors")]
+    pub use scyph_extractors::{
+        ExtractorError, SanitizedJson, TypedPath, ValidatedJson, ValidatedPath, ValidatedQuery,
+    };
+
     #[cfg(all(feature = "db", feature = "health"))]
     pub use scyph_db::DbHealthExt;
 
@@ -218,6 +227,9 @@ pub use scyph_utils::{
     IdempotencyError, PaginationError, VerifiedWebhook, WebhookConfig, WebhookError, WorkerError,
     WorkerHandle,
 };
+
+#[cfg(feature = "extractors")]
+pub use scyph_extractors::{ExtractorError, SanitizedJson, TypedPath, ValidatedJson, ValidatedPath, ValidatedQuery};
 
 #[cfg(all(feature = "realtime", feature = "health"))]
 pub use scyph_realtime::RealtimeHealthExt;
