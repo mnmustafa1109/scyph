@@ -1,6 +1,6 @@
 //! Granular error types for request body, query, and path extraction and validation.
 
-use scyph_core::error::AppError;
+use scyph_core::AppError;
 
 /// Granular errors encountered during payload extraction and validation.
 #[derive(Debug, thiserror::Error)]

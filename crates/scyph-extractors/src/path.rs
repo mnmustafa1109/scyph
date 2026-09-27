@@ -6,7 +6,7 @@ use axum::{
     http::request::Parts,
 };
 use garde::Validate;
-use scyph_core::error::AppError;
+use scyph_core::AppError;
 use serde::de::DeserializeOwned;
 use std::ops::{Deref, DerefMut};
 
