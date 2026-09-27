@@ -13,37 +13,36 @@ pub struct IdempotencyConfig {
     pub prefix: String,
 }
 
-impl Default for IdempotencyConfig {
-    fn default() -> Self {
-        Self {
-            redis_url: "redis://127.0.0.1:6379".to_string(),
-            ttl: Duration::from_secs(86400), // 24 hours
-            prefix: "idem".to_string(),
-        }
-    }
-}
-
 impl IdempotencyConfig {
+    /// Default time-to-live duration for stored idempotency keys (24 hours).
+    pub const DEFAULT_TTL: Duration = Duration::from_secs(86400);
+    /// Default Redis key namespace prefix.
+    pub const DEFAULT_PREFIX: &'static str = "idem";
+    /// Default fallback Redis connection URL.
+    pub const DEFAULT_REDIS_URL: &'static str = "redis://127.0.0.1:6379";
+
     /// Loads configuration options from environment variables:
     ///
-    /// - `IDEMPOTENCY_REDIS_URL` / `REDIS_URL` *(Optional)*: Redis connection string (defaults to `"redis://127.0.0.1:6379"`).
-    /// - `IDEMPOTENCY_TTL_SECS` *(Optional)*: Key expiration in seconds (defaults to `86400`).
-    /// - `IDEMPOTENCY_PREFIX` *(Optional)*: Redis namespace key prefix (defaults to `"idem"`).
+    /// - `IDEMPOTENCY_REDIS_URL` / `REDIS_URL` *(Optional)*: Redis connection string (defaults to `DEFAULT_REDIS_URL`).
+    /// - `IDEMPOTENCY_TTL_SECS` *(Optional)*: Key expiration in seconds (defaults to `DEFAULT_TTL`).
+    /// - `IDEMPOTENCY_PREFIX` *(Optional)*: Redis namespace key prefix (defaults to `DEFAULT_PREFIX`).
     pub fn from_env() -> Self {
         let redis_url = env::var("IDEMPOTENCY_REDIS_URL")
             .or_else(|_| env::var("REDIS_URL"))
-            .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+            .unwrap_or_else(|_| Self::DEFAULT_REDIS_URL.to_string());
 
         let ttl_secs = env::var("IDEMPOTENCY_TTL_SECS")
             .ok()
             .and_then(|v| v.parse::<u64>().ok())
-            .unwrap_or(86400);
+            .map(Duration::from_secs)
+            .unwrap_or(Self::DEFAULT_TTL);
 
-        let prefix = env::var("IDEMPOTENCY_PREFIX").unwrap_or_else(|_| "idem".to_string());
+        let prefix = env::var("IDEMPOTENCY_PREFIX")
+            .unwrap_or_else(|_| Self::DEFAULT_PREFIX.to_string());
 
         Self {
             redis_url,
-            ttl: Duration::from_secs(ttl_secs),
+            ttl: ttl_secs,
             prefix,
         }
     }
@@ -64,5 +63,15 @@ impl IdempotencyConfig {
     pub fn with_prefix(mut self, prefix: impl Into<String>) -> Self {
         self.prefix = prefix.into();
         self
+    }
+}
+
+impl Default for IdempotencyConfig {
+    fn default() -> Self {
+        Self {
+            redis_url: Self::DEFAULT_REDIS_URL.to_string(),
+            ttl: Self::DEFAULT_TTL,
+            prefix: Self::DEFAULT_PREFIX.to_string(),
+        }
     }
 }

@@ -4,8 +4,6 @@ use crate::idempotency::{config::IdempotencyConfig, error::IdempotencyError};
 use redis::{AsyncCommands, Client, RedisResult};
 use serde::Serialize;
 
-const IN_PROGRESS_VAL: &str = "IN_PROGRESS";
-
 /// Outcome of an idempotency key lookup.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IdempotencyCheck {
@@ -52,6 +50,9 @@ pub struct IdempotencyStore {
 }
 
 impl IdempotencyStore {
+    /// Internal marker payload written to Redis to denote an in-flight, incomplete request.
+    pub const IN_PROGRESS_MARKER: &'static str = "IN_PROGRESS";
+
     /// Constructs a new `IdempotencyStore` with explicit [`IdempotencyConfig`].
     ///
     /// # Errors
@@ -89,7 +90,7 @@ impl IdempotencyStore {
 
         let res: RedisResult<Option<String>> = redis::cmd("SET")
             .arg(&redis_key)
-            .arg(IN_PROGRESS_VAL)
+            .arg(Self::IN_PROGRESS_MARKER)
             .arg("NX")
             .arg("EX")
             .arg(self.config.ttl.as_secs())
@@ -100,7 +101,7 @@ impl IdempotencyStore {
             Ok(Some(_)) => Ok(IdempotencyCheck::New),
             Ok(None) => {
                 let cached: String = conn.get(&redis_key).await?;
-                if cached == IN_PROGRESS_VAL {
+                if cached == Self::IN_PROGRESS_MARKER {
                     Ok(IdempotencyCheck::InProgress)
                 } else {
                     Ok(IdempotencyCheck::Seen(cached))

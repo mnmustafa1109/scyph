@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 /// Query parameters extractor for Axum handlers (`Query<PageParams>`).
 ///
-/// Automatically clamps `limit` between 1 and 100 (default: 20).
+/// Automatically clamps `limit` between [`PageParams::MIN_LIMIT`] and [`PageParams::MAX_LIMIT`] (default: [`PageParams::DEFAULT_LIMIT`]).
 #[derive(Debug, Clone, Deserialize)]
 pub struct PageParams {
     /// Maximum number of records to return (defaults to 20, max 100).
@@ -17,19 +17,17 @@ pub struct PageParams {
 }
 
 fn default_limit() -> i64 {
-    20
-}
-
-impl Default for PageParams {
-    fn default() -> Self {
-        Self {
-            limit: default_limit(),
-            cursor: None,
-        }
-    }
+    PageParams::DEFAULT_LIMIT
 }
 
 impl PageParams {
+    /// Default number of items returned per page if unspecified.
+    pub const DEFAULT_LIMIT: i64 = 20;
+    /// Maximum allowable limit to prevent database query or memory exhaustion.
+    pub const MAX_LIMIT: i64 = 100;
+    /// Minimum allowable limit.
+    pub const MIN_LIMIT: i64 = 1;
+
     /// Creates a new `PageParams` instance with explicit limit and optional cursor.
     pub fn new(limit: i64, cursor: Option<impl Into<String>>) -> Self {
         Self {
@@ -38,9 +36,9 @@ impl PageParams {
         }
     }
 
-    /// Returns the sanitized limit, clamped to a maximum of 100 records per page.
+    /// Returns the sanitized limit, clamped between [`Self::MIN_LIMIT`] and [`Self::MAX_LIMIT`].
     pub fn limit(&self) -> i64 {
-        self.limit.clamp(1, 100)
+        self.limit.clamp(Self::MIN_LIMIT, Self::MAX_LIMIT)
     }
 
     /// Decodes the optional `cursor` query string parameter into a [`Uuid`].
@@ -52,6 +50,15 @@ impl PageParams {
         match &self.cursor {
             Some(s) if !s.trim().is_empty() => Cursor::decode(s).map(Some),
             _ => Ok(None),
+        }
+    }
+}
+
+impl Default for PageParams {
+    fn default() -> Self {
+        Self {
+            limit: Self::DEFAULT_LIMIT,
+            cursor: None,
         }
     }
 }
