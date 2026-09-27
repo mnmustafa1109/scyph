@@ -95,6 +95,10 @@ pub use scyph_telemetry as telemetry;
 /// IP-based and key-based rate limiting middleware integration via `tower-governor`.
 pub use scyph_ratelimit as ratelimit;
 
+#[cfg(feature = "utils")]
+/// HMAC webhooks, background worker task loops, cursor pagination, and Redis API idempotency.
+pub use scyph_utils as utils;
+
 /// Convenient prelude re-exporting common framework types for single-line imports (`use scyph::prelude::*;`).
 pub mod prelude {
     pub use scyph_core::{
@@ -149,6 +153,12 @@ pub mod prelude {
         RateLimitError, RateLimitRouterExt,
     };
 
+    #[cfg(feature = "utils")]
+    pub use scyph_utils::{
+        Cursor, IdempotencyCheck, IdempotencyConfig, IdempotencyStore, PageParams, UtilsError,
+        spawn_worker, spawn_worker_cancel, verify_webhook, verify_webhook_header,
+    };
+
     #[cfg(all(feature = "db", feature = "health"))]
     pub use scyph_db::DbHealthExt;
 
@@ -199,6 +209,9 @@ pub use scyph_ratelimit::{
     per_ip_layer, relaxed_layer, strict_layer, PeerRateLimitLayer, RateLimitConfig, RateLimitError,
     RateLimitRouterExt,
 };
+
+#[cfg(feature = "utils")]
+pub use scyph_utils::UtilsError;
 
 #[cfg(all(feature = "realtime", feature = "health"))]
 pub use scyph_realtime::RealtimeHealthExt;

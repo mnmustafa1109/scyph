@@ -1,17 +1,17 @@
 # crates/scyph-utils/Cargo.toml
 [package]
 name = "scyph-utils"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "HMAC webhooks, background workers, pagination, and idempotency"
+description = "HMAC webhooks, background worker task loops, cursor pagination, and Redis API idempotency for Axum"
 
 [dependencies]
-
-scyph-core = { path = "../scyph-core", version = "0.1" }
+scyph-core = { path = "../scyph-core", version = "0.1.0" }
 tokio = { workspace = true }
+tokio-util = { workspace = true }
 uuid = { workspace = true }
 hmac = { workspace = true }
 sha2 = { workspace = true }
@@ -20,5 +20,6 @@ chrono = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 redis = { workspace = true }
 base64 = { workspace = true }
