@@ -1,12 +1,56 @@
 //! # Scyph
 //!
-//! `scyph` is a modular framework for building production-grade web services with Axum.
+//! `scyph` is a modular, high-performance framework for building production-grade web services with Axum.
+//!
+//! ## Framework Architecture
+//!
+//! `scyph` aggregates cross-cutting application concerns into decoupled, independently usable crates:
+//! - **[`core`]**: Foundational RFC 7807 problem details ([`AppError`]), standard JSON response envelopes ([`ApiResponse`], [`PagedResponse`], [`ResponseMeta`]), and identity traits ([`Claims`]).
+//! - **[`auth`]**: JWT token creation/verification, Argon2id password hashing, Moka claims caching, and role-based route guards.
+//! - **[`abac`]**: Attribute-Based Access Control policies, SQL query [`scyph_abac::FilterBuilder`], and Cedar policy evaluation.
+//! - **[`db`]**: PostgreSQL connection pooling via SQLx, transaction context management, and database migration/seeding tools.
+//! - **[`health`]**: Service health registries and Kubernetes liveness/readiness endpoint handlers.
+//! - **[`notify`]**: Email delivery via Lettre & Tera templates, Firebase Cloud Messaging push notifications, and in-app repository traits.
+//! - **[`realtime`]**: Redis Pub/Sub WebSocket broadcasting, multi-recipient fanout, and typed real-time payload framing.
+//! - **[`storage`]**: S3/MinIO and in-memory object storage abstractions with streaming multipart extractors.
+//! - **[`telemetry`]**: Non-blocking tracing subscribers, time-ordered UUIDv7 request ID propagation, response metadata auto-injection, and dynamic compression.
 //!
 //! ## Feature Flags
 //!
-//! - `auth`: Enables authentication (JWT, Argon2id, Moka caching, RBAC).
-//! - `abac`: Enables Attribute-Based Access Control (SQL FilterBuilder, Cedar engine).
-//! - `db`: Enables PostgreSQL pool management, transaction helpers, and migrations.
+//! - `auth`: Enables authentication and RBAC utilities (`scyph-auth`).
+//! - `abac`: Enables Attribute-Based Access Control (`scyph-abac`).
+//! - `db`: Enables PostgreSQL pool management and migration tools (`scyph-db`).
+//! - `health`: Enables health check endpoint registries (`scyph-health`).
+//! - `notify`: Enables email, FCM push, and in-app notification services (`scyph-notify`).
+//! - `realtime`: Enables Redis Pub/Sub WebSocket broadcaster (`scyph-realtime`).
+//! - `storage`: Enables object storage and file extractors (`scyph-storage`).
+//! - `telemetry`: Enables tracing, UUIDv7 request IDs, and auto-meta response injection (`scyph-telemetry`).
+//!
+//! ## Quickstart Example
+//!
+//! ```rust,ignore
+//! use axum::{routing::get, Router};
+//! use scyph::prelude::*;
+
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     // 1. Initialize non-blocking telemetry logging
+//!     let _guard = init_tracing().expect("Tracing subscriber initialized");
+//!
+//!     // 2. Define application router
+//!     let app = Router::new()
+//!         .route("/api/hello", get(hello_handler));
+//!
+//!     // 3. Wrap router with telemetry (tracing spans, UUIDv7 request IDs, auto-meta injection, compression)
+//!     let app = with_telemetry(app);
+//!
+//!     Ok(())
+//! }
+//!
+//! async fn hello_handler(RequestId(req_id): RequestId) -> ApiResponse<String> {
+//!     ApiResponse::ok(format!("Hello! Request ID is {req_id}"))
+//! }
+//! ```
 
 #![warn(missing_docs)]
 
@@ -42,7 +86,7 @@ pub use scyph_storage as storage;
 pub use scyph_realtime as realtime;
 
 #[cfg(feature = "telemetry")]
-/// Structured tracing, non-blocking logging, UUIDv7 request ID middleware, and HTTP response compression.
+/// Structured tracing, non-blocking logging, UUIDv7 request ID middleware, response metadata auto-injection, and HTTP response compression.
 pub use scyph_telemetry as telemetry;
 
 /// Convenient prelude re-exporting common framework types for single-line imports (`use scyph::prelude::*;`).
@@ -89,8 +133,8 @@ pub mod prelude {
 
     #[cfg(feature = "telemetry")]
     pub use scyph_telemetry::{
-        init_tracing, with_telemetry, with_telemetry_config, MakeRequestIdV7, RequestId,
-        TelemetryConfig, TelemetryGuard,
+        auto_meta_middleware, init_tracing, with_telemetry, with_telemetry_config,
+        MakeRequestIdV7, RequestId, TelemetryConfig, TelemetryGuard,
     };
 
     #[cfg(all(feature = "db", feature = "health"))]
@@ -134,8 +178,9 @@ pub use scyph_realtime::{
 };
 
 #[cfg(feature = "telemetry")]
-pub use scyph_telemetry::{init_tracing, with_telemetry, RequestId, TelemetryGuard};
+pub use scyph_telemetry::{
+    auto_meta_middleware, init_tracing, with_telemetry, RequestId, TelemetryGuard,
+};
 
 #[cfg(all(feature = "realtime", feature = "health"))]
 pub use scyph_realtime::RealtimeHealthExt;
-
