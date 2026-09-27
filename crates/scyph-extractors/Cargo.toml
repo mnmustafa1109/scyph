@@ -1,0 +1,17 @@
+# crates/scyph-extractors/Cargo.toml
+[package]
+name = "scyph-extractors"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Validated JSON body, query, and path extractors for Axum"
+
+[dependencies]
+scyph-core = { path = "../scyph-core", version = "0.1" }
+axum = { workspace = true }
+serde = { workspace = true }
+garde = { workspace = true }
+sanitizer = { workspace = true }
+tracing = { workspace = true }
