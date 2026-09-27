@@ -1,12 +1,12 @@
 //! Standard JSON envelope for single objects or lists.
 
+use super::meta::ResponseMeta;
 use axum::{
     Json,
     http::StatusCode,
     response::{IntoResponse, Response},
 };
 use serde::{Deserialize, Serialize};
-use super::meta::ResponseMeta;
 
 /// Standard JSON envelope for successful API responses.
 ///

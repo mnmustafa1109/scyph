@@ -37,8 +37,8 @@ impl IdempotencyConfig {
             .map(Duration::from_secs)
             .unwrap_or(Self::DEFAULT_TTL);
 
-        let prefix = env::var("IDEMPOTENCY_PREFIX")
-            .unwrap_or_else(|_| Self::DEFAULT_PREFIX.to_string());
+        let prefix =
+            env::var("IDEMPOTENCY_PREFIX").unwrap_or_else(|_| Self::DEFAULT_PREFIX.to_string());
 
         Self {
             redis_url,

@@ -84,10 +84,13 @@ impl StorageHealthExt for S3StorageService {
 
 impl StorageHealthExt for crate::memory::InMemoryStorageService {
     async fn check_health(&self, registry: &HealthRegistry) {
-        self.check_health_named(registry, "memory_storage", true).await;
+        self.check_health_named(registry, "memory_storage", true)
+            .await;
     }
 
     async fn check_health_named(&self, registry: &HealthRegistry, name: &str, required: bool) {
-        registry.set(name, scyph_health::Status::Healthy, None, required).await;
+        registry
+            .set(name, scyph_health::Status::Healthy, None, required)
+            .await;
     }
 }

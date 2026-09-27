@@ -1,7 +1,7 @@
 //! Abstract interface definition for object storage providers.
 
-use bytes::Bytes;
 use crate::error::StorageError;
+use bytes::Bytes;
 
 /// Asynchronous interface for cloud and local object storage providers.
 ///

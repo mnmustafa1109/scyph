@@ -58,7 +58,9 @@ pub trait FileConfig: Send + Sync + 'static {
     fn verify_magic_bytes(data: &[u8], content_type: &str) -> bool {
         match content_type {
             "image/png" => data.starts_with(&[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]),
-            "image/jpeg" => data.len() >= 3 && data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF,
+            "image/jpeg" => {
+                data.len() >= 3 && data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF
+            }
             "image/gif" => data.starts_with(b"GIF87a") || data.starts_with(b"GIF89a"),
             "image/webp" => data.len() >= 12 && &data[0..4] == b"RIFF" && &data[8..12] == b"WEBP",
             "application/pdf" => data.starts_with(b"%PDF-"),
@@ -67,7 +69,9 @@ pub trait FileConfig: Send + Sync + 'static {
             | "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => {
                 data.starts_with(&[0x50, 0x4B, 0x03, 0x04])
             }
-            "application/x-rar-compressed" => data.starts_with(&[0x52, 0x61, 0x72, 0x21, 0x1A, 0x07]),
+            "application/x-rar-compressed" => {
+                data.starts_with(&[0x52, 0x61, 0x72, 0x21, 0x1A, 0x07])
+            }
             _ => true,
         }
     }
@@ -98,4 +102,3 @@ pub trait FileConfig: Send + Sync + 'static {
         }
     }
 }
-

@@ -115,7 +115,7 @@ pub use config::RealtimeConfig;
 #[doc(inline)]
 pub use error::RealtimeError;
 #[doc(inline)]
-pub use event::{decode_event, RawRealtimeEnvelope, RealtimeEvent, RealtimePayload};
+pub use event::{RawRealtimeEnvelope, RealtimeEvent, RealtimePayload, decode_event};
 #[cfg(feature = "health")]
 #[doc(inline)]
 pub use health::RealtimeHealthExt;

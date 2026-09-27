@@ -4,8 +4,8 @@
 //! `Ok(())` stubs. They are ideal for unit testing, offline development, or feature-flagging notification logic.
 
 use crate::{
-    traits::{EmailMessage, EmailService, PushNotification, PushService},
     NotifyError,
+    traits::{EmailMessage, EmailService, PushNotification, PushService},
 };
 
 /// Dummy no-op [`PushService`] implementation that silently logs/swallows push notifications.

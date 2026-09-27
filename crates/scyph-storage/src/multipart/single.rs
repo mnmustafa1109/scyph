@@ -88,7 +88,8 @@ impl<C: FileConfig> FileExtractor<C> {
         config: crate::thumbnail::ThumbnailConfig,
     ) -> Result<(String, Bytes), StorageError> {
         let thumb_bytes = config.generate(&self.data)?;
-        let thumb_key = config.derive_key(&self.path, crate::thumbnail::DEFAULT_THUMBNAIL_SUBFOLDER);
+        let thumb_key =
+            config.derive_key(&self.path, crate::thumbnail::DEFAULT_THUMBNAIL_SUBFOLDER);
         Ok((thumb_key, Bytes::from(thumb_bytes)))
     }
 }
@@ -151,12 +152,7 @@ where
             let extension = C::resolve_extension(&content_type);
             let path = format!("{}/{}.{}", C::storage_path(), Uuid::now_v7(), extension);
 
-            return Ok(FileExtractor::new(
-                data,
-                content_type,
-                path,
-                original_name,
-            ));
+            return Ok(FileExtractor::new(data, content_type, path, original_name));
         }
 
         Err(StorageError::InvalidFile(format!(

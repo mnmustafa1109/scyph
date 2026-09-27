@@ -43,7 +43,10 @@ impl WorkerHandle {
     ///
     /// Returns [`WorkerError::TaskJoin`] if the background worker task loop panicked.
     pub async fn shutdown_and_join(self) -> Result<(), WorkerError> {
-        info!(worker = self.name, "Initiating graceful worker shutdown and joining task loop");
+        info!(
+            worker = self.name,
+            "Initiating graceful worker shutdown and joining task loop"
+        );
         self.cancel_token.cancel();
         self.join_handle
             .await

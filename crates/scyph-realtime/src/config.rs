@@ -39,13 +39,17 @@ impl RealtimeConfig {
             .or_else(|_| env::var("REDIS_URL"))
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
 
-        let channel_prefix = env::var("REALTIME_CHANNEL_PREFIX")
-            .unwrap_or_else(|_| "scyph:realtime".to_string());
+        let channel_prefix =
+            env::var("REALTIME_CHANNEL_PREFIX").unwrap_or_else(|_| "scyph:realtime".to_string());
 
         let reconnect_interval_secs = env::var("REALTIME_RECONNECT_INTERVAL_SECS")
             .unwrap_or_else(|_| "1".to_string())
             .parse::<u64>()
-            .map_err(|e| RealtimeError::Configuration(format!("REALTIME_RECONNECT_INTERVAL_SECS must be a valid u64: {e}")))?;
+            .map_err(|e| {
+                RealtimeError::Configuration(format!(
+                    "REALTIME_RECONNECT_INTERVAL_SECS must be a valid u64: {e}"
+                ))
+            })?;
 
         Ok(Self {
             redis_url,

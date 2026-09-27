@@ -1,7 +1,15 @@
+use axum::{
+    Router,
+    body::Body,
+    extract::ConnectInfo,
+    http::{Request, StatusCode},
+    routing::get,
+};
+use scyph_ratelimit::{
+    RateLimitConfig, RateLimitRouterExt, per_ip_layer, relaxed_layer, strict_layer,
+};
 use std::net::SocketAddr;
 use std::time::Duration;
-use axum::{body::Body, extract::ConnectInfo, http::{Request, StatusCode}, routing::get, Router};
-use scyph_ratelimit::{per_ip_layer, relaxed_layer, strict_layer, RateLimitConfig, RateLimitRouterExt};
 use tower::ServiceExt;
 
 #[tokio::test]

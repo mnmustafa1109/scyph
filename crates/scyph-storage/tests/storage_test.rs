@@ -8,7 +8,10 @@ async fn test_memory_storage_crud() {
     let data = Bytes::from_static(b"binary content");
 
     // Store
-    let stored_path = storage.store(path, "image/png", data.clone()).await.unwrap();
+    let stored_path = storage
+        .store(path, "image/png", data.clone())
+        .await
+        .unwrap();
     assert_eq!(stored_path, path);
     assert_eq!(storage.count(), 1);
     assert!(storage.contains(path));
@@ -22,7 +25,10 @@ async fn test_memory_storage_crud() {
     assert!(view_url.contains("view=true"));
 
     // Download URL with sanitization
-    let download_url = storage.get_download_url(path, "my\"file\r\n.png", 3600).await.unwrap();
+    let download_url = storage
+        .get_download_url(path, "my\"file\r\n.png", 3600)
+        .await
+        .unwrap();
     assert!(download_url.contains("download=myfile.png"));
 
     // Delete

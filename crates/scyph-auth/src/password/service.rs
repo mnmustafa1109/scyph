@@ -1,12 +1,12 @@
 //! Password service for concurrency-managed password hashing and verification.
 
-use std::sync::Arc;
-use tokio::sync::Semaphore;
-use secrecy::{ExposeSecret, SecretString};
 use argon2::{
     Argon2, Params,
     password_hash::{PasswordHasher, PasswordVerifier, phc::PasswordHash},
 };
+use secrecy::{ExposeSecret, SecretString};
+use std::sync::Arc;
+use tokio::sync::Semaphore;
 
 use crate::password::PasswordError;
 

@@ -12,5 +12,10 @@ async fn test_password_service_hashing_and_verification() {
     assert!(service.verify_password(&password, &phc_hash).await.is_ok());
 
     let wrong_password = SecretString::from("wrong_password");
-    assert!(service.verify_password(&wrong_password, &phc_hash).await.is_err());
+    assert!(
+        service
+            .verify_password(&wrong_password, &phc_hash)
+            .await
+            .is_err()
+    );
 }

@@ -211,7 +211,10 @@ impl RealtimeBroadcaster {
         loop {
             if let Err(err) = self.subscribe_once(&channel_name).await {
                 error!(error = %err, "Realtime subscriber error. Reconnecting in {}s...", self.config.reconnect_interval_secs);
-                tokio::time::sleep(std::time::Duration::from_secs(self.config.reconnect_interval_secs)).await;
+                tokio::time::sleep(std::time::Duration::from_secs(
+                    self.config.reconnect_interval_secs,
+                ))
+                .await;
             }
         }
     }

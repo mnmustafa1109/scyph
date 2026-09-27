@@ -3,7 +3,7 @@
 use crate::error::StorageError;
 use crate::s3::S3StorageService;
 use aws_config::{BehaviorVersion, Region};
-use aws_sdk_s3::{config::Credentials, Client};
+use aws_sdk_s3::{Client, config::Credentials};
 
 impl S3StorageService {
     /// Creates an [`S3StorageService`] instance with explicit credentials and endpoint configuration.
@@ -95,13 +95,13 @@ impl S3StorageService {
         );
 
         if let (Some(ak), Some(sk)) = (access_key, secret_key) {
-            let endpoint = endpoint_url
-                .unwrap_or_else(|| format!("https://s3.{region_str}.amazonaws.com"));
+            let endpoint =
+                endpoint_url.unwrap_or_else(|| format!("https://s3.{region_str}.amazonaws.com"));
             let pub_prefix = public_url_prefix.unwrap_or_else(|| format!("{endpoint}/{bucket}"));
             Ok(Self::new(bucket, pub_prefix, endpoint, region_str, ak, sk).await)
         } else {
-            let mut loader = aws_config::defaults(BehaviorVersion::latest())
-                .region(Region::new(region_str));
+            let mut loader =
+                aws_config::defaults(BehaviorVersion::latest()).region(Region::new(region_str));
             if let Some(ref url) = endpoint_url {
                 loader = loader.endpoint_url(url);
             }

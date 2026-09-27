@@ -4,7 +4,7 @@
 //! into a single domain event, and [`NotificationBroadcaster`] for dispatching composite events sequentially or in background Tokio tasks.
 
 use super::{email::EmailService, email::EmailTemplate, push::PushService, push::PushTemplate};
-use crate::{template::TemplateEngine, NotifyError};
+use crate::{NotifyError, template::TemplateEngine};
 use std::sync::Arc;
 
 /// Abstract contract for multi-channel domain notifications bundling Email and Push templates.

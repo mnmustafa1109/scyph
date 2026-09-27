@@ -107,6 +107,6 @@ pub use s3::S3StorageService;
 #[doc(inline)]
 pub use thumbnail::{
     StorageThumbnailExt, ThumbnailConfig, ThumbnailStoreResult, derive_thumbnail_key,
-    derive_thumbnail_key_with_format, format_content_type, format_extension,
-    generate_thumbnail, generate_thumbnail_with_format, thumbnail_key,
+    derive_thumbnail_key_with_format, format_content_type, format_extension, generate_thumbnail,
+    generate_thumbnail_with_format, thumbnail_key,
 };

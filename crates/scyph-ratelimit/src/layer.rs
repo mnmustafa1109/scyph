@@ -1,18 +1,21 @@
 //! Rate limiting middleware layers and governor configurations.
 
-use std::time::Duration;
 use axum::body::Body;
 use governor::clock::DefaultClock;
 use governor::middleware::NoOpMiddleware;
+use std::time::Duration;
+use tower_governor::GovernorLayer;
 use tower_governor::governor::GovernorConfigBuilder;
 use tower_governor::key_extractor::PeerIpKeyExtractor;
-use tower_governor::GovernorLayer;
 
 use crate::error::RateLimitError;
 
 /// Type alias for the standard peer-IP rate limiting layer.
-pub type PeerRateLimitLayer<B = Body> =
-    GovernorLayer<PeerIpKeyExtractor, NoOpMiddleware<<DefaultClock as governor::clock::Clock>::Instant>, B>;
+pub type PeerRateLimitLayer<B = Body> = GovernorLayer<
+    PeerIpKeyExtractor,
+    NoOpMiddleware<<DefaultClock as governor::clock::Clock>::Instant>,
+    B,
+>;
 
 /// Creates a peer-IP rate limiting layer with specified burst capacity and replenishment interval.
 ///
@@ -34,7 +37,10 @@ pub type PeerRateLimitLayer<B = Body> =
 ///
 /// let layer = per_ip_layer::<Body>(10, Duration::from_secs(1)).expect("valid layer");
 /// ```
-pub fn per_ip_layer<B>(burst: u32, period: Duration) -> Result<PeerRateLimitLayer<B>, RateLimitError> {
+pub fn per_ip_layer<B>(
+    burst: u32,
+    period: Duration,
+) -> Result<PeerRateLimitLayer<B>, RateLimitError> {
     if burst == 0 {
         return Err(RateLimitError::ConfigurationFailed(
             "Burst size must be greater than 0".to_string(),
@@ -51,7 +57,11 @@ pub fn per_ip_layer<B>(burst: u32, period: Duration) -> Result<PeerRateLimitLaye
         .per_millisecond(period_ms)
         .burst_size(burst)
         .finish()
-        .ok_or_else(|| RateLimitError::ConfigurationFailed("Failed to build governor configuration".to_string()))?;
+        .ok_or_else(|| {
+            RateLimitError::ConfigurationFailed(
+                "Failed to build governor configuration".to_string(),
+            )
+        })?;
 
     Ok(GovernorLayer::new(config))
 }

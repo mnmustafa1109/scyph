@@ -66,7 +66,8 @@ fn classify_redis_error(err: &redis::RedisError) -> HealthFailure {
 
 impl RealtimeHealthExt for RealtimeBroadcaster {
     async fn check_health(&self, registry: &HealthRegistry) {
-        self.check_health_named(registry, "redis_realtime", false).await;
+        self.check_health_named(registry, "redis_realtime", false)
+            .await;
     }
 
     async fn check_health_named(&self, registry: &HealthRegistry, name: &str, required: bool) {

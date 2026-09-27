@@ -8,16 +8,16 @@
 use std::env;
 
 use lettre::{
-    message::{header::ContentType, Mailbox, MultiPart, SinglePart},
-    transport::smtp::authentication::Credentials,
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
+    message::{Mailbox, MultiPart, SinglePart, header::ContentType},
+    transport::smtp::authentication::Credentials,
 };
 use secrecy::{ExposeSecret, SecretString};
 use tracing::{info, warn};
 
 use crate::{
-    traits::{EmailMessage, EmailService},
     NotifyError,
+    traits::{EmailMessage, EmailService},
 };
 
 /// SMTP email delivery service implementation using `lettre`.
@@ -48,7 +48,9 @@ impl LettreSMTPService {
         let port: u16 = env::var("SMTP_PORT")
             .map_err(|_| NotifyError::Configuration("SMTP_PORT must be set".into()))?
             .parse()
-            .map_err(|e| NotifyError::Configuration(format!("SMTP_PORT must be a valid u16: {e}")))?;
+            .map_err(|e| {
+                NotifyError::Configuration(format!("SMTP_PORT must be a valid u16: {e}"))
+            })?;
         let username = env::var("SMTP_USERNAME")
             .map_err(|_| NotifyError::Configuration("SMTP_USERNAME must be set".into()))?;
         let password = SecretString::from(

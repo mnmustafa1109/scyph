@@ -50,6 +50,6 @@ pub use health::DbHealthExt;
 
 #[cfg(feature = "query")]
 pub use query::{
-    escape_like_pattern, ApplyFiltering, ApplyPagination, ApplyRequestParams, ApplySearch,
-    ApplySorting,
+    ApplyFiltering, ApplyPagination, ApplyRequestParams, ApplySearch, ApplySorting,
+    escape_like_pattern,
 };

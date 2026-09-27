@@ -1,12 +1,12 @@
 //! Standardized envelope for paginated responses.
 
+use super::meta::ResponseMeta;
 use axum::{
     Json,
     http::StatusCode,
     response::{IntoResponse, Response},
 };
 use serde::{Deserialize, Serialize};
-use super::meta::ResponseMeta;
 
 /// Standard envelope for paginated list responses.
 ///

@@ -2,8 +2,8 @@
 
 use bytes::Bytes;
 
+use super::config::{DEFAULT_THUMBNAIL_SUBFOLDER, ThumbnailConfig};
 use crate::{error::StorageError, traits::StorageService};
-use super::config::{ThumbnailConfig, DEFAULT_THUMBNAIL_SUBFOLDER};
 
 /// Result of storing an original file alongside its derived thumbnail.
 #[derive(Debug, Clone, PartialEq, Eq)]

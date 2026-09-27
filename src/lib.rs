@@ -170,14 +170,14 @@ pub mod prelude {
 
     #[cfg(feature = "telemetry")]
     pub use scyph_telemetry::{
-        auto_meta_middleware, init_tracing, with_telemetry, with_telemetry_config,
-        MakeRequestIdV7, RequestId, TelemetryConfig, TelemetryGuard,
+        MakeRequestIdV7, RequestId, TelemetryConfig, TelemetryGuard, auto_meta_middleware,
+        init_tracing, with_telemetry, with_telemetry_config,
     };
 
     #[cfg(feature = "ratelimit")]
     pub use scyph_ratelimit::{
-        per_ip_layer, relaxed_layer, strict_layer, PeerRateLimitLayer, RateLimitConfig,
-        RateLimitError, RateLimitRouterExt,
+        PeerRateLimitLayer, RateLimitConfig, RateLimitError, RateLimitRouterExt, per_ip_layer,
+        relaxed_layer, strict_layer,
     };
 
     #[cfg(feature = "utils")]
@@ -211,7 +211,8 @@ pub mod prelude {
 
 // ── Convenient Top-Level Re-exports ──────────────────────────────────────────
 pub use scyph_core::{
-    Action, ApiResponse, AppError, Authorizable, Claims, ErrorDetails, PagedResponse, ResponseMeta, Result,
+    Action, ApiResponse, AppError, Authorizable, Claims, ErrorDetails, PagedResponse, ResponseMeta,
+    Result,
 };
 
 #[cfg(feature = "auth")]
@@ -225,8 +226,8 @@ pub use scyph_db::DbError;
 
 #[cfg(all(feature = "db", feature = "query"))]
 pub use scyph_db::{
-    escape_like_pattern, ApplyFiltering, ApplyPagination, ApplyRequestParams, ApplySearch,
-    ApplySorting,
+    ApplyFiltering, ApplyPagination, ApplyRequestParams, ApplySearch, ApplySorting,
+    escape_like_pattern,
 };
 
 #[cfg(feature = "notify")]
@@ -238,8 +239,8 @@ pub use scyph_storage::StorageError;
 #[cfg(all(feature = "storage", feature = "image"))]
 pub use scyph_storage::{
     StorageThumbnailExt, ThumbnailConfig, ThumbnailStoreResult, derive_thumbnail_key,
-    derive_thumbnail_key_with_format, format_content_type, format_extension,
-    generate_thumbnail, generate_thumbnail_with_format, thumbnail_key,
+    derive_thumbnail_key_with_format, format_content_type, format_extension, generate_thumbnail,
+    generate_thumbnail_with_format, thumbnail_key,
 };
 
 #[cfg(feature = "realtime")]
@@ -249,13 +250,13 @@ pub use scyph_realtime::{
 
 #[cfg(feature = "telemetry")]
 pub use scyph_telemetry::{
-    auto_meta_middleware, init_tracing, with_telemetry, RequestId, TelemetryGuard,
+    RequestId, TelemetryGuard, auto_meta_middleware, init_tracing, with_telemetry,
 };
 
 #[cfg(feature = "ratelimit")]
 pub use scyph_ratelimit::{
-    per_ip_layer, relaxed_layer, strict_layer, PeerRateLimitLayer, RateLimitConfig, RateLimitError,
-    RateLimitRouterExt,
+    PeerRateLimitLayer, RateLimitConfig, RateLimitError, RateLimitRouterExt, per_ip_layer,
+    relaxed_layer, strict_layer,
 };
 
 #[cfg(feature = "utils")]

@@ -12,9 +12,9 @@ use serde_json::json;
 use std::env;
 
 use crate::{
+    NotifyError,
     traits::{PushNotification, PushService},
     util::send_fcm_request,
-    NotifyError,
 };
 
 /// FCM push notification service using Google Firebase v1 REST API.
@@ -42,10 +42,10 @@ impl FcmPushService {
         let project_id = env::var("FCM_PROJECT_ID")
             .map_err(|_| NotifyError::Configuration("FCM_PROJECT_ID must be set".into()))?;
 
-        let service_account_json = SecretString::from(
-            env::var("FCM_SERVICE_ACCOUNT_JSON")
-                .map_err(|_| NotifyError::Configuration("FCM_SERVICE_ACCOUNT_JSON must be set".into()))?,
-        );
+        let service_account_json =
+            SecretString::from(env::var("FCM_SERVICE_ACCOUNT_JSON").map_err(|_| {
+                NotifyError::Configuration("FCM_SERVICE_ACCOUNT_JSON must be set".into())
+            })?);
 
         let auth = CustomServiceAccount::from_json(service_account_json.expose_secret())?;
         let client = Client::new();

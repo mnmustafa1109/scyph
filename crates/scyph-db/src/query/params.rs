@@ -4,7 +4,9 @@ use scyph_extractors::query::RequestParams;
 use sqlx::{Postgres, QueryBuilder};
 use strum::IntoEnumIterator;
 
-use super::{filter::ApplyFiltering, pagination::ApplyPagination, search::ApplySearch, sort::ApplySorting};
+use super::{
+    filter::ApplyFiltering, pagination::ApplyPagination, search::ApplySearch, sort::ApplySorting,
+};
 
 /// Extension trait for appending full composite [`RequestParams`] (search, filter, sort, pagination) in a single call.
 ///

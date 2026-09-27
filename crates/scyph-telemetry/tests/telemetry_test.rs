@@ -1,12 +1,12 @@
 use axum::{
+    Router,
     body::Body,
     http::{Request, StatusCode},
     routing::get,
-    Router,
 };
 use scyph_core::ApiResponse;
 use scyph_telemetry::{
-    init_tracing, with_telemetry, with_telemetry_config, RequestId, TelemetryConfig,
+    RequestId, TelemetryConfig, init_tracing, with_telemetry, with_telemetry_config,
 };
 use tower::ServiceExt;
 
@@ -26,10 +26,7 @@ async fn test_telemetry_init_and_middleware() {
     let app = Router::new().route("/test", get(sample_handler));
     let app = with_telemetry(app);
 
-    let request = Request::builder()
-        .uri("/test")
-        .body(Body::empty())
-        .unwrap();
+    let request = Request::builder().uri("/test").body(Body::empty()).unwrap();
 
     let response = app.oneshot(request).await.unwrap();
 

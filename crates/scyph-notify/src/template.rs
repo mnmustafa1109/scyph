@@ -5,8 +5,8 @@
 
 use std::env;
 
-use crate::traits::{EmailMessage, EmailTemplate};
 use crate::NotifyError;
+use crate::traits::{EmailMessage, EmailTemplate};
 use tera::Tera;
 
 /// Tera template engine wrapper for compiling and rendering HTML/text email and notification templates.

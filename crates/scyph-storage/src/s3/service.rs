@@ -124,7 +124,10 @@ impl StorageService for S3StorageService {
             .send()
             .await
             .map_err(|e| {
-                StorageError::S3(format!("Failed to connect to storage bucket '{}': {e}", self.bucket))
+                StorageError::S3(format!(
+                    "Failed to connect to storage bucket '{}': {e}",
+                    self.bucket
+                ))
             })?;
 
         Ok(())

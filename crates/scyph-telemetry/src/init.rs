@@ -4,7 +4,7 @@ use std::env;
 
 use tracing::info;
 use tracing_appender::non_blocking::WorkerGuard;
-use tracing_subscriber::{fmt, prelude::*, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 /// Guard holding the non-blocking log appender worker thread.
 ///
@@ -71,7 +71,9 @@ pub fn init_tracing() -> Result<TelemetryGuard, String> {
             if err_str.contains("already been set") {
                 Ok(TelemetryGuard::empty())
             } else {
-                Err(format!("Failed to initialize tracing subscriber: {err_str}"))
+                Err(format!(
+                    "Failed to initialize tracing subscriber: {err_str}"
+                ))
             }
         }
     }

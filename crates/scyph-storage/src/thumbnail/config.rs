@@ -2,8 +2,8 @@
 
 use image::ImageFormat;
 
-use crate::error::StorageError;
 use super::{generator::generate_thumbnail_with_format, key::derive_thumbnail_key_with_format};
+use crate::error::StorageError;
 
 /// Default square bounding dimension in pixels for thumbnails.
 pub const DEFAULT_THUMBNAIL_DIMENSION: u32 = 200;

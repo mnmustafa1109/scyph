@@ -4,7 +4,7 @@ use std::path::Path;
 
 use image::ImageFormat;
 
-use super::config::{format_extension, DEFAULT_THUMBNAIL_SUBFOLDER};
+use super::config::{DEFAULT_THUMBNAIL_SUBFOLDER, format_extension};
 
 /// Replaces a folder segment in a storage key string with a thumbnail subfolder.
 ///

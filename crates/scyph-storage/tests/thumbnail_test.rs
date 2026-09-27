@@ -17,7 +17,10 @@ fn test_thumbnail_key_replacement() {
 fn test_thumbnail_key_fallback() {
     let key = "documents/contract.pdf";
     let thumb = thumbnail_key(key, "messages/images/", "messages/thumbnails/");
-    assert_eq!(thumb, format!("documents/{DEFAULT_THUMBNAIL_SUBFOLDER}/contract.pdf"));
+    assert_eq!(
+        thumb,
+        format!("documents/{DEFAULT_THUMBNAIL_SUBFOLDER}/contract.pdf")
+    );
 }
 
 #[test]

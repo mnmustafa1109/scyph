@@ -117,4 +117,3 @@ mod composite_tests {
         let _ = std::fs::remove_file(test_file);
     }
 }
-

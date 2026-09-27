@@ -1,7 +1,7 @@
 //! Axum Router extension trait for fluent rate limit layer registration.
 
-use axum::Router;
 use crate::config::RateLimitConfig;
+use axum::Router;
 
 /// Extension trait for [`axum::Router`] providing fluent rate limiting middleware registration.
 ///

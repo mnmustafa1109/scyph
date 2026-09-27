@@ -1,7 +1,7 @@
 //! In-memory WebSocket connection registry.
 
 use std::{collections::HashMap, sync::Arc};
-use tokio::sync::{mpsc::UnboundedSender, RwLock};
+use tokio::sync::{RwLock, mpsc::UnboundedSender};
 use uuid::Uuid;
 
 /// Sender handle for an active WebSocket connection instance.

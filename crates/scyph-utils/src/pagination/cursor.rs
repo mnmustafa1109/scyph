@@ -73,11 +73,7 @@ impl Cursor {
     /// let paged = Cursor::build_page(&mut users, 20, |u| u.id);
     /// assert_eq!(paged.data.len(), 1);
     /// ```
-    pub fn build_page<T, F>(
-        items: &mut Vec<T>,
-        limit: i64,
-        get_id: F,
-    ) -> PagedResponse<T>
+    pub fn build_page<T, F>(items: &mut Vec<T>, limit: i64, get_id: F) -> PagedResponse<T>
     where
         T: Serialize,
         F: Fn(&T) -> Uuid,

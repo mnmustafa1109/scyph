@@ -1,7 +1,7 @@
 //! Realtime event wire envelope protocols and helper deserializer functions.
 
 use chrono::{DateTime, Utc};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
 use crate::error::RealtimeError;

@@ -79,12 +79,18 @@ impl InMemoryStorageService {
 
     /// Returns `true` if an object exists at the specified path.
     pub fn contains(&self, path: &str) -> bool {
-        self.objects.read().unwrap_or_else(|p| p.into_inner()).contains_key(path)
+        self.objects
+            .read()
+            .unwrap_or_else(|p| p.into_inner())
+            .contains_key(path)
     }
 
     /// Clears all objects stored in memory.
     pub fn clear(&self) {
-        self.objects.write().unwrap_or_else(|p| p.into_inner()).clear();
+        self.objects
+            .write()
+            .unwrap_or_else(|p| p.into_inner())
+            .clear();
     }
 
     fn normalize_key<'a>(&'a self, file_url: &'a str) -> &'a str {
@@ -103,13 +109,16 @@ impl StorageService for InMemoryStorageService {
         content_type: &str,
         data: Bytes,
     ) -> Result<String, StorageError> {
-        self.objects.write().unwrap_or_else(|p| p.into_inner()).insert(
-            path.to_string(),
-            StoredObject {
-                data,
-                content_type: content_type.to_string(),
-            },
-        );
+        self.objects
+            .write()
+            .unwrap_or_else(|p| p.into_inner())
+            .insert(
+                path.to_string(),
+                StoredObject {
+                    data,
+                    content_type: content_type.to_string(),
+                },
+            );
         Ok(path.to_string())
     }
 
@@ -117,9 +126,9 @@ impl StorageService for InMemoryStorageService {
         let key = self.normalize_key(file_url);
 
         let map = self.objects.read().unwrap_or_else(|p| p.into_inner());
-        map.get(key)
-            .map(|obj| obj.data.clone())
-            .ok_or_else(|| StorageError::NotFound(format!("Object '{key}' not found in memory storage")))
+        map.get(key).map(|obj| obj.data.clone()).ok_or_else(|| {
+            StorageError::NotFound(format!("Object '{key}' not found in memory storage"))
+        })
     }
 
     async fn get_view_url(
@@ -131,7 +140,9 @@ impl StorageService for InMemoryStorageService {
 
         let map = self.objects.read().unwrap_or_else(|p| p.into_inner());
         if !map.contains_key(key) {
-            return Err(StorageError::NotFound(format!("Object '{key}' not found in memory storage")));
+            return Err(StorageError::NotFound(format!(
+                "Object '{key}' not found in memory storage"
+            )));
         }
 
         Ok(format!("{}/{key}?view=true", self.base_url))
@@ -160,7 +171,9 @@ impl StorageService for InMemoryStorageService {
 
         let map = self.objects.read().unwrap_or_else(|p| p.into_inner());
         if !map.contains_key(key) {
-            return Err(StorageError::NotFound(format!("Object '{key}' not found in memory storage")));
+            return Err(StorageError::NotFound(format!(
+                "Object '{key}' not found in memory storage"
+            )));
         }
 
         Ok(format!("{}/{key}?download={sanitized_name}", self.base_url))
@@ -169,7 +182,10 @@ impl StorageService for InMemoryStorageService {
     async fn delete(&self, file_url: &str) -> Result<(), StorageError> {
         let key = self.normalize_key(file_url);
 
-        self.objects.write().unwrap_or_else(|p| p.into_inner()).remove(key);
+        self.objects
+            .write()
+            .unwrap_or_else(|p| p.into_inner())
+            .remove(key);
         Ok(())
     }
 
@@ -177,4 +193,3 @@ impl StorageService for InMemoryStorageService {
         Ok(())
     }
 }
-

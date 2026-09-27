@@ -45,7 +45,8 @@ impl ExtractedFile {
         config: crate::thumbnail::ThumbnailConfig,
     ) -> Result<(String, Bytes), StorageError> {
         let thumb_bytes = config.generate(&self.data)?;
-        let thumb_key = config.derive_key(&self.path, crate::thumbnail::DEFAULT_THUMBNAIL_SUBFOLDER);
+        let thumb_key =
+            config.derive_key(&self.path, crate::thumbnail::DEFAULT_THUMBNAIL_SUBFOLDER);
         Ok((thumb_key, Bytes::from(thumb_bytes)))
     }
 }
@@ -133,18 +134,19 @@ where
         {
             let field_name = field.name().unwrap_or_default();
 
-            let is_matching_field = if target_name.is_empty() || target_name == "file" || target_name == "files" {
-                field_name == "file"
-                    || field_name == "files"
-                    || field_name == "file[]"
-                    || field_name == "files[]"
-                    || target_name.is_empty()
-            } else {
-                field_name == target_name
-                    || field_name == target_plural
-                    || field_name == target_array
-                    || field_name == target_plural_array
-            };
+            let is_matching_field =
+                if target_name.is_empty() || target_name == "file" || target_name == "files" {
+                    field_name == "file"
+                        || field_name == "files"
+                        || field_name == "file[]"
+                        || field_name == "files[]"
+                        || target_name.is_empty()
+                } else {
+                    field_name == target_name
+                        || field_name == target_plural
+                        || field_name == target_array
+                        || field_name == target_plural_array
+                };
 
             if !is_matching_field {
                 continue;
