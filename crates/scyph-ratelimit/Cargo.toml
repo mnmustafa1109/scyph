@@ -9,9 +9,11 @@ repository.workspace = true
 description = "tower-governor rate-limit layer builder for scyph backends"
 
 [dependencies]
+scyph-core = { path = "../scyph-core", version = "0.1" }
 axum = { workspace = true }
 governor = { workspace = true }
 tower_governor = { workspace = true }
+thiserror = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]

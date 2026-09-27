@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 use axum::{body::Body, extract::ConnectInfo, http::{Request, StatusCode}, routing::get, Router};
-use scyph_ratelimit::{per_ip_layer, relaxed_layer, strict_layer};
+use scyph_ratelimit::{per_ip_layer, relaxed_layer, strict_layer, RateLimitConfig};
 use tower::ServiceExt;
 
 #[tokio::test]
@@ -9,6 +9,11 @@ async fn test_rate_limit_layer_instantiation() {
     let _per_ip = per_ip_layer::<Body>(10, Duration::from_secs(1)).unwrap();
     let _strict = strict_layer::<Body>().unwrap();
     let _relaxed = relaxed_layer::<Body>().unwrap();
+    let _config_layer = RateLimitConfig::new()
+        .with_burst(15)
+        .with_period(Duration::from_secs(2))
+        .build_layer::<Body>()
+        .unwrap();
 }
 
 #[tokio::test]

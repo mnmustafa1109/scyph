@@ -8,6 +8,8 @@ use tower_governor::governor::GovernorConfigBuilder;
 use tower_governor::key_extractor::PeerIpKeyExtractor;
 use tower_governor::GovernorLayer;
 
+use crate::error::RateLimitError;
+
 /// Type alias for the standard peer-IP rate limiting layer.
 pub type PeerRateLimitLayer<B = Body> =
     GovernorLayer<PeerIpKeyExtractor, NoOpMiddleware<<DefaultClock as governor::clock::Clock>::Instant>, B>;
@@ -21,7 +23,7 @@ pub type PeerRateLimitLayer<B = Body> =
 ///
 /// # Errors
 ///
-/// Returns an error string if `GovernorConfigBuilder` fails to construct a valid configuration.
+/// Returns [`RateLimitError::ConfigurationFailed`] if `GovernorConfigBuilder` fails to construct a valid configuration.
 ///
 /// # Examples
 ///
@@ -32,13 +34,13 @@ pub type PeerRateLimitLayer<B = Body> =
 ///
 /// let layer = per_ip_layer::<Body>(10, Duration::from_secs(1)).expect("valid layer");
 /// ```
-pub fn per_ip_layer<B>(burst: u32, period: Duration) -> Result<PeerRateLimitLayer<B>, String> {
+pub fn per_ip_layer<B>(burst: u32, period: Duration) -> Result<PeerRateLimitLayer<B>, RateLimitError> {
     let period_ms = period.as_millis() as u64;
     let config = GovernorConfigBuilder::default()
         .per_millisecond(period_ms)
         .burst_size(burst)
         .finish()
-        .ok_or_else(|| "Failed to construct GovernorConfig".to_string())?;
+        .ok_or_else(|| RateLimitError::ConfigurationFailed("Failed to build governor configuration".to_string()))?;
 
     Ok(GovernorLayer::new(config))
 }
@@ -49,7 +51,7 @@ pub fn per_ip_layer<B>(burst: u32, period: Duration) -> Result<PeerRateLimitLaye
 ///
 /// # Errors
 ///
-/// Returns an error string if layer construction fails.
+/// Returns [`RateLimitError::ConfigurationFailed`] if layer construction fails.
 ///
 /// # Examples
 ///
@@ -59,7 +61,7 @@ pub fn per_ip_layer<B>(burst: u32, period: Duration) -> Result<PeerRateLimitLaye
 ///
 /// let layer = strict_layer::<Body>().expect("strict rate limiter initialized");
 /// ```
-pub fn strict_layer<B>() -> Result<PeerRateLimitLayer<B>, String> {
+pub fn strict_layer<B>() -> Result<PeerRateLimitLayer<B>, RateLimitError> {
     per_ip_layer(5, Duration::from_secs(2))
 }
 
@@ -69,7 +71,7 @@ pub fn strict_layer<B>() -> Result<PeerRateLimitLayer<B>, String> {
 ///
 /// # Errors
 ///
-/// Returns an error string if layer construction fails.
+/// Returns [`RateLimitError::ConfigurationFailed`] if layer construction fails.
 ///
 /// # Examples
 ///
@@ -79,6 +81,6 @@ pub fn strict_layer<B>() -> Result<PeerRateLimitLayer<B>, String> {
 ///
 /// let layer = relaxed_layer::<Body>().expect("relaxed rate limiter initialized");
 /// ```
-pub fn relaxed_layer<B>() -> Result<PeerRateLimitLayer<B>, String> {
+pub fn relaxed_layer<B>() -> Result<PeerRateLimitLayer<B>, RateLimitError> {
     per_ip_layer(500, Duration::from_millis(100))
 }
