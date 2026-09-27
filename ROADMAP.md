@@ -88,6 +88,18 @@ This document outlines the development roadmap, planned features, and architectu
 
 ---
 
+### 💳 `scyph-pay` (Payments, Subscriptions & In-App Purchases)
+
+- 🔵 **Stripe Integration**:
+  - Axum webhook signature verification extractor (`StripeEvent`).
+  - Checkout session creation, customer portal integration, and recurring subscription lifecycle handlers.
+- 🔵 **In-App Purchases (IAP)**:
+  - **Apple App Store**: App Store Server API v2 receipt validation, JWT transaction verification, and Server Notifications v2 webhook listener.
+  - **Google Play Billing**: Google Play Developer API purchase token verification and Real-time Developer Notifications (RTDN) listener.
+  - **Unified Entitlement Engine**: Trait abstraction for cross-platform entitlement checks (iOS, Android, Web).
+
+---
+
 ## 🤝 Contributing to the Roadmap
 
 We welcome ideas, feature requests, and community feedback!
