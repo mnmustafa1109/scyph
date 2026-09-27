@@ -76,3 +76,22 @@ async fn test_subscriber_cancellation_token() {
     cancel_token.cancel();
     let _ = handle.await;
 }
+
+#[cfg(feature = "health")]
+#[tokio::test]
+async fn test_realtime_health_check_integration() {
+    use scyph_health::HealthRegistry;
+    use scyph_realtime::RealtimeHealthExt;
+
+    let config = RealtimeConfig::default();
+    let broadcaster = RealtimeBroadcaster::new(config).expect("broadcaster creation");
+    let registry = HealthRegistry::new();
+
+    broadcaster.check_health_named(&registry, "test_realtime", false).await;
+
+    let snapshot = registry.snapshot().await;
+    assert!(snapshot.contains_key("test_realtime"));
+    let service_status = &snapshot["test_realtime"];
+    assert_eq!(service_status.required, false);
+}
+

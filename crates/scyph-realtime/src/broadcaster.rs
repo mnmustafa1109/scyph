@@ -57,6 +57,11 @@ impl RealtimeBroadcaster {
         &self.config
     }
 
+    /// Exposes a reference to the underlying Redis [`Client`].
+    pub fn client(&self) -> &Client {
+        &self.client
+    }
+
     /// Registers a new active WebSocket connection channel for a target user.
     pub async fn register(&self, user_id: Uuid, conn_id: Uuid, tx: ConnectionTx) {
         self.registry.register(user_id, conn_id, tx).await;

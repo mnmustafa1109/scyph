@@ -9,7 +9,7 @@
 //! - **Encapsulated Memory Management**: `ConnectionRegistry` tracks user connection handles and automatically purges empty entries to prevent memory leaks.
 //! - **Structured Wire Protocol**: Standardized `RealtimeEvent<T>` envelopes with UUIDv7 timestamping and JSON payload delivery.
 //! - **Graceful Task Cancellation**: Integrated `CancellationToken` support in `start_subscriber` for clean shutdown on SIGTERM.
-//! - **Environment-based Configuration**: Load connection settings from `REALTIME_REDIS_URL` or `REDIS_URL` using `RealtimeConfig::from_env()`.
+//! - **Automated Health Probes ([`RealtimeHealthExt`])**: First-class integration with [`scyph_health::HealthRegistry`] for Kubernetes `/livez` and `/readyz` monitoring.
 
 /// Broadcaster client implementation and subscription loops.
 pub mod broadcaster;
@@ -23,6 +23,10 @@ pub mod error;
 /// Realtime wire protocol event envelopes and helpers.
 pub mod event;
 
+#[cfg(feature = "health")]
+/// Health check extensions for [`RealtimeBroadcaster`].
+pub mod health;
+
 /// In-memory connection registry data structures.
 pub mod registry;
 
@@ -30,4 +34,7 @@ pub use broadcaster::RealtimeBroadcaster;
 pub use config::RealtimeConfig;
 pub use error::RealtimeError;
 pub use event::{decode_event, RawRealtimeEnvelope, RealtimeEvent};
+#[cfg(feature = "health")]
+pub use health::RealtimeHealthExt;
 pub use registry::{ConnectionRegistry, ConnectionTx, UserConnections};
+

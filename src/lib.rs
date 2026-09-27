@@ -85,6 +85,9 @@ pub mod prelude {
     #[cfg(all(feature = "db", feature = "health"))]
     pub use scyph_db::DbHealthExt;
 
+    #[cfg(all(feature = "realtime", feature = "health"))]
+    pub use scyph_realtime::RealtimeHealthExt;
+
     #[cfg(all(feature = "storage", feature = "health"))]
     pub use scyph_storage::StorageHealthExt;
 
@@ -114,3 +117,7 @@ pub use scyph_storage::StorageError;
 
 #[cfg(feature = "realtime")]
 pub use scyph_realtime::{RealtimeBroadcaster, RealtimeError, RealtimeEvent};
+
+#[cfg(all(feature = "realtime", feature = "health"))]
+pub use scyph_realtime::RealtimeHealthExt;
+
