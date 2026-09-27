@@ -31,7 +31,7 @@
 //!     }
 //! }
 //!
-//! let user_id = Uuid::new_v4();
+//! let user_id = Uuid::now_v7();
 //! let user = AuthUser { id: user_id, claims: MyClaims { sub: user_id, exp: 100, jti: "1".into(), role: Role::User } };
 //! let doc = Document { owner_id: user_id };
 //!

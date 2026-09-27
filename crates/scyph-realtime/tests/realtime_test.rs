@@ -11,8 +11,8 @@ use uuid::Uuid;
 #[tokio::test]
 async fn test_connection_registry_lifecycle() {
     let registry = ConnectionRegistry::default();
-    let user_id = Uuid::new_v4();
-    let conn_id = Uuid::new_v4();
+    let user_id = Uuid::now_v7();
+    let conn_id = Uuid::now_v7();
     let (tx, mut rx) = unbounded_channel();
 
     assert_eq!(registry.active_connections_count().await, 0);
@@ -40,7 +40,7 @@ async fn test_connection_registry_lifecycle() {
 async fn test_realtime_session_raii_guard() {
     let config = RealtimeConfig::default();
     let broadcaster = RealtimeBroadcaster::new(config).expect("broadcaster creation");
-    let user_id = Uuid::new_v4();
+    let user_id = Uuid::now_v7();
 
     assert_eq!(broadcaster.registry().active_connections_count().await, 0);
 
@@ -79,7 +79,7 @@ fn test_realtime_payload_trait() {
     };
     assert_eq!(UserNotificationPayload::EVENT_NAME, "notification.user");
 
-    let user_id = Uuid::new_v4();
+    let user_id = Uuid::now_v7();
     let event = RealtimeEvent::new(UserNotificationPayload::EVENT_NAME, user_id, &payload);
     assert_eq!(event.event_name, "notification.user");
     assert_eq!(event.user_id, Some(user_id));
@@ -89,14 +89,14 @@ fn test_realtime_payload_trait() {
 #[tokio::test]
 async fn test_global_broadcast_registry() {
     let registry = ConnectionRegistry::default();
-    let user1 = Uuid::new_v4();
-    let user2 = Uuid::new_v4();
+    let user1 = Uuid::now_v7();
+    let user2 = Uuid::now_v7();
 
     let (tx1, mut rx1) = unbounded_channel();
     let (tx2, mut rx2) = unbounded_channel();
 
-    registry.register(user1, Uuid::new_v4(), tx1).await;
-    registry.register(user2, Uuid::new_v4(), tx2).await;
+    registry.register(user1, Uuid::now_v7(), tx1).await;
+    registry.register(user2, Uuid::now_v7(), tx2).await;
 
     registry.broadcast_global(r#"{"global":"alert"}"#).await;
 
@@ -106,7 +106,7 @@ async fn test_global_broadcast_registry() {
 
 #[test]
 fn test_realtime_event_serialization_and_decoding() {
-    let user_id = Uuid::new_v4();
+    let user_id = Uuid::now_v7();
     let payload = json!({ "msg": "Hello Realtime" });
     let event = RealtimeEvent::new("chat.message", user_id, payload.clone());
 

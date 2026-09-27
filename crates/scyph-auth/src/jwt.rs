@@ -58,7 +58,7 @@ pub enum JwtError {
 /// }
 ///
 /// let claims = MyClaims {
-///     sub: Uuid::new_v4(),
+///     sub: Uuid::now_v7(),
 ///     exp: chrono::Utc::now().timestamp() + 3600,
 ///     jti: "unique_id".into(),
 ///     role: Role::User,
@@ -112,7 +112,7 @@ pub fn create_token<C: Claims>(claims: &C, secret: &SecretString) -> Result<Stri
 /// }
 ///
 /// let claims = MyClaims {
-///     sub: Uuid::new_v4(),
+///     sub: Uuid::now_v7(),
 ///     exp: chrono::Utc::now().timestamp() + 3600,
 ///     jti: "token_123".into(),
 ///     role: Role::User,

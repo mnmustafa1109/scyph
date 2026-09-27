@@ -20,7 +20,7 @@ pub struct RealtimeSession {
 impl RealtimeSession {
     /// Constructs a new [`RealtimeSession`] and registers it with the given [`ConnectionRegistry`].
     pub async fn connect(registry: ConnectionRegistry, user_id: Uuid) -> Self {
-        let conn_id = Uuid::new_v4();
+        let conn_id = Uuid::now_v7();
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         registry.register(user_id, conn_id, tx).await;
         Self {

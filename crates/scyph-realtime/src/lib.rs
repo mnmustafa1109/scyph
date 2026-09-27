@@ -56,7 +56,7 @@
 //! }
 //!
 //! async fn handle_ws(mut socket: WebSocket, user_id: Uuid, broadcaster: RealtimeBroadcaster) {
-//!     let conn_id = Uuid::new_v4();
+//!     let conn_id = Uuid::now_v7();
 //!     let (tx, mut rx) = mpsc::unbounded_channel();
 //!     broadcaster.register(user_id, conn_id, tx).await;
 //!

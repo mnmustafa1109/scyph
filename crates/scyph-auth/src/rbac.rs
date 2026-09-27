@@ -40,9 +40,9 @@ use scyph_core::traits::Claims;
 /// }
 ///
 /// let user = AuthUser {
-///     id: Uuid::new_v4(),
+///     id: Uuid::now_v7(),
 ///     claims: MyClaims {
-///         sub: Uuid::new_v4(),
+///         sub: Uuid::now_v7(),
 ///         exp: 10000,
 ///         jti: "jti".into(),
 ///         role: Role::Admin,

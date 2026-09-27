@@ -55,7 +55,7 @@
 //!
 //! let authorizer = CedarAuthorizer::from_str(policy_src, None).unwrap();
 //! let user = User { name: "alice".into(), role: "Admin".into() };
-//! let doc = Document { id: Uuid::new_v4(), is_public: true };
+//! let doc = Document { id: Uuid::now_v7(), is_public: true };
 //!
 //! assert!(authorizer.authorize(&user, "Read", &doc).is_ok());
 //! ```

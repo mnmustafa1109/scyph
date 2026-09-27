@@ -9,7 +9,7 @@
 //! use scyph_abac::FilterBuilder;
 //! use uuid::Uuid;
 //!
-//! let user_id = Uuid::new_v4();
+//! let user_id = Uuid::now_v7();
 //! let mut filter = FilterBuilder::new("SELECT * FROM documents WHERE ");
 //! filter.push("is_public = true OR owner_id = ").push_uuid(user_id);
 //!
