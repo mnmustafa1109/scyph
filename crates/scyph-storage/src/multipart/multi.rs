@@ -27,6 +27,29 @@ pub struct ExtractedFile {
     pub original_name: String,
 }
 
+#[cfg(feature = "image")]
+impl ExtractedFile {
+    /// Generates a thumbnail buffer and derives its storage key using the provided [`ThumbnailConfig`](crate::thumbnail::ThumbnailConfig).
+    ///
+    /// Derives the thumbnail key path placing it under `thumbnails/` and replacing the extension with the target format.
+    ///
+    /// # Returns
+    ///
+    /// Returns a tuple `(thumbnail_key, thumbnail_bytes)`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StorageError::ValidationError`] if decoding fails, or [`StorageError::Internal`] if re-encoding fails.
+    pub fn thumbnail(
+        &self,
+        config: crate::thumbnail::ThumbnailConfig,
+    ) -> Result<(String, Bytes), StorageError> {
+        let thumb_bytes = config.generate(&self.data)?;
+        let thumb_key = config.derive_key(&self.path, crate::thumbnail::DEFAULT_THUMBNAIL_SUBFOLDER);
+        Ok((thumb_key, Bytes::from(thumb_bytes)))
+    }
+}
+
 /// Axum request extractor for batch/multi-file uploads with type-level validation configuration `C`.
 ///
 /// Matches field names matching the configured name, plural suffixes, and array notation

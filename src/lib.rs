@@ -157,8 +157,9 @@ pub mod prelude {
 
     #[cfg(all(feature = "storage", feature = "image"))]
     pub use scyph_storage::{
-        ThumbnailConfig, derive_thumbnail_key, generate_thumbnail, generate_thumbnail_with_format,
-        thumbnail_key,
+        StorageThumbnailExt, ThumbnailConfig, ThumbnailStoreResult, derive_thumbnail_key,
+        derive_thumbnail_key_with_format, format_content_type, format_extension,
+        generate_thumbnail, generate_thumbnail_with_format, thumbnail_key,
     };
 
     #[cfg(feature = "realtime")]
@@ -235,8 +236,9 @@ pub use scyph_storage::StorageError;
 
 #[cfg(all(feature = "storage", feature = "image"))]
 pub use scyph_storage::{
-    ThumbnailConfig, derive_thumbnail_key, generate_thumbnail, generate_thumbnail_with_format,
-    thumbnail_key,
+    StorageThumbnailExt, ThumbnailConfig, ThumbnailStoreResult, derive_thumbnail_key,
+    derive_thumbnail_key_with_format, format_content_type, format_extension,
+    generate_thumbnail, generate_thumbnail_with_format, thumbnail_key,
 };
 
 #[cfg(feature = "realtime")]

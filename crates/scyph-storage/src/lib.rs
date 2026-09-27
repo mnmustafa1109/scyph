@@ -104,6 +104,7 @@ pub use s3::S3StorageService;
 #[cfg(feature = "image")]
 #[doc(inline)]
 pub use thumbnail::{
-    ThumbnailConfig, derive_thumbnail_key, generate_thumbnail, generate_thumbnail_with_format,
-    thumbnail_key,
+    StorageThumbnailExt, ThumbnailConfig, ThumbnailStoreResult, derive_thumbnail_key,
+    derive_thumbnail_key_with_format, format_content_type, format_extension,
+    generate_thumbnail, generate_thumbnail_with_format, thumbnail_key,
 };

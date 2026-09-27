@@ -3,12 +3,14 @@
 //! Provides configurable image decoding, aspect-ratio-preserving resizing,
 //! format encoding, and storage path key derivation for thumbnail assets.
 
+use std::future::Future;
 use std::io::Cursor;
 use std::path::Path;
 
+use bytes::Bytes;
 use image::{ImageFormat, ImageReader};
 
-use crate::error::StorageError;
+use crate::{error::StorageError, traits::StorageService};
 
 /// Default square bounding dimension in pixels for thumbnails.
 pub const DEFAULT_THUMBNAIL_DIMENSION: u32 = 200;
@@ -94,6 +96,44 @@ impl ThumbnailConfig {
     /// or [`StorageError::Internal`] if re-encoding fails.
     pub fn generate(&self, data: &[u8]) -> Result<Vec<u8>, StorageError> {
         generate_thumbnail_with_format(data, self.max_width, self.max_height, self.format)
+    }
+
+    /// Returns the canonical MIME content-type string for this configuration's target output format.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use image::ImageFormat;
+    /// use scyph_storage::thumbnail::ThumbnailConfig;
+    ///
+    /// let config = ThumbnailConfig::default().with_format(ImageFormat::WebP);
+    /// assert_eq!(config.content_type(), "image/webp");
+    /// ```
+    pub const fn content_type(&self) -> &'static str {
+        format_content_type(self.format)
+    }
+
+    /// Returns the canonical file extension (without leading dot) for this configuration's format.
+    pub const fn extension(&self) -> &'static str {
+        format_extension(self.format)
+    }
+
+    /// Derives the destination storage key for a thumbnail based on this configuration's format.
+    ///
+    /// Replaces the original extension with the target format extension and places the file in `subfolder`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use image::ImageFormat;
+    /// use scyph_storage::thumbnail::ThumbnailConfig;
+    ///
+    /// let config = ThumbnailConfig::default().with_format(ImageFormat::WebP);
+    /// let key = config.derive_key("avatars/user.png", "thumbnails");
+    /// assert_eq!(key, "avatars/thumbnails/user.webp");
+    /// ```
+    pub fn derive_key(&self, original_key: &str, subfolder: &str) -> String {
+        derive_thumbnail_key_with_format(original_key, subfolder, self.format)
     }
 }
 
@@ -227,5 +267,130 @@ pub fn derive_thumbnail_key(original_key: &str, subfolder: &str) -> String {
         }
     } else {
         format!("{}/{}", subfolder, normalized)
+    }
+}
+
+/// Returns the canonical MIME content-type string corresponding to an [`ImageFormat`].
+pub const fn format_content_type(format: ImageFormat) -> &'static str {
+    match format {
+        ImageFormat::Jpeg => "image/jpeg",
+        ImageFormat::Png => "image/png",
+        ImageFormat::WebP => "image/webp",
+        ImageFormat::Gif => "image/gif",
+        ImageFormat::Bmp => "image/bmp",
+        ImageFormat::Ico => "image/x-icon",
+        ImageFormat::Tiff => "image/tiff",
+        _ => "application/octet-stream",
+    }
+}
+
+/// Returns the primary file extension (without leading dot) corresponding to an [`ImageFormat`].
+pub const fn format_extension(format: ImageFormat) -> &'static str {
+    match format {
+        ImageFormat::Jpeg => "jpg",
+        ImageFormat::Png => "png",
+        ImageFormat::WebP => "webp",
+        ImageFormat::Gif => "gif",
+        ImageFormat::Bmp => "bmp",
+        ImageFormat::Ico => "ico",
+        ImageFormat::Tiff => "tiff",
+        _ => "bin",
+    }
+}
+
+/// Derives a thumbnail storage key by inserting a subdirectory before the file name
+/// and replacing the file extension with the target format extension.
+///
+/// Normalizes any backslashes to forward slashes for cross-platform cloud storage consistency.
+///
+/// # Examples
+///
+/// ```rust
+/// use image::ImageFormat;
+/// use scyph_storage::thumbnail::derive_thumbnail_key_with_format;
+///
+/// let original = "uploads/users/avatar.png";
+/// let thumb = derive_thumbnail_key_with_format(original, "thumbnails", ImageFormat::Jpeg);
+/// assert_eq!(thumb, "uploads/users/thumbnails/avatar.jpg");
+/// ```
+pub fn derive_thumbnail_key_with_format(
+    original_key: &str,
+    subfolder: &str,
+    format: ImageFormat,
+) -> String {
+    let key_with_folder = derive_thumbnail_key(original_key, subfolder);
+    let target_ext = format_extension(format);
+
+    let path = Path::new(&key_with_folder);
+    if path.extension().is_some() {
+        let mut new_path = path.to_path_buf();
+        new_path.set_extension(target_ext);
+        new_path.to_string_lossy().replace('\\', "/")
+    } else {
+        format!("{key_with_folder}.{target_ext}")
+    }
+}
+
+/// Result of storing an original file alongside its derived thumbnail.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ThumbnailStoreResult {
+    /// Destination path of the original stored file.
+    pub original_key: String,
+    /// Destination path of the generated thumbnail.
+    pub thumbnail_key: String,
+}
+
+/// Extension trait for [`StorageService`] providing atomic-style original + thumbnail upload.
+pub trait StorageThumbnailExt: StorageService {
+    /// Stores the original file and generates + stores an image thumbnail in a single operation.
+    ///
+    /// The thumbnail storage key is derived using [`ThumbnailConfig::derive_key`] with
+    /// [`DEFAULT_THUMBNAIL_SUBFOLDER`].
+    ///
+    /// # Arguments
+    ///
+    /// * `original_key` - Path where the original file will be stored.
+    /// * `original_content_type` - MIME content-type of the original file.
+    /// * `data` - Zero-copy byte buffer of the file.
+    /// * `config` - Thumbnail configuration (dimensions, format, etc.).
+    ///
+    /// # Returns
+    ///
+    /// Returns [`ThumbnailStoreResult`] containing both the original and thumbnail storage keys.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StorageError::ValidationError`] if thumbnail generation fails,
+    /// or [`StorageError`] if either upload fails.
+    fn store_with_thumbnail(
+        &self,
+        original_key: &str,
+        original_content_type: &str,
+        data: Bytes,
+        config: ThumbnailConfig,
+    ) -> impl Future<Output = Result<ThumbnailStoreResult, StorageError>> + Send;
+}
+
+impl<T: StorageService + ?Sized> StorageThumbnailExt for T {
+    fn store_with_thumbnail(
+        &self,
+        original_key: &str,
+        original_content_type: &str,
+        data: Bytes,
+        config: ThumbnailConfig,
+    ) -> impl Future<Output = Result<ThumbnailStoreResult, StorageError>> + Send {
+        async move {
+            let thumb_bytes = config.generate(&data)?;
+            let thumb_key = config.derive_key(original_key, DEFAULT_THUMBNAIL_SUBFOLDER);
+            let thumb_content_type = config.content_type();
+
+            let stored_orig = self.store(original_key, original_content_type, data).await?;
+            let stored_thumb = self.store(&thumb_key, thumb_content_type, Bytes::from(thumb_bytes)).await?;
+
+            Ok(ThumbnailStoreResult {
+                original_key: stored_orig,
+                thumbnail_key: stored_thumb,
+            })
+        }
     }
 }
