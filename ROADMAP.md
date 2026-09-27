@@ -88,6 +88,15 @@ This document outlines the development roadmap, planned features, and architectu
 
 ---
 
+### ⚙️ `scyph-jobs` (Background Job Processing & Workflows)
+
+- 🟡 **Dedicated Draft Branch (`scyph-job`)**: Maintained on the `scyph-job` branch pending stable `apalis` v1.0 release before workspace merging.
+- 🟢 **PostgreSQL Job Queue**: `apalis`-backed scheduled and delayed background task queue runner.
+- 🟢 **Worker Lifecycle & Cancellation**: Worker execution runner with custom tick behaviors and graceful task cancellation.
+- 🔵 **Distributed Job Metrics & Dashboard**: Prometheus metrics export and queue monitoring endpoints.
+
+---
+
 ### 💳 `scyph-pay` (Payments, Subscriptions & In-App Purchases)
 
 - 🔵 **Stripe Integration**:
