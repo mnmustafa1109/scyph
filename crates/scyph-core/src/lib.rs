@@ -33,7 +33,7 @@ pub mod response;
 pub mod traits;
 
 #[doc(inline)]
-pub use error::AppError;
+pub use error::{AppError, ErrorDetails};
 
 #[doc(inline)]
 pub use response::{ApiResponse, PagedResponse, ResponseMeta, Result};

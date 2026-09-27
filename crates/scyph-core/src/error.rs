@@ -28,9 +28,22 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use thiserror::Error;
 use tracing::error;
+
+/// Field-level detail for request payload validation or processing errors.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ErrorDetails {
+    /// Machine-readable error code string (e.g., `"INVALID_EMAIL"`, `"REQUIRED"`).
+    pub code: String,
+    /// Human-readable description of the error.
+    pub message: String,
+    /// Optional field name or payload property path (e.g., `"email"`, `"pagination.limit"`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub field: Option<String>,
+}
 
 /// The canonical error type for all Scyph-based HTTP backends.
 ///
@@ -64,6 +77,15 @@ pub enum AppError {
     /// 422 Unprocessable Entity — Request syntax is correct but validation failed.
     #[error("Unprocessable: {0}")]
     UnprocessableEntity(String),
+
+    /// 422 Unprocessable Entity — Structured request validation failure with field-level details.
+    #[error("Validation failed: {message}")]
+    ValidationError {
+        /// Summary validation failure message.
+        message: String,
+        /// List of field-level validation errors.
+        details: Vec<ErrorDetails>,
+    },
 
     /// 402 Payment Required — Access requires payment or active subscription.
     #[error("Payment required: {0}")]
@@ -185,7 +207,9 @@ impl AppError {
             Self::Forbidden(_) => StatusCode::FORBIDDEN,
             Self::NotFound(_) => StatusCode::NOT_FOUND,
             Self::Conflict(_) => StatusCode::CONFLICT,
-            Self::UnprocessableEntity(_) => StatusCode::UNPROCESSABLE_ENTITY,
+            Self::UnprocessableEntity(_) | Self::ValidationError { .. } => {
+                StatusCode::UNPROCESSABLE_ENTITY
+            }
             Self::PaymentRequired(_) => StatusCode::PAYMENT_REQUIRED,
             Self::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
             Self::ServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
@@ -214,6 +238,7 @@ impl AppError {
             Self::NotFound(_) => "NOT_FOUND",
             Self::Conflict(_) => "CONFLICT",
             Self::UnprocessableEntity(_) => "UNPROCESSABLE_ENTITY",
+            Self::ValidationError { .. } => "VALIDATION_ERROR",
             Self::PaymentRequired(_) => "PAYMENT_REQUIRED",
             Self::TooManyRequests(_) => "TOO_MANY_REQUESTS",
             Self::ServiceUnavailable(_) => "SERVICE_UNAVAILABLE",
@@ -238,15 +263,22 @@ impl IntoResponse for AppError {
         }
 
         let status = self.status();
-        let body = json!({
+        let mut body = json!({
             "type":   format!("https://httpstatuses.io/{}", status.as_u16()),
             "title":  self.code(),
             "status": status.as_u16(),
             "detail": match &self {
                 Self::Internal { .. } => "An unexpected error occurred.".to_string(),
+                Self::ValidationError { message, .. } => message.clone(),
                 other => other.to_string(),
             },
         });
+
+        if let Self::ValidationError { details, .. } = &self {
+            body.as_object_mut()
+                .unwrap()
+                .insert("details".to_string(), json!(details));
+        }
 
         (status, axum::Json(body)).into_response()
     }
