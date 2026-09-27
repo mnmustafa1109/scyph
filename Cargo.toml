@@ -12,8 +12,14 @@ default = ["auth", "db", "health"]
 auth = ["dep:scyph-auth"]
 abac = ["dep:scyph-abac"]
 db = ["dep:scyph-db"]
-health = ["dep:scyph-health", "scyph-db?/health", "scyph-notify?/health", "scyph-storage?/health"]
+health = [
+  "dep:scyph-health",
+  "scyph-db?/health",
+  "scyph-notify?/health",
+  "scyph-storage?/health",
+]
 notify = ["dep:scyph-notify"]
+realtime = ["dep:scyph-realtime"]
 storage = ["dep:scyph-storage", "scyph-storage/s3"]
 s3 = ["storage"]
 
@@ -24,6 +30,7 @@ scyph-abac = { path = "crates/scyph-abac", version = "0.1.0", optional = true }
 scyph-db = { path = "crates/scyph-db", version = "0.1.0", optional = true }
 scyph-health = { path = "crates/scyph-health", version = "0.1.0", optional = true }
 scyph-notify = { path = "crates/scyph-notify", version = "0.1.0", optional = true }
+scyph-realtime = { path = "crates/scyph-realtime", version = "0.1.0", optional = true }
 scyph-storage = { path = "crates/scyph-storage", version = "0.1.0", optional = true }
 
 [workspace]
@@ -36,6 +43,7 @@ members = [
   "crates/scyph-db",
   "crates/scyph-health",
   "crates/scyph-notify",
+  "crates/scyph-realtime",
   "crates/scyph-storage",
 ]
 
@@ -87,6 +95,8 @@ bytes = "1.12.1"
 mime = "0.3.17"
 aws-config = "1.12.0"
 aws-sdk-s3 = "1.149.0"
+redis = { version = "1.7.1", features = ["tokio-comp", "connection-manager"] }
+futures-util = "0.3.34"
 
 # ── Shared release profile for peak performance ──────────────────────────────
 [profile.release]

@@ -1,0 +1,19 @@
+# crates/scyph-realtime/Cargo.toml
+[package]
+name = "scyph-realtime"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Redis pub/sub broadcaster for cross-replica WebSocket fanout"
+
+[dependencies]
+scyph-core = { path = "../scyph-core", version = "0.1" }
+tokio = { workspace = true }
+redis = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+futures-util = { workspace = true }
