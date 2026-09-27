@@ -147,15 +147,20 @@ pub fn generate_thumbnail_with_format(
     max_height: u32,
     format: ImageFormat,
 ) -> Result<Vec<u8>, StorageError> {
-    let reader = ImageReader::new(Cursor::new(data))
+    let bound_w = max_width.max(1);
+    let bound_h = max_height.max(1);
+
+    let mut reader = ImageReader::new(Cursor::new(data))
         .with_guessed_format()
         .map_err(|e| StorageError::validation(format!("Failed to inspect image format: {e}"), vec![]))?;
+
+    reader.limits(image::Limits::default());
 
     let dynamic_img = reader.decode().map_err(|e| {
         StorageError::validation(format!("Failed to decode image: {e}"), vec![])
     })?;
 
-    let thumbnail = dynamic_img.thumbnail(max_width, max_height);
+    let thumbnail = dynamic_img.thumbnail(bound_w, bound_h);
 
     let mut output_buf = Vec::new();
     thumbnail
@@ -191,6 +196,8 @@ pub fn thumbnail_key(original_key: &str, folder_from: &str, folder_to: &str) -> 
 
 /// Derives a thumbnail storage key by inserting a subdirectory before the file name.
 ///
+/// Normalizes any backslashes to forward slashes for cross-platform cloud storage consistency.
+///
 /// # Examples
 ///
 /// ```rust
@@ -205,7 +212,8 @@ pub fn thumbnail_key(original_key: &str, folder_from: &str, folder_to: &str) -> 
 /// assert_eq!(thumb_root, "thumbnails/photo.jpg");
 /// ```
 pub fn derive_thumbnail_key(original_key: &str, subfolder: &str) -> String {
-    let path = Path::new(original_key);
+    let normalized = original_key.replace('\\', "/");
+    let path = Path::new(&normalized);
     if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
         if parent.as_os_str().is_empty() {
             format!("{}/{}", subfolder, file_name.to_string_lossy())
@@ -218,6 +226,6 @@ pub fn derive_thumbnail_key(original_key: &str, subfolder: &str) -> String {
             )
         }
     } else {
-        format!("{}/{}", subfolder, original_key)
+        format!("{}/{}", subfolder, normalized)
     }
 }

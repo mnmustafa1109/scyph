@@ -30,3 +30,7 @@ secrecy = { workspace = true }
 aws-config = { workspace = true, optional = true }
 aws-sdk-s3 = { workspace = true, optional = true }
 image = { workspace = true, optional = true }
+
+[[test]]
+name = "thumbnail_test"
+required-features = ["image"]
