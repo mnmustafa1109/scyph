@@ -30,10 +30,12 @@
 //! - `realtime`: Enables Redis Pub/Sub WebSocket broadcaster (`scyph-realtime`).
 //! - `storage`: Enables object storage and file extractors (`scyph-storage`).
 //! - `s3`: Enables AWS S3 / MinIO backend in `scyph-storage`.
+//! - `image`: Enables image thumbnail generation in `scyph-storage`.
 //! - `telemetry`: Enables tracing, UUIDv7 request IDs, and auto-meta response injection (`scyph-telemetry`).
 //! - `ratelimit`: Enables IP-based rate limiting middleware (`scyph-ratelimit`).
 //! - `utils`: Enables utility primitives, HMAC webhooks, background workers, and API idempotency (`scyph-utils`).
 //! - `extractors`: Enables type-safe validated JSON body, query parameter, and URL path extractors (`scyph-extractors`).
+//! - `query`: Enables `QueryBuilder` dynamic filtering, sorting, pagination, and search extensions (`scyph-db`).
 //! - `full`: Umbrella feature enabling all framework sub-crates and sub-features.
 //!
 //! ## Quickstart Example
@@ -133,6 +135,11 @@ pub mod prelude {
         run_seeds, run_seeds_from,
     };
 
+    #[cfg(all(feature = "db", feature = "query"))]
+    pub use scyph_db::{
+        ApplyFiltering, ApplyPagination, ApplyRequestParams, ApplySearch, ApplySorting,
+    };
+
     #[cfg(feature = "notify")]
     pub use scyph_notify::{
         EmailMessage, EmailService, EmailTemplate, NoEmailService, NoPushService, NotifyError,
@@ -147,6 +154,12 @@ pub mod prelude {
 
     #[cfg(all(feature = "storage", feature = "s3"))]
     pub use scyph_storage::S3StorageService;
+
+    #[cfg(all(feature = "storage", feature = "image"))]
+    pub use scyph_storage::{
+        ThumbnailConfig, derive_thumbnail_key, generate_thumbnail, generate_thumbnail_with_format,
+        thumbnail_key,
+    };
 
     #[cfg(feature = "realtime")]
     pub use scyph_realtime::{
@@ -209,11 +222,22 @@ pub use scyph_abac::{AbacError, AbacPolicy, FilterBuilder};
 #[cfg(feature = "db")]
 pub use scyph_db::DbError;
 
+#[cfg(all(feature = "db", feature = "query"))]
+pub use scyph_db::{
+    ApplyFiltering, ApplyPagination, ApplyRequestParams, ApplySearch, ApplySorting,
+};
+
 #[cfg(feature = "notify")]
 pub use scyph_notify::{EmailTemplate, NoEmailService, NoPushService, NotifyError, PushTemplate};
 
 #[cfg(feature = "storage")]
 pub use scyph_storage::StorageError;
+
+#[cfg(all(feature = "storage", feature = "image"))]
+pub use scyph_storage::{
+    ThumbnailConfig, derive_thumbnail_key, generate_thumbnail, generate_thumbnail_with_format,
+    thumbnail_key,
+};
 
 #[cfg(feature = "realtime")]
 pub use scyph_realtime::{

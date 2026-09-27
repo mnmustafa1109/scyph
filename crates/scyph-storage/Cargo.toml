@@ -12,6 +12,7 @@ description = "StorageService trait, multipart file extractor, and S3 implementa
 default = []
 s3 = ["dep:aws-config", "dep:aws-sdk-s3"]
 health = ["dep:scyph-health"]
+image = ["dep:image"]
 
 [dependencies]
 scyph-core = { path = "../scyph-core", version = "0.1" }
@@ -28,3 +29,4 @@ secrecy = { workspace = true }
 
 aws-config = { workspace = true, optional = true }
 aws-sdk-s3 = { workspace = true, optional = true }
+image = { workspace = true, optional = true }

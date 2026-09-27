@@ -18,6 +18,10 @@ pub mod transaction;
 /// Extension traits for automated PostgreSQL pool health checks.
 pub mod health;
 
+#[cfg(feature = "query")]
+/// QueryBuilder extensions for search, filtering, sorting, and pagination.
+pub mod query;
+
 /// Database error type definitions.
 pub mod error;
 
@@ -31,3 +35,8 @@ pub use transaction::{begin, commit, rollback};
 
 #[cfg(feature = "health")]
 pub use health::DbHealthExt;
+
+#[cfg(feature = "query")]
+pub use query::{
+    ApplyFiltering, ApplyPagination, ApplyRequestParams, ApplySearch, ApplySorting,
+};

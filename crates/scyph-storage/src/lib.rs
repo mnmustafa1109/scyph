@@ -75,6 +75,10 @@ pub mod health;
 #[cfg(feature = "s3")]
 pub mod s3;
 
+/// Image decoding, resizing, and thumbnail generation utilities.
+#[cfg(feature = "image")]
+pub mod thumbnail;
+
 #[doc(inline)]
 pub use error::StorageError;
 
@@ -96,3 +100,10 @@ pub use traits::StorageService;
 #[cfg(feature = "s3")]
 #[doc(inline)]
 pub use s3::S3StorageService;
+
+#[cfg(feature = "image")]
+#[doc(inline)]
+pub use thumbnail::{
+    ThumbnailConfig, derive_thumbnail_key, generate_thumbnail, generate_thumbnail_with_format,
+    thumbnail_key,
+};
