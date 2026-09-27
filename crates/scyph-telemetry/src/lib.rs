@@ -47,5 +47,6 @@ pub mod middleware;
 pub use init::{init_tracing, TelemetryGuard};
 #[doc(inline)]
 pub use middleware::{
-    with_telemetry, with_telemetry_config, MakeRequestIdV7, RequestId, TelemetryConfig,
+    auto_meta_middleware, with_telemetry, with_telemetry_config, MakeRequestIdV7, RequestId,
+    TelemetryConfig,
 };

@@ -48,7 +48,7 @@ pub use scyph_telemetry as telemetry;
 /// Convenient prelude re-exporting common framework types for single-line imports (`use scyph::prelude::*;`).
 pub mod prelude {
     pub use scyph_core::{
-        Action, ApiResponse, AppError, Authorizable, Claims, PagedResponse, Result,
+        Action, ApiResponse, AppError, Authorizable, Claims, PagedResponse, ResponseMeta, Result,
     };
 
     #[cfg(feature = "auth")]
@@ -109,7 +109,9 @@ pub mod prelude {
 }
 
 // ── Convenient Top-Level Re-exports ──────────────────────────────────────────
-pub use scyph_core::{Action, ApiResponse, AppError, Authorizable, Claims, PagedResponse, Result};
+pub use scyph_core::{
+    Action, ApiResponse, AppError, Authorizable, Claims, PagedResponse, ResponseMeta, Result,
+};
 
 #[cfg(feature = "auth")]
 pub use scyph_auth::{AuthError, AuthUser, OptionalAuthUser};

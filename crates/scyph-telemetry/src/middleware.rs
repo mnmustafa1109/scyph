@@ -6,8 +6,9 @@ use axum::{
     Router,
     extract::FromRequestParts,
     http::{HeaderName, HeaderValue, Request, request::Parts},
+    response::Response,
 };
-use scyph_core::AppError;
+use scyph_core::{AppError, ResponseMeta};
 use tower_http::{
     compression::CompressionLayer,
     request_id::{
@@ -105,6 +106,10 @@ pub struct TelemetryConfig {
     pub enable_compression: bool,
     /// Enables structured HTTP tracing spans (default: `true`).
     pub enable_tracing: bool,
+    /// Enables automatic injection of standard `ResponseMeta` into JSON response envelopes (default: `true`).
+    pub enable_auto_meta: bool,
+    /// Application API version string injected into `ResponseMeta` (default: `"0.1.0"`).
+    pub api_version: String,
 }
 
 impl Default for TelemetryConfig {
@@ -113,11 +118,114 @@ impl Default for TelemetryConfig {
             request_id_header: HeaderName::from_static("x-request-id"),
             enable_compression: true,
             enable_tracing: true,
+            enable_auto_meta: true,
+            api_version: env!("CARGO_PKG_VERSION").to_string(),
         }
     }
 }
 
-/// Wraps an [`axum::Router`] with standard telemetry, UUIDv7 request ID propagation, dynamic compression, and tracing layers.
+impl TelemetryConfig {
+    /// Constructs a new [`TelemetryConfig`] builder with default parameters.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets the HTTP header name for request ID propagation.
+    pub fn with_request_id_header(mut self, header: HeaderName) -> Self {
+        self.request_id_header = header;
+        self
+    }
+
+    /// Enables or disables response compression.
+    pub fn with_compression(mut self, enable: bool) -> Self {
+        self.enable_compression = enable;
+        self
+    }
+
+    /// Enables or disables tracing spans.
+    pub fn with_tracing(mut self, enable: bool) -> Self {
+        self.enable_tracing = enable;
+        self
+    }
+
+    /// Enables or disables automatic `ResponseMeta` JSON injection.
+    pub fn with_auto_meta(mut self, enable: bool) -> Self {
+        self.enable_auto_meta = enable;
+        self
+    }
+
+    /// Sets the application API version string for `ResponseMeta`.
+    pub fn with_api_version(mut self, version: impl Into<String>) -> Self {
+        self.api_version = version.into();
+        self
+    }
+}
+
+/// Axum middleware for automatically injecting standard [`ResponseMeta`] into JSON responses.
+///
+/// Measures request latency, retrieves the request trace ID, and populates the `"meta"` field in response envelopes.
+pub async fn auto_meta_middleware(
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+    config: TelemetryConfig,
+) -> Response {
+    let start = std::time::Instant::now();
+    let req_header = config.request_id_header.clone();
+    let trace_id = request
+        .headers()
+        .get(&req_header)
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| Uuid::now_v7().to_string());
+
+    let response = next.run(request).await;
+
+    if !config.enable_auto_meta {
+        return response;
+    }
+
+    let is_json = response
+        .headers()
+        .get(axum::http::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(|ct| ct.contains("json"))
+        .unwrap_or(false);
+
+    if !is_json {
+        return response;
+    }
+
+    let processing_time_ms = start.elapsed().as_millis() as u64;
+    let (parts, body) = response.into_parts();
+
+    let bytes = match axum::body::to_bytes(body, usize::MAX).await {
+        Ok(b) => b,
+        Err(_) => return Response::from_parts(parts, axum::body::Body::empty()),
+    };
+
+    if let Ok(mut json_val) = serde_json::from_slice::<serde_json::Value>(&bytes)
+        && let Some(obj) = json_val.as_object_mut()
+    {
+        if !obj.contains_key("meta") || obj.get("meta").is_none_or(|v| v.is_null()) {
+            let meta = ResponseMeta::new(trace_id, processing_time_ms, &config.api_version);
+            if let Ok(meta_val) = serde_json::to_value(meta) {
+                obj.insert("meta".to_string(), meta_val);
+            }
+        }
+        if let Ok(new_bytes) = serde_json::to_vec(&json_val) {
+            let mut parts = parts;
+            parts.headers.insert(
+                axum::http::header::CONTENT_LENGTH,
+                HeaderValue::from(new_bytes.len()),
+            );
+            return Response::from_parts(parts, axum::body::Body::from(new_bytes));
+        }
+    }
+
+    Response::from_parts(parts, axum::body::Body::from(bytes))
+}
+
+/// Wraps an [`axum::Router`] with standard telemetry, UUIDv7 request ID propagation, dynamic compression, tracing, and auto-meta response injection.
 ///
 /// Uses default [`TelemetryConfig`].
 pub fn with_telemetry<S: Clone + Send + Sync + 'static>(router: Router<S>) -> Router<S> {
@@ -153,6 +261,13 @@ pub fn with_telemetry_config<S: Clone + Send + Sync + 'static>(
             )
         });
         router = router.layer(trace_layer);
+    }
+
+    if config.enable_auto_meta {
+        let auto_meta_config = config.clone();
+        router = router.layer(axum::middleware::from_fn(move |req, next| {
+            auto_meta_middleware(req, next, auto_meta_config.clone())
+        }));
     }
 
     let header_name = config.request_id_header;
