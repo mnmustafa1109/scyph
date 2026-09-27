@@ -8,7 +8,7 @@ use sha2::Sha256;
 /// Verifies an incoming HMAC-SHA256 webhook payload against a expected hex signature.
 ///
 /// Ensures request timestamp is within the configured `tolerance_secs` window to prevent replay attacks,
-/// and performs constant-time signature verification.
+/// and performs constant-time signature verification. Automatically strips common signature prefixes (`v1=`, `v0=`, `sha256=`).
 ///
 /// # Arguments
 ///
@@ -67,7 +67,13 @@ pub fn verify_webhook(
 
     let expected = hex::encode(mac.finalize().into_bytes());
 
-    if !ct_eq(signature.as_bytes(), expected.as_bytes()) {
+    let clean_sig = signature
+        .strip_prefix("v1=")
+        .or_else(|| signature.strip_prefix("v0="))
+        .or_else(|| signature.strip_prefix("sha256="))
+        .unwrap_or(signature);
+
+    if !ct_eq(clean_sig.as_bytes(), expected.as_bytes()) {
         return Err(WebhookError::SignatureMismatch);
     }
     Ok(())

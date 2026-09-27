@@ -1,19 +1,25 @@
 //! Redis-backed idempotency store implementation.
 
 use crate::idempotency::{config::IdempotencyConfig, error::IdempotencyError};
-use redis::{AsyncCommands, Client};
+use redis::{AsyncCommands, Client, RedisResult};
 use serde::Serialize;
+
+const IN_PROGRESS_VAL: &str = "IN_PROGRESS";
 
 /// Outcome of an idempotency key lookup.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IdempotencyCheck {
     /// The request key has not been seen before. Proceed with execution.
     New,
+    /// A concurrent request with the same idempotency key is currently executing.
+    InProgress,
     /// The request key was previously executed and its cached response string is returned.
     Seen(String),
 }
 
 /// Redis-backed idempotency service enforcing single execution of API requests.
+///
+/// Features **atomic key reservation** (`SET NX EX`) and **in-flight concurrency protection** (`IN_PROGRESS`).
 ///
 /// # Examples
 ///
@@ -28,6 +34,9 @@ pub enum IdempotencyCheck {
 ///         IdempotencyCheck::New => {
 ///             let response = r#"{"status":"success","transaction_id":"tx_123"}"#;
 ///             store.complete(key, response).await?;
+///         }
+///         IdempotencyCheck::InProgress => {
+///             println!("Request currently processing by peer thread...");
 ///         }
 ///         IdempotencyCheck::Seen(cached_response) => {
 ///             println!("Returning cached response: {cached_response}");
@@ -65,9 +74,11 @@ impl IdempotencyStore {
 
     /// Begins an idempotency check for the given unique key.
     ///
-    /// Uses Redis `SETNX` (Set if Not Exists) to atomically reserve the key.
-    /// Returns [`IdempotencyCheck::New`] if the key is new, or [`IdempotencyCheck::Seen`]
-    /// if the key was previously completed.
+    /// Uses Redis atomic `SET key IN_PROGRESS NX EX ttl` to reserve the key.
+    /// Returns:
+    /// - [`IdempotencyCheck::New`] if the key is new.
+    /// - [`IdempotencyCheck::InProgress`] if a concurrent request is currently processing this key.
+    /// - [`IdempotencyCheck::Seen`] if the key was previously completed with a cached response string.
     ///
     /// # Errors
     ///
@@ -76,15 +87,26 @@ impl IdempotencyStore {
         let mut conn = self.redis.get_multiplexed_async_connection().await?;
         let redis_key = format!("{}:{}", self.config.prefix, key);
 
-        let is_new: bool = conn.set_nx(&redis_key, "").await?;
-        if is_new {
-            let _: () = conn
-                .expire(&redis_key, self.config.ttl.as_secs() as i64)
-                .await?;
-            Ok(IdempotencyCheck::New)
-        } else {
-            let cached: String = conn.get(&redis_key).await?;
-            Ok(IdempotencyCheck::Seen(cached))
+        let res: RedisResult<Option<String>> = redis::cmd("SET")
+            .arg(&redis_key)
+            .arg(IN_PROGRESS_VAL)
+            .arg("NX")
+            .arg("EX")
+            .arg(self.config.ttl.as_secs())
+            .query_async(&mut conn)
+            .await;
+
+        match res {
+            Ok(Some(_)) => Ok(IdempotencyCheck::New),
+            Ok(None) => {
+                let cached: String = conn.get(&redis_key).await?;
+                if cached == IN_PROGRESS_VAL {
+                    Ok(IdempotencyCheck::InProgress)
+                } else {
+                    Ok(IdempotencyCheck::Seen(cached))
+                }
+            }
+            Err(e) => Err(IdempotencyError::Redis(e)),
         }
     }
 

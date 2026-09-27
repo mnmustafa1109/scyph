@@ -1,13 +1,14 @@
 //! Worker loop runner functions.
 
 use std::{future::Future, time::Duration};
-use tokio::time;
+use tokio::time::{self, MissedTickBehavior};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
 /// Spawns a periodic background task with graceful cancellation token support.
 ///
 /// Executes `task()` every `interval` duration on a Tokio task loop.
+/// Configures [`MissedTickBehavior::Skip`] to prevent worker task thundering herds/bursts after long jobs.
 /// Isolates panics inside the task function to prevent crashing the background loop.
 ///
 /// # Arguments
@@ -48,6 +49,8 @@ where
     tokio::spawn(async move {
         info!(worker = name, "Background worker loop started");
         let mut ticker = time::interval(interval);
+        ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
+
         loop {
             tokio::select! {
                 _ = cancel_token.cancelled() => {
@@ -80,6 +83,8 @@ where
     tokio::spawn(async move {
         info!(worker = name, "Background worker loop started");
         let mut ticker = time::interval(interval);
+        ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
+
         loop {
             tokio::select! {
                 _ = ticker.tick() => {
