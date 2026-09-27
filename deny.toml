@@ -1,0 +1,53 @@
+# scyph/deny.toml
+# Configured for cargo-deny (https://github.com/EmbarkStudios/cargo-deny)
+
+[graph]
+targets = []
+all-features = true
+
+[licenses]
+confidence-threshold = 0.8
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "0BSD",
+  "ISC",
+  "CC0-1.0",
+  "MPL-2.0",
+  "Unlicense",
+  "BSL-1.0",
+  "Unicode-DFS-2016",
+  "Unicode-3.0",
+  "OpenSSL",
+  "Zlib",
+]
+deny = ["GPL-3.0", "AGPL-3.0", "LGPL-3.0"]
+unlicensed = "deny"
+private = { ignore = true }
+
+[advisories]
+db-urls = ["https://github.com/rustsec/advisory-db"]
+vulnerability = "deny"
+unmaintained = "warn"
+unsound = "deny"
+yanked = "warn"
+notice = "warn"
+
+[bans]
+multiple-versions = "warn"
+wildcards = "allow"
+highlight = "all"
+deny = [
+  # Enforce pure Rust / aws-lc-rs TLS ecosystem over native OpenSSL C-bindings
+  { name = "openssl", reason = "Use rustls / aws-lc-rs for pure-Rust memory-safe TLS" },
+  { name = "openssl-sys", reason = "Use rustls / aws-lc-rs for pure-Rust memory-safe TLS" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
