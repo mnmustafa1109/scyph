@@ -180,3 +180,48 @@ fn test_apply_request_params_composite() {
     assert!(sql.contains("LIMIT"));
     assert!(sql.contains("OFFSET"));
 }
+
+#[test]
+fn test_apply_conditions_for_count_query() {
+    let mut qb = QueryBuilder::<Postgres>::new("SELECT COUNT(*) FROM users WHERE 1=1");
+    let params = RequestParams {
+        pagination: PaginationParams { page: 2, limit: 15 },
+        sort: SortParams {
+            sort_by: Some(UserSortField::CreatedAt),
+            sort_order: Some(SortOrder::Desc),
+        },
+        filter: FilterParams {
+            filter_by: Some(UserFilterField::Status),
+            filter_value: Some("active".to_string()),
+        },
+        search: SearchParams {
+            q: Some("bob".to_string()),
+        },
+    };
+
+    qb.apply_conditions::<UserSearchField>(&params);
+    let sql = qb.sql().as_str().to_string();
+    assert!(sql.contains("ILIKE"));
+    assert!(sql.contains("users.status::text ="));
+    assert!(!sql.contains("ORDER BY"));
+    assert!(!sql.contains("LIMIT"));
+    assert!(!sql.contains("OFFSET"));
+}
+
+#[test]
+fn test_paged_response_bridge() {
+    let params = RequestParams::<UserSortField, UserFilterField> {
+        pagination: PaginationParams { page: 1, limit: 10 },
+        sort: SortParams::default(),
+        filter: FilterParams::default(),
+        search: SearchParams::default(),
+    };
+
+    let items = vec!["alice".to_string(), "bob".to_string()];
+    let response = params.to_paged_response(items, 25);
+    assert_eq!(response.page, 1);
+    assert_eq!(response.per_page, 10);
+    assert_eq!(response.total, 25);
+    assert!(response.has_next);
+    assert_eq!(response.data.len(), 2);
+}

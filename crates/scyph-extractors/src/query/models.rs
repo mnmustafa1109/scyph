@@ -1,6 +1,7 @@
 //! Reusable query parameter structures for pagination, sorting, filtering, and searching.
 
 use garde::Validate;
+use scyph_core::PagedResponse;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::{fmt::Display, str::FromStr};
 
@@ -83,6 +84,40 @@ impl Default for PaginationParams {
     }
 }
 
+impl PaginationParams {
+    /// Constructs a [`PagedResponse`] envelope from a vector of items and total count.
+    ///
+    /// Automatically converts `page` and `limit` to `i64` required by [`PagedResponse`].
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - Page item records vector.
+    /// * `total` - Total count of matching records across all pages.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use scyph_extractors::query::PaginationParams;
+    ///
+    /// let pagination = PaginationParams { page: 1, limit: 10 };
+    /// let items = vec!["alice", "bob"];
+    /// let paged = pagination.into_paged_response(items, 42);
+    ///
+    /// assert_eq!(paged.total, 42);
+    /// assert_eq!(paged.page, 1);
+    /// assert_eq!(paged.per_page, 10);
+    /// assert!(paged.has_next);
+    /// ```
+    pub fn into_paged_response<T: Serialize>(self, data: Vec<T>, total: i64) -> PagedResponse<T> {
+        PagedResponse::new(data, total, self.page as i64, self.limit as i64)
+    }
+
+    /// Constructs a [`PagedResponse`] envelope referencing this pagination configuration.
+    pub fn to_paged_response<T: Serialize>(&self, data: Vec<T>, total: i64) -> PagedResponse<T> {
+        PagedResponse::new(data, total, self.page as i64, self.limit as i64)
+    }
+}
+
 /// Generic sorting query parameters.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Validate)]
 pub struct SortParams<S> {
@@ -155,4 +190,16 @@ pub struct RequestParams<S, F> {
     #[serde(flatten)]
     #[garde(dive)]
     pub search: SearchParams,
+}
+
+impl<S, F> RequestParams<S, F> {
+    /// Convenience helper to create a [`PagedResponse`] consuming this request's pagination settings.
+    pub fn into_paged_response<T: Serialize>(self, data: Vec<T>, total: i64) -> PagedResponse<T> {
+        self.pagination.into_paged_response(data, total)
+    }
+
+    /// Convenience helper to create a [`PagedResponse`] referencing this request's pagination settings.
+    pub fn to_paged_response<T: Serialize>(&self, data: Vec<T>, total: i64) -> PagedResponse<T> {
+        self.pagination.to_paged_response(data, total)
+    }
 }
