@@ -10,8 +10,9 @@ use uuid::Uuid;
 use crate::{
     config::RealtimeConfig,
     error::RealtimeError,
-    event::{RawRealtimeEnvelope, RealtimeEvent},
+    event::{RawRealtimeEnvelope, RealtimeEvent, RealtimePayload},
     registry::{ConnectionRegistry, ConnectionTx},
+    session::RealtimeSession,
 };
 
 /// High-performance Redis Pub/Sub broadcaster for cross-replica WebSocket message fanout.
@@ -72,6 +73,13 @@ impl RealtimeBroadcaster {
         self.registry.deregister(user_id, conn_id).await;
     }
 
+    /// Creates and registers an RAII WebSocket connection session guard [`RealtimeSession`] for `user_id`.
+    ///
+    /// The session will automatically deregister from the connection registry when dropped or closed.
+    pub async fn connect_session(&self, user_id: Uuid) -> RealtimeSession {
+        RealtimeSession::connect(self.registry.clone(), user_id).await
+    }
+
     /// Publishes a domain event to Redis Pub/Sub for cross-replica distribution.
     ///
     /// Wraps `payload` in a [`RealtimeEvent`], serializes it to JSON, and publishes to the configured Redis channel.
@@ -87,6 +95,77 @@ impl RealtimeBroadcaster {
     ) -> Result<(), RealtimeError> {
         let event = RealtimeEvent::new(event_name, user_id, payload);
         self.publish_event(&event).await
+    }
+
+    /// Publishes a strongly-typed payload implementing [`RealtimePayload`] to a target user.
+    ///
+    /// Infers event topic name automatically from `<P as RealtimePayload>::EVENT_NAME`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RealtimeError`] if serialization or Redis PUBLISH fails.
+    pub async fn publish_payload<P: RealtimePayload>(
+        &self,
+        user_id: Uuid,
+        payload: &P,
+    ) -> Result<(), RealtimeError> {
+        self.publish(P::EVENT_NAME, user_id, payload).await
+    }
+
+    /// Publishes a domain event to multiple recipient users across all cluster replicas.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RealtimeError`] if serialization or Redis PUBLISH fails.
+    pub async fn publish_to_many<T: Serialize>(
+        &self,
+        event_name: &str,
+        user_ids: &[Uuid],
+        payload: &T,
+    ) -> Result<(), RealtimeError> {
+        for &user_id in user_ids {
+            self.publish(event_name, user_id, payload).await?;
+        }
+        Ok(())
+    }
+
+    /// Publishes a strongly-typed [`RealtimePayload`] to multiple recipient users across all cluster replicas.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RealtimeError`] if serialization or Redis PUBLISH fails.
+    pub async fn publish_payload_to_many<P: RealtimePayload>(
+        &self,
+        user_ids: &[Uuid],
+        payload: &P,
+    ) -> Result<(), RealtimeError> {
+        self.publish_to_many(P::EVENT_NAME, user_ids, payload).await
+    }
+
+    /// Publishes a system-wide global event to ALL active WebSocket connections across ALL cluster replicas.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RealtimeError`] if serialization or Redis PUBLISH fails.
+    pub async fn publish_global<T: Serialize>(
+        &self,
+        event_name: &str,
+        payload: &T,
+    ) -> Result<(), RealtimeError> {
+        let event = RealtimeEvent::new_global(event_name, payload);
+        self.publish_event(&event).await
+    }
+
+    /// Publishes a strongly-typed [`RealtimePayload`] globally to ALL active WebSocket connections across ALL cluster replicas.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RealtimeError`] if serialization or Redis PUBLISH fails.
+    pub async fn publish_global_payload<P: RealtimePayload>(
+        &self,
+        payload: &P,
+    ) -> Result<(), RealtimeError> {
+        self.publish_global(P::EVENT_NAME, payload).await
     }
 
     /// Publishes a pre-constructed [`RealtimeEvent`] to Redis Pub/Sub.
@@ -147,7 +226,11 @@ impl RealtimeBroadcaster {
         while let Some(msg) = stream.next().await {
             let raw: String = msg.get_payload().unwrap_or_default();
             if let Ok(env) = serde_json::from_str::<RawRealtimeEnvelope>(&raw) {
-                self.registry.broadcast_local(env.user_id, &raw).await;
+                if env.is_global {
+                    self.registry.broadcast_global(&raw).await;
+                } else if let Some(user_id) = env.user_id {
+                    self.registry.broadcast_local(user_id, &raw).await;
+                }
             }
         }
         Ok(())

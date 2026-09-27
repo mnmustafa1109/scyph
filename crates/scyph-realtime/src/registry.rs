@@ -44,6 +44,16 @@ impl ConnectionRegistry {
         }
     }
 
+    /// Delivers a raw serialized message string to ALL active connection channels across ALL users connected to this replica.
+    pub async fn broadcast_global(&self, raw_message: &str) {
+        let guard = self.inner.read().await;
+        for conns in guard.values() {
+            for tx in conns.values() {
+                let _ = tx.send(raw_message.to_string());
+            }
+        }
+    }
+
     /// Returns total active connection count across all users on this server replica.
     pub async fn active_connections_count(&self) -> usize {
         let guard = self.inner.read().await;

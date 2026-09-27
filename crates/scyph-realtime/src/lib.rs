@@ -105,6 +105,9 @@ pub mod health;
 /// In-memory connection registry data structures.
 pub mod registry;
 
+/// RAII WebSocket connection session handle.
+pub mod session;
+
 #[doc(inline)]
 pub use broadcaster::RealtimeBroadcaster;
 #[doc(inline)]
@@ -112,9 +115,11 @@ pub use config::RealtimeConfig;
 #[doc(inline)]
 pub use error::RealtimeError;
 #[doc(inline)]
-pub use event::{decode_event, RawRealtimeEnvelope, RealtimeEvent};
+pub use event::{decode_event, RawRealtimeEnvelope, RealtimeEvent, RealtimePayload};
 #[cfg(feature = "health")]
 #[doc(inline)]
 pub use health::RealtimeHealthExt;
 #[doc(inline)]
 pub use registry::{ConnectionRegistry, ConnectionTx, UserConnections};
+#[doc(inline)]
+pub use session::RealtimeSession;

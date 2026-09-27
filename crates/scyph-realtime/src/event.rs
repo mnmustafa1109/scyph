@@ -6,6 +6,12 @@ use uuid::Uuid;
 
 use crate::error::RealtimeError;
 
+/// Trait binding an event name string constant to a strongly-typed payload structure.
+pub trait RealtimePayload: Serialize {
+    /// The unique event name/topic identifier (e.g. `"chat.message"`, `"user.updated"`).
+    const EVENT_NAME: &'static str;
+}
+
 /// Standardized wire format envelope for WebSocket event broadcasting.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RealtimeEvent<T> {
@@ -13,8 +19,11 @@ pub struct RealtimeEvent<T> {
     pub id: Uuid,
     /// Event topic/name classifier (e.g., `"chat.message"`, `"notification.created"`).
     pub event_name: String,
-    /// Target user identifier.
-    pub user_id: Uuid,
+    /// Target user identifier (optional if event is broadcast globally).
+    pub user_id: Option<Uuid>,
+    /// Indicates whether this event is broadcast globally to all connected users.
+    #[serde(default)]
+    pub is_global: bool,
     /// Event timestamp in UTC.
     pub timestamp: DateTime<Utc>,
     /// Strongly-typed event payload data.
@@ -22,12 +31,25 @@ pub struct RealtimeEvent<T> {
 }
 
 impl<T: Serialize> RealtimeEvent<T> {
-    /// Constructs a new [`RealtimeEvent`] envelope.
+    /// Constructs a new targeted [`RealtimeEvent`] envelope for a single recipient user.
     pub fn new(event_name: impl Into<String>, user_id: Uuid, payload: T) -> Self {
         Self {
             id: Uuid::now_v7(),
             event_name: event_name.into(),
-            user_id,
+            user_id: Some(user_id),
+            is_global: false,
+            timestamp: Utc::now(),
+            payload,
+        }
+    }
+
+    /// Constructs a new global [`RealtimeEvent`] envelope targetable to all connected users.
+    pub fn new_global(event_name: impl Into<String>, payload: T) -> Self {
+        Self {
+            id: Uuid::now_v7(),
+            event_name: event_name.into(),
+            user_id: None,
+            is_global: true,
             timestamp: Utc::now(),
             payload,
         }
@@ -38,7 +60,10 @@ impl<T: Serialize> RealtimeEvent<T> {
 #[derive(Debug, Clone, Deserialize)]
 pub struct RawRealtimeEnvelope {
     /// Target user identifier extracted from incoming message payload.
-    pub user_id: Uuid,
+    pub user_id: Option<Uuid>,
+    /// Indicates whether message is targeted globally to all connected users.
+    #[serde(default)]
+    pub is_global: bool,
 }
 
 /// Decodes a raw event string into a strongly-typed [`RealtimeEvent<T>`].

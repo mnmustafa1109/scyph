@@ -80,6 +80,7 @@ pub mod prelude {
     #[cfg(feature = "realtime")]
     pub use scyph_realtime::{
         ConnectionRegistry, RealtimeBroadcaster, RealtimeConfig, RealtimeError, RealtimeEvent,
+        RealtimePayload, RealtimeSession,
     };
 
     #[cfg(all(feature = "db", feature = "health"))]
@@ -116,7 +117,9 @@ pub use scyph_notify::{EmailTemplate, NoEmailService, NoPushService, NotifyError
 pub use scyph_storage::StorageError;
 
 #[cfg(feature = "realtime")]
-pub use scyph_realtime::{RealtimeBroadcaster, RealtimeError, RealtimeEvent};
+pub use scyph_realtime::{
+    RealtimeBroadcaster, RealtimeError, RealtimeEvent, RealtimePayload, RealtimeSession,
+};
 
 #[cfg(all(feature = "realtime", feature = "health"))]
 pub use scyph_realtime::RealtimeHealthExt;

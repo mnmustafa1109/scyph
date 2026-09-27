@@ -1,6 +1,8 @@
 use scyph_realtime::{
     decode_event, ConnectionRegistry, RealtimeBroadcaster, RealtimeConfig, RealtimeEvent,
+    RealtimePayload,
 };
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio_util::sync::CancellationToken;
@@ -34,6 +36,74 @@ async fn test_connection_registry_lifecycle() {
     assert_eq!(registry.user_connection_count(user_id).await, 0);
 }
 
+#[tokio::test]
+async fn test_realtime_session_raii_guard() {
+    let config = RealtimeConfig::default();
+    let broadcaster = RealtimeBroadcaster::new(config).expect("broadcaster creation");
+    let user_id = Uuid::new_v4();
+
+    assert_eq!(broadcaster.registry().active_connections_count().await, 0);
+
+    {
+        let mut session = broadcaster.connect_session(user_id).await;
+        assert_eq!(session.user_id(), user_id);
+        assert_eq!(broadcaster.registry().active_connections_count().await, 1);
+
+        broadcaster
+            .registry()
+            .broadcast_local(user_id, r#"{"msg":"test_session"}"#)
+            .await;
+
+        let msg = session.recv().await;
+        assert_eq!(msg.as_deref(), Some(r#"{"msg":"test_session"}"#));
+    } // session dropped here
+
+    // Give asynchronous drop task a moment to execute
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    assert_eq!(broadcaster.registry().active_connections_count().await, 0);
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+struct UserNotificationPayload {
+    pub message: String,
+}
+
+impl RealtimePayload for UserNotificationPayload {
+    const EVENT_NAME: &'static str = "notification.user";
+}
+
+#[test]
+fn test_realtime_payload_trait() {
+    let payload = UserNotificationPayload {
+        message: "Hello World".to_string(),
+    };
+    assert_eq!(UserNotificationPayload::EVENT_NAME, "notification.user");
+
+    let user_id = Uuid::new_v4();
+    let event = RealtimeEvent::new(UserNotificationPayload::EVENT_NAME, user_id, &payload);
+    assert_eq!(event.event_name, "notification.user");
+    assert_eq!(event.user_id, Some(user_id));
+    assert_eq!(event.is_global, false);
+}
+
+#[tokio::test]
+async fn test_global_broadcast_registry() {
+    let registry = ConnectionRegistry::default();
+    let user1 = Uuid::new_v4();
+    let user2 = Uuid::new_v4();
+
+    let (tx1, mut rx1) = unbounded_channel();
+    let (tx2, mut rx2) = unbounded_channel();
+
+    registry.register(user1, Uuid::new_v4(), tx1).await;
+    registry.register(user2, Uuid::new_v4(), tx2).await;
+
+    registry.broadcast_global(r#"{"global":"alert"}"#).await;
+
+    assert_eq!(rx1.recv().await.as_deref(), Some(r#"{"global":"alert"}"#));
+    assert_eq!(rx2.recv().await.as_deref(), Some(r#"{"global":"alert"}"#));
+}
+
 #[test]
 fn test_realtime_event_serialization_and_decoding() {
     let user_id = Uuid::new_v4();
@@ -45,7 +115,7 @@ fn test_realtime_event_serialization_and_decoding() {
         decode_event(&raw).expect("decoding event failed");
 
     assert_eq!(decoded.event_name, "chat.message");
-    assert_eq!(decoded.user_id, user_id);
+    assert_eq!(decoded.user_id, Some(user_id));
     assert_eq!(decoded.payload, payload);
 }
 
@@ -94,4 +164,3 @@ async fn test_realtime_health_check_integration() {
     let service_status = &snapshot["test_realtime"];
     assert_eq!(service_status.required, false);
 }
-
