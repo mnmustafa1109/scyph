@@ -11,11 +11,13 @@
 //! 3. **Unified Storage Interface ([`StorageService`])**: Async abstraction for object storage operations including streaming upload, retrieval, signed download/view URLs, deletion, and connection testing.
 //! 4. **AWS S3 / MinIO Implementation ([`S3StorageService`])**: Dual-client S3 backend supporting internal cluster endpoints and browser-accessible CDN URLs.
 //! 5. **Automated Health Probes ([`StorageHealthExt`])**: First-class integration with [`scyph_health::HealthRegistry`] for Kubernetes `/livez` and `/readyz` monitoring.
+//! 6. **Image Thumbnail Processing ([`ThumbnailConfig`] / [`StorageThumbnailExt`])**: Aspect-ratio-preserving thumbnail generation with decompression bomb limits, format conversion, and atomic dual-storage uploading (`store_with_thumbnail`).
 //!
 //! ## Feature Flags
 //!
 //! - **`s3`**: Enables the AWS S3 SDK implementation ([`S3StorageService`]) and automatic environment loader.
 //! - **`health`**: Enables [`StorageHealthExt`] integration with `scyph-health`.
+//! - **`image`**: Enables image decoding, thumbnail generation ([`ThumbnailConfig`]), and [`StorageThumbnailExt`] upload extensions.
 //!
 //! ## Quickstart Example
 //!

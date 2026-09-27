@@ -8,11 +8,11 @@
 //! - **[`core`]**: Foundational RFC 7807 problem details ([`AppError`]), standard JSON response envelopes ([`ApiResponse`], [`PagedResponse`], [`ResponseMeta`]), and identity traits ([`Claims`]).
 //! - **[`auth`]**: JWT token creation/verification, Argon2id password hashing, Moka claims caching, and role-based route guards.
 //! - **[`abac`]**: Attribute-Based Access Control policies, SQL query [`scyph_abac::FilterBuilder`], and Cedar policy evaluation.
-//! - **[`db`]**: PostgreSQL connection pooling via SQLx, transaction context management, and database migration/seeding tools.
+//! - **[`db`]**: PostgreSQL connection pooling via SQLx, transaction context management, database migration/seeding tools, and dynamic QueryBuilder search/filter/sort/pagination extensions.
 //! - **[`health`]**: Service health registries and Kubernetes liveness/readiness endpoint handlers.
 //! - **[`notify`]**: Email delivery via Lettre & Tera templates, Firebase Cloud Messaging push notifications, and in-app repository traits.
 //! - **[`realtime`]**: Redis Pub/Sub WebSocket broadcasting, multi-recipient fanout, and typed real-time payload framing.
-//! - **[`storage`]**: S3/MinIO and in-memory object storage abstractions with streaming multipart extractors.
+//! - **[`storage`]**: S3/MinIO and in-memory object storage abstractions with streaming multipart extractors and image thumbnail processing.
 //! - **[`telemetry`]**: Non-blocking tracing subscribers, time-ordered UUIDv7 request ID propagation, response metadata auto-injection, and dynamic compression.
 //! - **[`ratelimit`]**: IP-based rate limiting layers built on `tower-governor`.
 //! - **[`utils`]**: HMAC webhooks, background worker task loops, Base64 pagination cursors, and Redis API idempotency.
@@ -225,7 +225,8 @@ pub use scyph_db::DbError;
 
 #[cfg(all(feature = "db", feature = "query"))]
 pub use scyph_db::{
-    ApplyFiltering, ApplyPagination, ApplyRequestParams, ApplySearch, ApplySorting,
+    escape_like_pattern, ApplyFiltering, ApplyPagination, ApplyRequestParams, ApplySearch,
+    ApplySorting,
 };
 
 #[cfg(feature = "notify")]

@@ -1,7 +1,19 @@
 //! # Scyph DB
 //!
 //! `scyph-db` provides database connection pooling, transaction management,
-//! and migration runner utilities for PostgreSQL using `sqlx`.
+//! migration runner utilities, and dynamic SQL query building extensions for PostgreSQL using `sqlx`.
+//!
+//! ## Overview
+//!
+//! - **Connection Pooling ([`build_pool`])**: Tunable PostgreSQL connection pool builder using environment variables.
+//! - **Transactions ([`begin`], [`commit`], [`rollback`])**: Ergonomic transaction lifecycle management.
+//! - **Migrations & Seeds ([`run_migrations`], [`run_seeds`])**: Automated SQL migration runner and database seeding helpers.
+//! - **Dynamic Queries ([`query`])**: Type-safe `QueryBuilder` extension traits for multi-field ILIKE search, column filtering, ORDER BY sorting, and pagination.
+//!
+//! ## Feature Flags
+//!
+//! - **`health`**: Enables [`DbHealthExt`] integration with `scyph-health` registries for Kubernetes probes.
+//! - **`query`**: Enables dynamic SQL query composition traits ([`ApplySearch`], [`ApplyFiltering`], [`ApplySorting`], [`ApplyPagination`], [`ApplyRequestParams`]).
 
 #![warn(missing_docs)]
 
@@ -38,5 +50,6 @@ pub use health::DbHealthExt;
 
 #[cfg(feature = "query")]
 pub use query::{
-    ApplyFiltering, ApplyPagination, ApplyRequestParams, ApplySearch, ApplySorting,
+    escape_like_pattern, ApplyFiltering, ApplyPagination, ApplyRequestParams, ApplySearch,
+    ApplySorting,
 };
