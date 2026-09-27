@@ -1,6 +1,6 @@
 use scyph_realtime::{
-    decode_event, ConnectionRegistry, RealtimeBroadcaster, RealtimeConfig, RealtimeEvent,
-    RealtimePayload,
+    ConnectionRegistry, RealtimeBroadcaster, RealtimeConfig, RealtimeEvent, RealtimePayload,
+    decode_event,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -83,7 +83,7 @@ fn test_realtime_payload_trait() {
     let event = RealtimeEvent::new(UserNotificationPayload::EVENT_NAME, user_id, &payload);
     assert_eq!(event.event_name, "notification.user");
     assert_eq!(event.user_id, Some(user_id));
-    assert_eq!(event.is_global, false);
+    assert!(event.is_global);
 }
 
 #[tokio::test]
@@ -157,7 +157,9 @@ async fn test_realtime_health_check_integration() {
     let broadcaster = RealtimeBroadcaster::new(config).expect("broadcaster creation");
     let registry = HealthRegistry::new();
 
-    broadcaster.check_health_named(&registry, "test_realtime", false).await;
+    broadcaster
+        .check_health_named(&registry, "test_realtime", false)
+        .await;
 
     let snapshot = registry.snapshot().await;
     assert!(snapshot.contains_key("test_realtime"));
