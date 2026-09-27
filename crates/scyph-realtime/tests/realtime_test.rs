@@ -83,7 +83,7 @@ fn test_realtime_payload_trait() {
     let event = RealtimeEvent::new(UserNotificationPayload::EVENT_NAME, user_id, &payload);
     assert_eq!(event.event_name, "notification.user");
     assert_eq!(event.user_id, Some(user_id));
-    assert!(event.is_global);
+    assert!(!event.is_global);
 }
 
 #[tokio::test]
