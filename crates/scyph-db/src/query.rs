@@ -9,41 +9,51 @@ use scyph_extractors::query::{
 use sqlx::{Postgres, QueryBuilder};
 use strum::IntoEnumIterator;
 
-/// SQL clause constant for AND prefix.
-const CLAUSE_AND_PREFIX: &str = " AND ";
+/// SQL constant for AND prefix.
+const AND_PREFIX: &str = " AND ";
 
-/// SQL clause constant opening an AND search group.
-const CLAUSE_AND_OPEN_GROUP: &str = " AND (";
+/// SQL constant opening an AND search group.
+const AND_OPEN_GROUP: &str = " AND (";
 
-/// SQL clause constant for OR delimiter between search columns.
-const CLAUSE_OR_DELIMITER: &str = " OR ";
+/// SQL constant for OR delimiter between search columns.
+const OR_DELIMITER: &str = " OR ";
 
-/// SQL clause constant closing a parenthesis group.
-const CLAUSE_CLOSE_GROUP: &str = ")";
+/// SQL constant closing a parenthesis group.
+const CLOSE_GROUP: &str = ")";
 
-/// SQL clause constant for case-insensitive LIKE comparison.
-const CLAUSE_ILIKE: &str = " ILIKE ";
+/// SQL constant for case-insensitive LIKE comparison.
+const ILIKE: &str = " ILIKE ";
 
-/// SQL clause constant for ORDER BY sorting.
-const CLAUSE_ORDER_BY: &str = " ORDER BY ";
+/// SQL constant for ORDER BY sorting.
+const ORDER_BY: &str = " ORDER BY ";
 
-/// SQL clause constant for ascending sort order.
-const CLAUSE_ASCENDING: &str = " ASC";
+/// SQL constant for ascending sort order.
+const ASCENDING: &str = " ASC";
 
-/// SQL clause constant for descending sort order.
-const CLAUSE_DESCENDING: &str = " DESC";
+/// SQL constant for descending sort order.
+const DESCENDING: &str = " DESC";
 
-/// SQL clause constant for LIMIT clause.
-const CLAUSE_LIMIT: &str = " LIMIT ";
+/// SQL constant for LIMIT clause.
+const LIMIT: &str = " LIMIT ";
 
-/// SQL clause constant for OFFSET clause.
-const CLAUSE_OFFSET: &str = " OFFSET ";
+/// SQL constant for OFFSET clause.
+const OFFSET: &str = " OFFSET ";
 
-/// SQL clause constant for text-cast equality comparison (`::text = `).
-const CLAUSE_CAST_TEXT_EQUAL: &str = "::text = ";
+/// SQL constant for text-cast equality comparison (`::text = `).
+const CAST_TEXT_EQUAL: &str = "::text = ";
 
 /// SQL wildcard symbol for partial pattern matching.
 const WILDCARD: char = '%';
+
+/// Helper function to escape special SQL LIKE pattern wildcards (`%`, `_`, `\`).
+///
+/// Ensures user-supplied search strings match literal text rather than behaving as wildcards.
+#[inline]
+pub fn escape_like_pattern(raw: &str) -> String {
+    raw.replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
+}
 
 /// Extension trait for appending full-text search ILIKE filters to a [`QueryBuilder`].
 ///
@@ -89,8 +99,8 @@ pub trait ApplySearch {
 /// use scyph_extractors::query::FilterParams;
 /// use sqlx::{Postgres, QueryBuilder};
 ///
-/// #[derive(Copy, Clone, Default)]
-/// enum StatusFilter { #[default] Active }
+/// #[derive(Copy, Clone)]
+/// enum StatusFilter { Active }
 /// impl From<StatusFilter> for &'static str {
 ///     fn from(_: StatusFilter) -> Self { "users.status" }
 /// }
@@ -107,7 +117,7 @@ pub trait ApplyFiltering<F> {
     /// * `filters` - Reference to incoming [`FilterParams`].
     fn apply_filtering(&mut self, filters: &FilterParams<F>)
     where
-        F: Copy + Default + Into<&'static str>;
+        F: Copy + Into<&'static str>;
 }
 
 /// Extension trait for appending ORDER BY sorting clauses to a [`QueryBuilder`].
@@ -119,14 +129,14 @@ pub trait ApplyFiltering<F> {
 /// use scyph_extractors::query::{SortParams, SortOrder};
 /// use sqlx::{Postgres, QueryBuilder};
 ///
-/// #[derive(Copy, Clone, Default)]
-/// enum UserSort { #[default] CreatedAt }
+/// #[derive(Copy, Clone)]
+/// enum UserSort { CreatedAt }
 /// impl From<UserSort> for &'static str {
 ///     fn from(_: UserSort) -> Self { "users.created_at" }
 /// }
 ///
 /// let mut qb = QueryBuilder::<Postgres>::new("SELECT * FROM users WHERE 1=1");
-/// let sort = SortParams { sort_by: Some(UserSort), sort_order: Some(SortOrder::Desc) };
+/// let sort = SortParams { sort_by: Some(UserSort::CreatedAt), sort_order: Some(SortOrder::Desc) };
 /// qb.apply_sorting(&sort);
 /// ```
 pub trait ApplySorting<S> {
@@ -139,7 +149,7 @@ pub trait ApplySorting<S> {
     /// * `sort` - Reference to incoming [`SortParams`].
     fn apply_sorting(&mut self, sort: &SortParams<S>)
     where
-        S: Copy + Default + Into<&'static str>;
+        S: Copy + Into<&'static str>;
 }
 
 /// Extension trait for appending LIMIT and OFFSET pagination clauses to a [`QueryBuilder`].
@@ -185,8 +195,8 @@ pub trait ApplyRequestParams<S, F> {
     fn apply_request_params<E>(&mut self, params: &RequestParams<S, F>)
     where
         E: IntoEnumIterator + Into<&'static str> + Copy,
-        S: Copy + Default + Into<&'static str>,
-        F: Copy + Default + Into<&'static str>;
+        S: Copy + Into<&'static str>,
+        F: Copy + Into<&'static str>;
 }
 
 impl ApplySearch for QueryBuilder<Postgres> {
@@ -197,17 +207,24 @@ impl ApplySearch for QueryBuilder<Postgres> {
         if let Some(q) = &search.q {
             let trimmed = q.trim();
             if !trimmed.is_empty() {
-                self.push(CLAUSE_AND_OPEN_GROUP);
-                for (i, field) in E::iter().enumerate() {
-                    if i > 0 {
-                        self.push(CLAUSE_OR_DELIMITER);
+                let mut fields = E::iter().peekable();
+                if fields.peek().is_none() {
+                    return;
+                }
+                let escaped = escape_like_pattern(trimmed);
+                self.push(AND_OPEN_GROUP);
+                let mut first = true;
+                for field in fields {
+                    if !first {
+                        self.push(OR_DELIMITER);
                     }
+                    first = false;
                     let field_str: &str = field.into();
                     self.push(field_str);
-                    self.push(CLAUSE_ILIKE);
-                    self.push_bind(format!("{WILDCARD}{trimmed}{WILDCARD}"));
+                    self.push(ILIKE);
+                    self.push_bind(format!("{WILDCARD}{escaped}{WILDCARD}"));
                 }
-                self.push(CLAUSE_CLOSE_GROUP);
+                self.push(CLOSE_GROUP);
             }
         }
     }
@@ -215,16 +232,16 @@ impl ApplySearch for QueryBuilder<Postgres> {
 
 impl<F> ApplyFiltering<F> for QueryBuilder<Postgres>
 where
-    F: Copy + Default + Into<&'static str>,
+    F: Copy + Into<&'static str>,
 {
     fn apply_filtering(&mut self, filters: &FilterParams<F>) {
         let field_name = filters.filter_by.map(|f| f.into());
         if let (Some(field), Some(value)) = (field_name, &filters.filter_value) {
             let trimmed = value.trim();
             if !trimmed.is_empty() {
-                self.push(CLAUSE_AND_PREFIX);
+                self.push(AND_PREFIX);
                 self.push(field);
-                self.push(CLAUSE_CAST_TEXT_EQUAL);
+                self.push(CAST_TEXT_EQUAL);
                 self.push_bind(trimmed.to_string());
             }
         }
@@ -233,15 +250,15 @@ where
 
 impl<S> ApplySorting<S> for QueryBuilder<Postgres>
 where
-    S: Copy + Default + Into<&'static str>,
+    S: Copy + Into<&'static str>,
 {
     fn apply_sorting(&mut self, sort: &SortParams<S>) {
         if let Some(field) = sort.sort_by {
             let order = match sort.sort_order {
-                Some(SortOrder::Desc) => CLAUSE_DESCENDING,
-                _ => CLAUSE_ASCENDING,
+                Some(SortOrder::Desc) => DESCENDING,
+                _ => ASCENDING,
             };
-            self.push(CLAUSE_ORDER_BY);
+            self.push(ORDER_BY);
             self.push(field.into());
             self.push(order);
         }
@@ -251,10 +268,10 @@ where
 impl ApplyPagination for QueryBuilder<Postgres> {
     fn apply_pagination(&mut self, pagination: &PaginationParams) {
         let limit = pagination.limit.max(1) as i64;
-        let offset = pagination.page.saturating_sub(1) as i64 * limit;
-        self.push(CLAUSE_LIMIT);
+        let offset = (pagination.page.saturating_sub(1) as i64).saturating_mul(limit);
+        self.push(LIMIT);
         self.push_bind(limit);
-        self.push(CLAUSE_OFFSET);
+        self.push(OFFSET);
         self.push_bind(offset);
     }
 }
@@ -263,8 +280,8 @@ impl<S, F> ApplyRequestParams<S, F> for QueryBuilder<Postgres> {
     fn apply_request_params<E>(&mut self, params: &RequestParams<S, F>)
     where
         E: IntoEnumIterator + Into<&'static str> + Copy,
-        S: Copy + Default + Into<&'static str>,
-        F: Copy + Default + Into<&'static str>,
+        S: Copy + Into<&'static str>,
+        F: Copy + Into<&'static str>,
     {
         self.apply_search::<E>(&params.search);
         self.apply_filtering(&params.filter);

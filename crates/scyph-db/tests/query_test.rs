@@ -7,7 +7,7 @@ use scyph_extractors::query::{
     FilterParams, PaginationParams, RequestParams, SearchParams, SortOrder, SortParams,
 };
 use sqlx::{Postgres, QueryBuilder};
-use strum::{EnumIter, IntoEnumIterator};
+use strum::EnumIter;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, EnumIter)]
 enum UserSearchField {
@@ -87,6 +87,35 @@ fn test_apply_search_empty_whitespace() {
     qb.apply_search::<UserSearchField>(&search);
     let sql = qb.sql().as_str().to_string();
     assert!(!sql.contains("ILIKE"));
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter)]
+enum EmptySearchField {}
+
+impl From<EmptySearchField> for &'static str {
+    fn from(field: EmptySearchField) -> Self {
+        match field {}
+    }
+}
+
+#[test]
+fn test_apply_search_empty_enum() {
+    let mut qb = QueryBuilder::<Postgres>::new("SELECT * FROM users WHERE 1=1");
+    let search = SearchParams {
+        q: Some("alice".to_string()),
+    };
+    qb.apply_search::<EmptySearchField>(&search);
+    let sql = qb.sql().as_str().to_string();
+    assert!(!sql.contains("ILIKE"));
+    assert!(!sql.contains("AND ("));
+}
+
+#[test]
+fn test_escape_like_pattern() {
+    use scyph_db::query::escape_like_pattern;
+    assert_eq!(escape_like_pattern("100%"), "100\\%");
+    assert_eq!(escape_like_pattern("user_name"), "user\\_name");
+    assert_eq!(escape_like_pattern("c:\\path"), "c:\\\\path");
 }
 
 #[test]

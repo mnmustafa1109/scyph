@@ -23,3 +23,11 @@ secrecy = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true }
+
+[[test]]
+name = "query_test"
+required-features = ["query"]
+
+[[test]]
+name = "health_test"
+required-features = ["health"]
