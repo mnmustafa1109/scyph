@@ -20,7 +20,24 @@ fn default_limit() -> i64 {
     20
 }
 
+impl Default for PageParams {
+    fn default() -> Self {
+        Self {
+            limit: default_limit(),
+            cursor: None,
+        }
+    }
+}
+
 impl PageParams {
+    /// Creates a new `PageParams` instance with explicit limit and optional cursor.
+    pub fn new(limit: i64, cursor: Option<impl Into<String>>) -> Self {
+        Self {
+            limit,
+            cursor: cursor.map(Into::into),
+        }
+    }
+
     /// Returns the sanitized limit, clamped to a maximum of 100 records per page.
     pub fn limit(&self) -> i64 {
         self.limit.clamp(1, 100)

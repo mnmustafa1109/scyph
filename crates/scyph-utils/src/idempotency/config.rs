@@ -59,4 +59,10 @@ impl IdempotencyConfig {
         self.ttl = ttl;
         self
     }
+
+    /// Builder method to override the key namespace prefix.
+    pub fn with_prefix(mut self, prefix: impl Into<String>) -> Self {
+        self.prefix = prefix.into();
+        self
+    }
 }

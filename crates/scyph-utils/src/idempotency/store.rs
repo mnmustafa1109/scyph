@@ -140,4 +140,19 @@ impl IdempotencyStore {
         let json = serde_json::to_string(data)?;
         self.complete(key, &json).await
     }
+
+    /// Cancels or removes an in-progress idempotency key reservation (e.g. if handler business logic fails).
+    ///
+    /// Allows subsequent client retries to attempt request execution immediately without waiting for TTL expiration.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`IdempotencyError::Redis`] if Redis query fails.
+    pub async fn cancel(&self, key: &str) -> Result<(), IdempotencyError> {
+        let mut conn = self.redis.get_multiplexed_async_connection().await?;
+        let redis_key = format!("{}:{}", self.config.prefix, key);
+
+        let _: () = conn.del(&redis_key).await?;
+        Ok(())
+    }
 }
