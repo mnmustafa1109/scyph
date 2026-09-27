@@ -15,6 +15,7 @@
 //! - **[`storage`]**: S3/MinIO and in-memory object storage abstractions with streaming multipart extractors.
 //! - **[`telemetry`]**: Non-blocking tracing subscribers, time-ordered UUIDv7 request ID propagation, response metadata auto-injection, and dynamic compression.
 //! - **[`ratelimit`]**: IP-based rate limiting layers built on `tower-governor`.
+//! - **[`utils`]**: HMAC webhooks, background worker task loops, Base64 pagination cursors, and Redis API idempotency.
 //!
 //! ## Feature Flags
 //!
@@ -27,6 +28,7 @@
 //! - `storage`: Enables object storage and file extractors (`scyph-storage`).
 //! - `telemetry`: Enables tracing, UUIDv7 request IDs, and auto-meta response injection (`scyph-telemetry`).
 //! - `ratelimit`: Enables IP-based rate limiting middleware (`scyph-ratelimit`).
+//! - `utils`: Enables utility primitives, HMAC webhooks, background workers, and API idempotency (`scyph-utils`).
 //!
 //! ## Quickstart Example
 //!
