@@ -65,14 +65,19 @@ where
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         let host = parts
             .headers
-            .get("host")
+            .get("x-forwarded-host")
+            .or_else(|| parts.headers.get("host"))
             .and_then(|h| h.to_str().ok())
+            .and_then(|h| h.split(',').next())
+            .map(|h| h.trim())
             .ok_or_else(|| AppError::BadRequest("Missing Host header".to_string()))?;
 
         let scheme = parts
             .headers
             .get("x-forwarded-proto")
             .and_then(|h| h.to_str().ok())
+            .and_then(|h| h.split(',').next())
+            .map(|h| h.trim())
             .unwrap_or("http");
 
         let base_url_str = format!("{}://{}", scheme, host);
