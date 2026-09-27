@@ -8,10 +8,10 @@ rust-version.workspace = true
 description = "A collection of modular, independently usable Rust crates providing cross-cutting concerns for production Axum backends (auth, RFC 7807 errors, DB, health, telemetry, and more)."
 
 [features]
-default = ["auth", "db", "health"]
+default = ["auth", "db", "health", "telemetry", "extractors", "utils"]
 auth = ["dep:scyph-auth"]
-abac = ["dep:scyph-abac", "scyph-abac?/cedar"]
-cedar = ["abac"]
+abac = ["dep:scyph-abac"]
+cedar = ["abac", "scyph-abac?/cedar"]
 db = ["dep:scyph-db"]
 health = [
   "dep:scyph-health",
@@ -24,12 +24,29 @@ notify = ["dep:scyph-notify"]
 email = ["notify", "scyph-notify?/email"]
 fcm = ["notify", "scyph-notify?/fcm"]
 realtime = ["dep:scyph-realtime"]
-storage = ["dep:scyph-storage", "scyph-storage/s3"]
-s3 = ["storage"]
+storage = ["dep:scyph-storage"]
+s3 = ["storage", "scyph-storage?/s3"]
 telemetry = ["dep:scyph-telemetry"]
 ratelimit = ["dep:scyph-ratelimit"]
 utils = ["dep:scyph-utils"]
 extractors = ["dep:scyph-extractors"]
+full = [
+  "auth",
+  "abac",
+  "cedar",
+  "db",
+  "health",
+  "notify",
+  "email",
+  "fcm",
+  "realtime",
+  "storage",
+  "s3",
+  "telemetry",
+  "ratelimit",
+  "utils",
+  "extractors",
+]
 
 [dependencies]
 scyph-core = { path = "crates/scyph-core", version = "0.1.0" }

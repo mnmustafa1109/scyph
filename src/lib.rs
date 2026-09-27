@@ -21,14 +21,20 @@
 //!
 //! - `auth`: Enables authentication and RBAC utilities (`scyph-auth`).
 //! - `abac`: Enables Attribute-Based Access Control (`scyph-abac`).
+//! - `cedar`: Enables Cedar policy evaluation in `scyph-abac`.
 //! - `db`: Enables PostgreSQL pool management and migration tools (`scyph-db`).
 //! - `health`: Enables health check endpoint registries (`scyph-health`).
-//! - `notify`: Enables email, FCM push, and in-app notification services (`scyph-notify`).
+//! - `notify`: Enables notification services (`scyph-notify`).
+//! - `email`: Enables SMTP email delivery via Lettre in `scyph-notify`.
+//! - `fcm`: Enables Firebase Cloud Messaging in `scyph-notify`.
 //! - `realtime`: Enables Redis Pub/Sub WebSocket broadcaster (`scyph-realtime`).
 //! - `storage`: Enables object storage and file extractors (`scyph-storage`).
+//! - `s3`: Enables AWS S3 / MinIO backend in `scyph-storage`.
 //! - `telemetry`: Enables tracing, UUIDv7 request IDs, and auto-meta response injection (`scyph-telemetry`).
 //! - `ratelimit`: Enables IP-based rate limiting middleware (`scyph-ratelimit`).
 //! - `utils`: Enables utility primitives, HMAC webhooks, background workers, and API idempotency (`scyph-utils`).
+//! - `extractors`: Enables type-safe validated JSON body, query parameter, and URL path extractors (`scyph-extractors`).
+//! - `full`: Umbrella feature enabling all framework sub-crates and sub-features.
 //!
 //! ## Quickstart Example
 //!
