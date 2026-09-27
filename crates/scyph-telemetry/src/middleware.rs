@@ -198,7 +198,9 @@ pub async fn auto_meta_middleware(
     let processing_time_ms = start.elapsed().as_millis() as u64;
     let (parts, body) = response.into_parts();
 
-    let bytes = match axum::body::to_bytes(body, usize::MAX).await {
+    // Cap max response body buffering at 16MB to prevent memory exhaustion
+    const MAX_META_BODY_BYTES: usize = 16 * 1024 * 1024;
+    let bytes = match axum::body::to_bytes(body, MAX_META_BODY_BYTES).await {
         Ok(b) => b,
         Err(_) => return Response::from_parts(parts, axum::body::Body::empty()),
     };

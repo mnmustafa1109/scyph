@@ -18,12 +18,12 @@ pub type PeerRateLimitLayer<B = Body> =
 ///
 /// # Arguments
 ///
-/// * `burst` - Maximum number of allowed requests in a single burst.
-/// * `period` - Replenishment duration interval.
+/// * `burst` - Maximum number of allowed requests in a single burst (must be > 0).
+/// * `period` - Replenishment duration interval (must be >= 1ms).
 ///
 /// # Errors
 ///
-/// Returns [`RateLimitError::ConfigurationFailed`] if `GovernorConfigBuilder` fails to construct a valid configuration.
+/// Returns [`RateLimitError::ConfigurationFailed`] if inputs are invalid or if `GovernorConfigBuilder` fails.
 ///
 /// # Examples
 ///
@@ -35,7 +35,18 @@ pub type PeerRateLimitLayer<B = Body> =
 /// let layer = per_ip_layer::<Body>(10, Duration::from_secs(1)).expect("valid layer");
 /// ```
 pub fn per_ip_layer<B>(burst: u32, period: Duration) -> Result<PeerRateLimitLayer<B>, RateLimitError> {
+    if burst == 0 {
+        return Err(RateLimitError::ConfigurationFailed(
+            "Burst size must be greater than 0".to_string(),
+        ));
+    }
     let period_ms = period.as_millis() as u64;
+    if period_ms == 0 {
+        return Err(RateLimitError::ConfigurationFailed(
+            "Replenishment period must be at least 1 millisecond".to_string(),
+        ));
+    }
+
     let config = GovernorConfigBuilder::default()
         .per_millisecond(period_ms)
         .burst_size(burst)
