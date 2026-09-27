@@ -4,4 +4,4 @@ pub mod error;
 pub mod runner;
 
 pub use error::WorkerError;
-pub use runner::{spawn_worker, spawn_worker_cancel};
+pub use runner::{WorkerHandle, spawn_worker, spawn_worker_cancel};

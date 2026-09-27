@@ -40,4 +40,4 @@ pub use pagination::{Cursor, PageParams, PaginationError};
 pub use webhook::{VerifiedWebhook, WebhookConfig, WebhookError, verify_webhook, verify_webhook_header};
 
 #[doc(inline)]
-pub use worker::{WorkerError, spawn_worker, spawn_worker_cancel};
+pub use worker::{WorkerError, WorkerHandle, spawn_worker, spawn_worker_cancel};
