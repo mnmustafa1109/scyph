@@ -14,6 +14,7 @@ pub struct RealtimeSession {
     conn_id: Uuid,
     rx: UnboundedReceiver<String>,
     registry: ConnectionRegistry,
+    closed: bool,
 }
 
 impl RealtimeSession {
@@ -27,6 +28,7 @@ impl RealtimeSession {
             conn_id,
             rx,
             registry,
+            closed: false,
         }
     }
 
@@ -46,18 +48,21 @@ impl RealtimeSession {
     }
 
     /// Manually closes and deregisters the connection session synchronously.
-    pub async fn close(self) {
+    pub async fn close(mut self) {
+        self.closed = true;
         self.registry.deregister(self.user_id, self.conn_id).await;
     }
 }
 
 impl Drop for RealtimeSession {
     fn drop(&mut self) {
-        let registry = self.registry.clone();
-        let user_id = self.user_id;
-        let conn_id = self.conn_id;
-        tokio::spawn(async move {
-            registry.deregister(user_id, conn_id).await;
-        });
+        if !self.closed {
+            let registry = self.registry.clone();
+            let user_id = self.user_id;
+            let conn_id = self.conn_id;
+            tokio::spawn(async move {
+                registry.deregister(user_id, conn_id).await;
+            });
+        }
     }
 }
