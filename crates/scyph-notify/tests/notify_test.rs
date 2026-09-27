@@ -1,7 +1,4 @@
-use scyph_notify::{
-    CompositeNotification, EmailTemplate, NoEmailService, NoPushService, NotificationBroadcaster,
-    PushService, PushTemplate,
-};
+use scyph_notify::{NoPushService, PushService, PushTemplate};
 use std::sync::Arc;
 
 struct TestPush {
@@ -22,51 +19,6 @@ impl PushTemplate for TestPush {
     }
 }
 
-struct TestEmail {
-    to: String,
-    subject: String,
-}
-
-impl EmailTemplate for TestEmail {
-    fn to(&self) -> Vec<String> {
-        vec![self.to.clone()]
-    }
-    fn subject(&self) -> String {
-        self.subject.clone()
-    }
-    fn template_name(&self) -> &str {
-        "test.html"
-    }
-    fn context(&self) -> serde_json::Value {
-        serde_json::json!({})
-    }
-}
-
-struct TestEvent {
-    token: String,
-    email: String,
-}
-
-impl CompositeNotification for TestEvent {
-    type Email = TestEmail;
-    type Push = TestPush;
-
-    fn email(&self) -> Option<Self::Email> {
-        Some(TestEmail {
-            to: self.email.clone(),
-            subject: "Test Subject".into(),
-        })
-    }
-
-    fn push(&self) -> Option<Self::Push> {
-        Some(TestPush {
-            token: self.token.clone(),
-            title: "Test Title".into(),
-            body: "Test Body".into(),
-        })
-    }
-}
-
 #[tokio::test]
 async fn test_push_template_send() {
     let push_service = Arc::new(NoPushService);
@@ -81,36 +33,88 @@ async fn test_push_template_send() {
 }
 
 #[cfg(all(feature = "email", feature = "fcm"))]
-#[tokio::test]
-async fn test_broadcaster() {
-    use scyph_notify::TemplateEngine;
-
-    let email_service = Arc::new(NoEmailService);
-    let push_service = Arc::new(NoPushService);
-
-    let temp_dir = std::env::temp_dir().join("scyph_notify_test");
-    let _ = std::fs::create_dir_all(&temp_dir);
-    let test_file = temp_dir.join("test.html");
-    let _ = std::fs::write(&test_file, "<h1>Hello</h1>");
-
-    let glob = format!("{}/*.html", temp_dir.display());
-    let engine = Arc::new(TemplateEngine::from_glob(&glob).unwrap());
-
-    let broadcaster = Arc::new(NotificationBroadcaster::new(
-        email_service,
-        push_service,
-        engine,
-    ));
-
-    let event = TestEvent {
-        token: "token123".into(),
-        email: "user@example.com".into(),
+mod composite_tests {
+    use super::*;
+    use scyph_notify::{
+        CompositeNotification, EmailTemplate, NoEmailService, NotificationBroadcaster,
+        TemplateEngine,
     };
 
-    let res = broadcaster.broadcast(&event).await;
-    assert!(res.is_ok());
+    struct TestEmail {
+        to: String,
+        subject: String,
+    }
 
-    broadcaster.broadcast_background(event);
+    impl EmailTemplate for TestEmail {
+        fn to(&self) -> Vec<String> {
+            vec![self.to.clone()]
+        }
+        fn subject(&self) -> String {
+            self.subject.clone()
+        }
+        fn template_name(&self) -> &str {
+            "test.html"
+        }
+        fn context(&self) -> serde_json::Value {
+            serde_json::json!({})
+        }
+    }
 
-    let _ = std::fs::remove_file(test_file);
+    struct TestEvent {
+        token: String,
+        email: String,
+    }
+
+    impl CompositeNotification for TestEvent {
+        type Email = TestEmail;
+        type Push = TestPush;
+
+        fn email(&self) -> Option<Self::Email> {
+            Some(TestEmail {
+                to: self.email.clone(),
+                subject: "Test Subject".into(),
+            })
+        }
+
+        fn push(&self) -> Option<Self::Push> {
+            Some(TestPush {
+                token: self.token.clone(),
+                title: "Test Title".into(),
+                body: "Test Body".into(),
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn test_broadcaster() {
+        let email_service = Arc::new(NoEmailService);
+        let push_service = Arc::new(NoPushService);
+
+        let temp_dir = std::env::temp_dir().join("scyph_notify_test");
+        let _ = std::fs::create_dir_all(&temp_dir);
+        let test_file = temp_dir.join("test.html");
+        let _ = std::fs::write(&test_file, "<h1>Hello</h1>");
+
+        let glob = format!("{}/*.html", temp_dir.display());
+        let engine = Arc::new(TemplateEngine::from_glob(&glob).unwrap());
+
+        let broadcaster = Arc::new(NotificationBroadcaster::new(
+            email_service,
+            push_service,
+            engine,
+        ));
+
+        let event = TestEvent {
+            token: "token123".into(),
+            email: "user@example.com".into(),
+        };
+
+        let res = broadcaster.broadcast(&event).await;
+        assert!(res.is_ok());
+
+        broadcaster.broadcast_background(event);
+
+        let _ = std::fs::remove_file(test_file);
+    }
 }
+
