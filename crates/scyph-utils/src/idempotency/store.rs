@@ -1,6 +1,6 @@
-//! Redis-backed API idempotency store for request deduplication and response caching.
+//! Redis-backed idempotency store implementation.
 
-use crate::{config::IdempotencyConfig, error::UtilsError};
+use crate::idempotency::{config::IdempotencyConfig, error::IdempotencyError};
 use redis::{AsyncCommands, Client};
 use serde::Serialize;
 
@@ -18,8 +18,7 @@ pub enum IdempotencyCheck {
 /// # Examples
 ///
 /// ```rust,no_run
-/// use scyph_utils::idempotency::{IdempotencyStore, IdempotencyCheck};
-/// use scyph_utils::config::IdempotencyConfig;
+/// use scyph_utils::idempotency::{IdempotencyStore, IdempotencyCheck, IdempotencyConfig};
 ///
 /// async fn handle_payment(key: &str) -> Result<(), Box<dyn std::error::Error>> {
 ///     let config = IdempotencyConfig::from_env();
@@ -27,7 +26,6 @@ pub enum IdempotencyCheck {
 ///
 ///     match store.begin(key).await? {
 ///         IdempotencyCheck::New => {
-///             // Run heavy payment logic...
 ///             let response = r#"{"status":"success","transaction_id":"tx_123"}"#;
 ///             store.complete(key, response).await?;
 ///         }
@@ -49,8 +47,8 @@ impl IdempotencyStore {
     ///
     /// # Errors
     ///
-    /// Returns [`UtilsError::Redis`] if the Redis connection URL fails to parse.
-    pub fn new(config: IdempotencyConfig) -> Result<Self, UtilsError> {
+    /// Returns [`IdempotencyError::Redis`] if the Redis connection URL fails to parse.
+    pub fn new(config: IdempotencyConfig) -> Result<Self, IdempotencyError> {
         let redis = Client::open(config.redis_url.as_str())?;
         Ok(Self { redis, config })
     }
@@ -59,8 +57,8 @@ impl IdempotencyStore {
     ///
     /// # Errors
     ///
-    /// Returns [`UtilsError::Redis`] if opening the Redis client fails.
-    pub fn from_env() -> Result<Self, UtilsError> {
+    /// Returns [`IdempotencyError::Redis`] if opening the Redis client fails.
+    pub fn from_env() -> Result<Self, IdempotencyError> {
         let config = IdempotencyConfig::from_env();
         Self::new(config)
     }
@@ -73,8 +71,8 @@ impl IdempotencyStore {
     ///
     /// # Errors
     ///
-    /// Returns [`UtilsError::Redis`] if Redis query fails.
-    pub async fn begin(&self, key: &str) -> Result<IdempotencyCheck, UtilsError> {
+    /// Returns [`IdempotencyError::Redis`] if Redis query fails.
+    pub async fn begin(&self, key: &str) -> Result<IdempotencyCheck, IdempotencyError> {
         let mut conn = self.redis.get_multiplexed_async_connection().await?;
         let redis_key = format!("{}:{}", self.config.prefix, key);
 
@@ -96,8 +94,8 @@ impl IdempotencyStore {
     ///
     /// # Errors
     ///
-    /// Returns [`UtilsError::Redis`] if Redis query fails.
-    pub async fn complete(&self, key: &str, response_body: &str) -> Result<(), UtilsError> {
+    /// Returns [`IdempotencyError::Redis`] if Redis query fails.
+    pub async fn complete(&self, key: &str, response_body: &str) -> Result<(), IdempotencyError> {
         let mut conn = self.redis.get_multiplexed_async_connection().await?;
         let redis_key = format!("{}:{}", self.config.prefix, key);
 
@@ -111,12 +109,12 @@ impl IdempotencyStore {
     ///
     /// # Errors
     ///
-    /// Returns [`UtilsError::Json`] if JSON serialization fails, or [`UtilsError::Redis`] if Redis store fails.
+    /// Returns [`IdempotencyError::Json`] if JSON serialization fails, or [`IdempotencyError::Redis`] if Redis store fails.
     pub async fn complete_json<T: Serialize>(
         &self,
         key: &str,
         data: &T,
-    ) -> Result<(), UtilsError> {
+    ) -> Result<(), IdempotencyError> {
         let json = serde_json::to_string(data)?;
         self.complete(key, &json).await
     }

@@ -1,4 +1,4 @@
-//! Configuration structures and environment variable loaders for `scyph-utils`.
+//! Environment configuration for API idempotency checks.
 
 use std::{env, time::Duration};
 

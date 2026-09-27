@@ -1,6 +1,6 @@
-//! HMAC-SHA256 signature verification and replay attack prevention for webhooks.
+//! HMAC-SHA256 webhook verifier logic.
 
-use crate::error::UtilsError;
+use crate::webhook::error::WebhookError;
 use chrono::Utc;
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
@@ -20,8 +20,8 @@ use sha2::Sha256;
 ///
 /// # Errors
 ///
-/// Returns [`UtilsError::StaleTimestamp`] if timestamp exceeds tolerance,
-/// or [`UtilsError::SignatureMismatch`] if signature validation fails.
+/// Returns [`WebhookError::StaleTimestamp`] if timestamp exceeds tolerance,
+/// or [`WebhookError::SignatureMismatch`] if signature validation fails.
 ///
 /// # Examples
 ///
@@ -49,17 +49,17 @@ pub fn verify_webhook(
     secret: &str,
     timestamp: i64,
     tolerance_secs: i64,
-) -> Result<(), UtilsError> {
+) -> Result<(), WebhookError> {
     let delta = (Utc::now().timestamp() - timestamp).abs();
     if delta > tolerance_secs {
-        return Err(UtilsError::StaleTimestamp {
+        return Err(WebhookError::StaleTimestamp {
             tolerance_secs,
             delta_secs: delta,
         });
     }
 
     let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
-        .map_err(|e| UtilsError::HmacKey(e.to_string()))?;
+        .map_err(|e| WebhookError::HmacKey(e.to_string()))?;
 
     mac.update(timestamp.to_string().as_bytes());
     mac.update(b".");
@@ -68,7 +68,7 @@ pub fn verify_webhook(
     let expected = hex::encode(mac.finalize().into_bytes());
 
     if !ct_eq(signature.as_bytes(), expected.as_bytes()) {
-        return Err(UtilsError::SignatureMismatch);
+        return Err(WebhookError::SignatureMismatch);
     }
     Ok(())
 }
@@ -79,14 +79,14 @@ pub fn verify_webhook(
 ///
 /// # Errors
 ///
-/// Returns [`UtilsError::InvalidHeaderFormat`] if `header_val` is malformed,
+/// Returns [`WebhookError::InvalidHeaderFormat`] if `header_val` is malformed,
 /// or errors from [`verify_webhook`].
 pub fn verify_webhook_header(
     payload: &[u8],
     header_val: &str,
     secret: &str,
     tolerance_secs: i64,
-) -> Result<(), UtilsError> {
+) -> Result<(), WebhookError> {
     let mut timestamp: Option<i64> = None;
     let mut signature: Option<&str> = None;
 
@@ -107,11 +107,11 @@ pub fn verify_webhook_header(
     }
 
     let ts = timestamp.ok_or_else(|| {
-        UtilsError::InvalidHeaderFormat("Missing timestamp 't' component".to_string())
+        WebhookError::InvalidHeaderFormat("Missing timestamp 't' component".to_string())
     })?;
 
     let sig = signature.ok_or_else(|| {
-        UtilsError::InvalidHeaderFormat("Missing signature 'v1' component".to_string())
+        WebhookError::InvalidHeaderFormat("Missing signature 'v1' component".to_string())
     })?;
 
     verify_webhook(payload, sig, secret, ts, tolerance_secs)

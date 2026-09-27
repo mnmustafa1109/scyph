@@ -155,8 +155,9 @@ pub mod prelude {
 
     #[cfg(feature = "utils")]
     pub use scyph_utils::{
-        Cursor, IdempotencyCheck, IdempotencyConfig, IdempotencyStore, PageParams, UtilsError,
-        spawn_worker, spawn_worker_cancel, verify_webhook, verify_webhook_header,
+        Cursor, IdempotencyCheck, IdempotencyConfig, IdempotencyError, IdempotencyStore,
+        PageParams, PaginationError, WebhookError, WorkerError, spawn_worker, spawn_worker_cancel,
+        verify_webhook, verify_webhook_header,
     };
 
     #[cfg(all(feature = "db", feature = "health"))]
@@ -211,7 +212,7 @@ pub use scyph_ratelimit::{
 };
 
 #[cfg(feature = "utils")]
-pub use scyph_utils::UtilsError;
+pub use scyph_utils::{IdempotencyError, PaginationError, WebhookError, WorkerError};
 
 #[cfg(all(feature = "realtime", feature = "health"))]
 pub use scyph_realtime::RealtimeHealthExt;

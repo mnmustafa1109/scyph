@@ -1,4 +1,4 @@
-//! Periodic background worker loop management with panic isolation and graceful shutdown.
+//! Worker loop runner functions.
 
 use std::{future::Future, time::Duration};
 use tokio::time;
