@@ -11,9 +11,12 @@ description = "Redis pub/sub broadcaster for cross-replica WebSocket fanout"
 [dependencies]
 scyph-core = { path = "../scyph-core", version = "0.1" }
 tokio = { workspace = true }
+tokio-util = { workspace = true }
 redis = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+thiserror = { workspace = true }
 tracing = { workspace = true }
 uuid = { workspace = true }
+chrono = { workspace = true }
 futures-util = { workspace = true }

@@ -37,6 +37,10 @@ pub use scyph_notify as notify;
 /// Object storage abstractions, multipart extractors, and AWS S3 / MinIO service implementation.
 pub use scyph_storage as storage;
 
+#[cfg(feature = "realtime")]
+/// Redis Pub/Sub WebSocket broadcaster for cross-replica message fanout.
+pub use scyph_realtime as realtime;
+
 /// Convenient prelude re-exporting common framework types for single-line imports (`use scyph::prelude::*;`).
 pub mod prelude {
     pub use scyph_core::{
@@ -73,6 +77,11 @@ pub mod prelude {
     #[cfg(all(feature = "storage", feature = "s3"))]
     pub use scyph_storage::S3StorageService;
 
+    #[cfg(feature = "realtime")]
+    pub use scyph_realtime::{
+        ConnectionRegistry, RealtimeBroadcaster, RealtimeConfig, RealtimeError, RealtimeEvent,
+    };
+
     #[cfg(all(feature = "db", feature = "health"))]
     pub use scyph_db::DbHealthExt;
 
@@ -102,3 +111,6 @@ pub use scyph_notify::{EmailTemplate, NoEmailService, NoPushService, NotifyError
 
 #[cfg(feature = "storage")]
 pub use scyph_storage::StorageError;
+
+#[cfg(feature = "realtime")]
+pub use scyph_realtime::{RealtimeBroadcaster, RealtimeError, RealtimeEvent};

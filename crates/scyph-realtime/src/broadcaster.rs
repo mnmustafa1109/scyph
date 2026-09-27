@@ -1,128 +1,150 @@
+//! Redis pub/sub WebSocket broadcaster implementation.
+
 use futures_util::StreamExt;
-use redis::AsyncCommands;
-use redis::Client;
-use scyph_core::AppError;
-use serde::{Serialize, de::DeserializeOwned};
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::{sync::RwLock, sync::mpsc::UnboundedSender, time::sleep};
+use redis::{AsyncCommands, Client};
+use serde::Serialize;
+use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 use uuid::Uuid;
 
-const REDIS_CHANNEL: &str = "scyph-realtime";
+use crate::{
+    config::RealtimeConfig,
+    error::RealtimeError,
+    event::{RawRealtimeEnvelope, RealtimeEvent},
+    registry::{ConnectionRegistry, ConnectionTx},
+};
 
-pub type ConnectionTx = UnboundedSender<String>;
-
-pub type UserConnections = HashMap<Uuid, ConnectionTx>;
-
-pub type ConnectionRegistry = Arc<RwLock<HashMap<Uuid, UserConnections>>>;
-
+/// High-performance Redis Pub/Sub broadcaster for cross-replica WebSocket message fanout.
 #[derive(Debug, Clone)]
 pub struct RealtimeBroadcaster {
     client: Client,
-    local: ConnectionRegistry,
+    config: RealtimeConfig,
+    registry: ConnectionRegistry,
 }
 
 impl RealtimeBroadcaster {
-    pub fn new(redis_url: &str) -> Result<Self, AppError> {
-        let client = Client::open(redis_url)
-            .map_err(|e| AppError::internal_from(e, "Failed to connect to Redis"))?;
+    /// Constructs a [`RealtimeBroadcaster`] by reading environment variables using [`RealtimeConfig::from_env`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RealtimeError`] if environment loading or Redis client connection fails.
+    pub fn from_env() -> Result<Self, RealtimeError> {
+        let config = RealtimeConfig::from_env()?;
+        Self::new(config)
+    }
+
+    /// Constructs a [`RealtimeBroadcaster`] with explicit [`RealtimeConfig`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RealtimeError`] if opening Redis client fails.
+    pub fn new(config: RealtimeConfig) -> Result<Self, RealtimeError> {
+        let client = Client::open(config.redis_url.as_str())?;
         Ok(Self {
             client,
-            local: Arc::new(RwLock::new(HashMap::new())),
+            config,
+            registry: ConnectionRegistry::default(),
         })
     }
 
-    pub async fn register(&self, user_id: Uuid, conn_id: Uuid, tx: UnboundedSender<String>) {
-        self.local
-            .write()
-            .await
-            .entry(user_id)
-            .or_default()
-            .insert(conn_id, tx);
+    /// Exposes a reference to the inner [`ConnectionRegistry`].
+    pub fn registry(&self) -> &ConnectionRegistry {
+        &self.registry
     }
 
+    /// Exposes a reference to the active [`RealtimeConfig`].
+    pub fn config(&self) -> &RealtimeConfig {
+        &self.config
+    }
+
+    /// Registers a new active WebSocket connection channel for a target user.
+    pub async fn register(&self, user_id: Uuid, conn_id: Uuid, tx: ConnectionTx) {
+        self.registry.register(user_id, conn_id, tx).await;
+    }
+
+    /// Deregisters an active WebSocket connection channel for a target user.
     pub async fn deregister(&self, user_id: Uuid, conn_id: Uuid) {
-        if let Some(conns) = self.local.write().await.get_mut(&user_id) {
-            conns.remove(&conn_id);
-        }
+        self.registry.deregister(user_id, conn_id).await;
     }
-    pub async fn publish<T: Serialize>(&self, user_id: Uuid, event: &T) -> Result<(), AppError> {
-        let payload = serde_json::to_string(&RealtimeEnvelope {
-            user_id,
-            body: event,
-        })
-        .map_err(|e| AppError::internal_from(e, "serialize event"))?;
-        let mut conn = self
-            .client
-            .get_multiplexed_async_connection()
-            .await
-            .map_err(|e| AppError::internal_from(e, "Redis connection"))?;
-        conn.publish::<_, _, ()>(REDIS_CHANNEL, payload)
-            .await
-            .map_err(|e| AppError::internal_from(e, "Redis PUBLISH"))?;
+
+    /// Publishes a domain event to Redis Pub/Sub for cross-replica distribution.
+    ///
+    /// Wraps `payload` in a [`RealtimeEvent`], serializes it to JSON, and publishes to the configured Redis channel.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RealtimeError`] if serialization or Redis PUBLISH fails.
+    pub async fn publish<T: Serialize>(
+        &self,
+        event_name: &str,
+        user_id: Uuid,
+        payload: &T,
+    ) -> Result<(), RealtimeError> {
+        let event = RealtimeEvent::new(event_name, user_id, payload);
+        self.publish_event(&event).await
+    }
+
+    /// Publishes a pre-constructed [`RealtimeEvent`] to Redis Pub/Sub.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RealtimeError`] if serialization or Redis PUBLISH fails.
+    pub async fn publish_event<T: Serialize>(
+        &self,
+        event: &RealtimeEvent<T>,
+    ) -> Result<(), RealtimeError> {
+        let payload = serde_json::to_string(event)?;
+        let mut conn = self.client.get_multiplexed_async_connection().await?;
+        let channel = format!("{}:events", self.config.channel_prefix);
+
+        conn.publish::<_, _, ()>(channel, payload).await?;
         Ok(())
     }
 
-    async fn deliver_local(&self, user_id: Uuid, raw: &str) {
-        if let Some(conns) = self.local.read().await.get(&user_id) {
-            for tx in conns.values() {
-                let _ = tx.send(raw.to_string());
-            }
-        }
-    }
-
-    pub fn spawn_subscriber(self) -> tokio::task::JoinHandle<()> {
+    /// Spawns the Redis subscriber task with graceful shutdown cancellation support.
+    ///
+    /// When `cancel_token` is triggered (e.g. during SIGTERM / Axum shutdown), the subscriber loop stops cleanly.
+    pub fn start_subscriber(&self, cancel_token: CancellationToken) -> tokio::task::JoinHandle<()> {
+        let broadcaster = self.clone();
         tokio::spawn(async move {
-            loop {
-                if let Err(e) = self.run_subscriber_once().await {
-                    error!(error = %e, "Realtime subscriber errored, reconnecting in 1s");
-                    sleep(std::time::Duration::from_secs(1)).await;
+            tokio::select! {
+                _ = cancel_token.cancelled() => {
+                    info!("Shutting down realtime subscriber task gracefully");
                 }
+                _ = broadcaster.run_subscriber_loop() => {}
             }
         })
     }
 
-    async fn run_subscriber_once(&self) -> Result<(), AppError> {
-        let mut pubsub = self
-            .client
-            .get_async_pubsub()
-            .await
-            .map_err(|e| AppError::internal_from(e, "Redis connection"))?;
-        pubsub
-            .subscribe(REDIS_CHANNEL)
-            .await
-            .map_err(|e| AppError::internal_from(e, "Redis SUBSCRIBE"))?;
-        info!("Realtime subscriber connected");
+    /// Spawns the Redis subscriber task without explicit cancellation token.
+    pub fn spawn_subscriber(self) -> tokio::task::JoinHandle<()> {
+        let cancel_token = CancellationToken::new();
+        self.start_subscriber(cancel_token)
+    }
 
-        let mut stream = pubsub.on_message();
+    async fn run_subscriber_loop(&self) {
+        let channel_name = format!("{}:events", self.config.channel_prefix);
+        loop {
+            if let Err(err) = self.subscribe_once(&channel_name).await {
+                error!(error = %err, "Realtime subscriber error. Reconnecting in {}s...", self.config.reconnect_interval_secs);
+                tokio::time::sleep(std::time::Duration::from_secs(self.config.reconnect_interval_secs)).await;
+            }
+        }
+    }
+
+    async fn subscribe_once(&self, channel: &str) -> Result<(), RealtimeError> {
+        let mut pubsub = self.client.get_async_pubsub().await?;
+
+        pubsub.subscribe(channel).await?;
+        info!(channel = %channel, "Realtime subscriber connected to Redis");
+
+        let mut stream = pubsub.into_on_message();
         while let Some(msg) = stream.next().await {
             let raw: String = msg.get_payload().unwrap_or_default();
-            if let Ok(env) = serde_json::from_str::<RealtimeEnvelopeRaw>(&raw) {
-                self.deliver_local(env.user_id, &raw).await;
+            if let Ok(env) = serde_json::from_str::<RawRealtimeEnvelope>(&raw) {
+                self.registry.broadcast_local(env.user_id, &raw).await;
             }
         }
         Ok(())
     }
-}
-
-#[derive(Serialize)]
-struct RealtimeEnvelope<'a, T: Serialize> {
-    user_id: Uuid,
-    body: &'a T,
-}
-
-#[derive(serde::Deserialize)]
-struct RealtimeEnvelopeRaw {
-    user_id: Uuid,
-}
-
-pub fn decode_event<T: DeserializeOwned>(raw: &str) -> Result<T, AppError> {
-    #[derive(serde::Deserialize)]
-    struct Wrapper<T> {
-        body: T,
-    }
-    let w: Wrapper<T> =
-        serde_json::from_str(raw).map_err(|e| AppError::internal_from(e, "decode event"))?;
-    Ok(w.body)
 }

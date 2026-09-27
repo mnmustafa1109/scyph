@@ -1,0 +1,78 @@
+use scyph_realtime::{
+    decode_event, ConnectionRegistry, RealtimeBroadcaster, RealtimeConfig, RealtimeEvent,
+};
+use serde_json::json;
+use tokio::sync::mpsc::unbounded_channel;
+use tokio_util::sync::CancellationToken;
+use uuid::Uuid;
+
+#[tokio::test]
+async fn test_connection_registry_lifecycle() {
+    let registry = ConnectionRegistry::default();
+    let user_id = Uuid::new_v4();
+    let conn_id = Uuid::new_v4();
+    let (tx, mut rx) = unbounded_channel();
+
+    assert_eq!(registry.active_connections_count().await, 0);
+
+    // 1. Register connection
+    registry.register(user_id, conn_id, tx).await;
+    assert_eq!(registry.active_connections_count().await, 1);
+    assert_eq!(registry.user_connection_count(user_id).await, 1);
+
+    // 2. Broadcast local message
+    registry
+        .broadcast_local(user_id, r#"{"hello":"world"}"#)
+        .await;
+
+    let received = rx.recv().await;
+    assert_eq!(received.as_deref(), Some(r#"{"hello":"world"}"#));
+
+    // 3. Deregister connection (auto purges empty user entries)
+    registry.deregister(user_id, conn_id).await;
+    assert_eq!(registry.active_connections_count().await, 0);
+    assert_eq!(registry.user_connection_count(user_id).await, 0);
+}
+
+#[test]
+fn test_realtime_event_serialization_and_decoding() {
+    let user_id = Uuid::new_v4();
+    let payload = json!({ "msg": "Hello Realtime" });
+    let event = RealtimeEvent::new("chat.message", user_id, payload.clone());
+
+    let raw = serde_json::to_string(&event).expect("serialization failed");
+    let decoded: RealtimeEvent<serde_json::Value> =
+        decode_event(&raw).expect("decoding event failed");
+
+    assert_eq!(decoded.event_name, "chat.message");
+    assert_eq!(decoded.user_id, user_id);
+    assert_eq!(decoded.payload, payload);
+}
+
+#[test]
+fn test_realtime_config_from_env_defaults() {
+    unsafe {
+        std::env::remove_var("REALTIME_REDIS_URL");
+        std::env::remove_var("REDIS_URL");
+        std::env::remove_var("REALTIME_CHANNEL_PREFIX");
+        std::env::remove_var("REALTIME_RECONNECT_INTERVAL_SECS");
+    }
+
+    let config = RealtimeConfig::from_env().expect("config from env should succeed");
+    assert_eq!(config.redis_url, "redis://127.0.0.1:6379");
+    assert_eq!(config.channel_prefix, "scyph:realtime");
+    assert_eq!(config.reconnect_interval_secs, 1);
+}
+
+#[tokio::test]
+async fn test_subscriber_cancellation_token() {
+    let config = RealtimeConfig::default();
+    let broadcaster = RealtimeBroadcaster::new(config).expect("broadcaster creation");
+    let cancel_token = CancellationToken::new();
+
+    let handle = broadcaster.start_subscriber(cancel_token.clone());
+
+    // Cancel token and verify handle completes
+    cancel_token.cancel();
+    let _ = handle.await;
+}

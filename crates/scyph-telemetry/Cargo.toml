@@ -1,0 +1,16 @@
+# crates/scyph-telemetry/Cargo.toml
+[package]
+name = "scyph-telemetry"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Tracing init, request-id middleware, and compression for scyph backends"
+
+[dependencies]
+axum = { workspace = true }
+tower-http = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+uuid = { workspace = true }
