@@ -35,6 +35,13 @@ fn test_derive_thumbnail_key_root_level() {
 }
 
 #[test]
+fn test_derive_thumbnail_key_windows_separators() {
+    let key = "uploads\\avatars\\user.png";
+    let thumb = derive_thumbnail_key(key, "thumbs");
+    assert_eq!(thumb, "uploads/avatars/thumbs/user.png");
+}
+
+#[test]
 fn test_thumbnail_config_defaults() {
     let config = ThumbnailConfig::default();
     assert_eq!(config.max_width, DEFAULT_THUMBNAIL_DIMENSION);
