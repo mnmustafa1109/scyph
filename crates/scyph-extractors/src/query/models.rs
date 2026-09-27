@@ -25,6 +25,8 @@ impl Display for SortOrder {
 }
 
 /// Helper deserializer to parse numbers from either raw JSON integers or query string numbers (`"10"` -> `10`).
+///
+/// Converts query string digits or raw integers into target numeric type `T`.
 pub fn deserialize_number_from_string<'de, T, D>(deserializer: D) -> Result<T, D::Error>
 where
     T: FromStr + Deserialize<'de>,

@@ -1,15 +1,39 @@
 #![warn(missing_docs)]
 //! # Scyph Extractors
 //!
-//! `scyph-extractors` provides type-safe, validated request payload extractors and parameter models for Axum backends.
+//! `scyph-extractors` provides type-safe, validated request payload extractors and parameter models for Axum web applications.
 //!
-//! ## Modules
+//! ## Overview
 //!
-//! - **[`body`]**: Validated and sanitized JSON body extractors ([`ValidatedJson`], [`SanitizedJson`]).
-//! - **[`link`]**: Header-aware canonical URL and link generator ([`LinkGenerator`], [`LinkBuilder`]).
-//! - **[`path`]**: Strongly-typed and validated URL path parameter extractors ([`TypedPath`], [`ValidatedPath`]).
-//! - **[`query`]**: Validated URL query string parameter extractors ([`ValidatedQuery`]), request parameter models ([`RequestParams`], [`PaginationParams`]), and number deserializers ([`deserialize_number_from_string`]).
-//! - **[`error`]**: Granular extractor errors mapped to RFC 7807 problem details ([`ExtractorError`]).
+//! This crate aggregates request extraction concerns into modular components:
+//! - **[`body`]**: Validated JSON body extractor ([`ValidatedJson`]) combining automatic string sanitization (`sanitizer`) and domain validation (`garde`). Also includes [`SanitizedJson`].
+//! - **[`link`]**: Header-aware canonical link generator ([`LinkGenerator`]) and URL builder ([`LinkBuilder`]) supporting reverse proxy headers (`X-Forwarded-Host`, `X-Forwarded-Proto`).
+//! - **[`path`]**: Strongly-typed path parameter extractors ([`TypedPath`]) and validated path parameters ([`ValidatedPath`]).
+//! - **[`query`]**: Validated query parameter extractor ([`ValidatedQuery`]), request query parameter models ([`RequestParams`], [`PaginationParams`], [`SortParams`], [`FilterParams`], [`SearchParams`]), and string-to-number deserializer ([`deserialize_number_from_string`]).
+//! - **[`error`]**: Granular extraction and validation errors ([`ExtractorError`]) converted automatically to RFC 7807 problem details ([`AppError`](scyph_core::AppError)).
+//!
+//! ## Quick Example
+//!
+//! ```rust,ignore
+//! use garde::Validate;
+//! use sanitizer::Sanitizer;
+//! use scyph_extractors::{body::ValidatedJson, query::ValidatedQuery, query::RequestParams};
+//! use serde::Deserialize;
+//!
+//! #[derive(Deserialize, Validate, Sanitizer)]
+//! pub struct CreateUser {
+//!     #[sanitizer(trim, lower_case)]
+//!     #[garde(email)]
+//!     pub email: String,
+//! }
+//!
+//! async fn create_user_handler(
+//!     ValidatedJson(payload): ValidatedJson<CreateUser>,
+//! ) -> &'static str {
+//!     println!("User email: {}", payload.email);
+//!     "Created"
+//! }
+//! ```
 
 /// Request body extractors with input sanitization and `garde` validation.
 pub mod body;

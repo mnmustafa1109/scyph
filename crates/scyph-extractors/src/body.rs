@@ -13,8 +13,9 @@ use std::ops::{Deref, DerefMut};
 
 /// Axum extractor for JSON request bodies with automatic input sanitization and `garde` validation.
 ///
+/// Execution Pipeline:
 /// 1. Deserializes raw JSON bytes into `T`.
-/// 2. Applies string sanitization via [`Sanitizer::sanitize`].
+/// 2. Applies string sanitization via [`Sanitizer::sanitize`] (e.g. whitespace trimming, case conversions).
 /// 3. Validates domain constraints via [`Validate::validate_with`].
 ///
 /// Converts validation failures into structured [`AppError::ValidationError`] containing field-level error details.

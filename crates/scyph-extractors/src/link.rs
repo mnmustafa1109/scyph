@@ -1,10 +1,12 @@
 //! Header-aware canonical link generator for Axum requests.
 
 use axum::{extract::FromRequestParts, http::request::Parts};
-use scyph_core::error::AppError;
+use scyph_core::AppError;
 use url::Url;
 
-/// Canonical URL link generator extracted from incoming request headers (`Host`, `X-Forwarded-Proto`).
+/// Canonical URL link generator extracted from incoming request headers (`X-Forwarded-Host`, `Host`, `X-Forwarded-Proto`).
+///
+/// Automatically handles proxy headers behind reverse proxies (Cloudflare, NGINX, AWS ALB).
 #[derive(Debug, Clone)]
 pub struct LinkGenerator {
     base_url: Url,

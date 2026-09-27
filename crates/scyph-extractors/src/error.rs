@@ -2,7 +2,11 @@
 
 use scyph_core::AppError;
 
-/// Granular errors encountered during payload extraction and validation.
+/// Granular errors encountered during request payload extraction and validation.
+///
+/// Converts automatically into [`AppError`] RFC 7807 problem details responses:
+/// - [`ExtractorError::JsonParse`], [`ExtractorError::QueryParse`], [`ExtractorError::PathParse`] map to HTTP 400 Bad Request.
+/// - [`ExtractorError::Validation`] maps to HTTP 422 Unprocessable Entity.
 #[derive(Debug, thiserror::Error)]
 pub enum ExtractorError {
     /// JSON request body deserialization failure.
