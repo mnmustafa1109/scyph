@@ -2,7 +2,11 @@
 
 use crate::worker::error::WorkerError;
 use std::{future::Future, time::Duration};
-use tokio::time::{self, MissedTickBehavior};
+use tokio::{
+    sync::watch,
+    task::JoinHandle,
+    time::{self, MissedTickBehavior},
+};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
@@ -11,7 +15,7 @@ use tracing::{error, info};
 pub struct WorkerHandle {
     name: &'static str,
     cancel_token: CancellationToken,
-    join_handle: tokio::task::JoinHandle<()>,
+    join_handle: JoinHandle<()>,
 }
 
 impl WorkerHandle {
@@ -124,9 +128,9 @@ where
 pub fn spawn_worker<F, Fut>(
     name: &'static str,
     interval: Duration,
-    mut shutdown: tokio::sync::watch::Receiver<bool>,
+    mut shutdown: watch::Receiver<bool>,
     task: F,
-) -> tokio::task::JoinHandle<()>
+) -> JoinHandle<()>
 where
     F: Fn() -> Fut + Send + 'static,
     Fut: Future<Output = ()> + Send + 'static,

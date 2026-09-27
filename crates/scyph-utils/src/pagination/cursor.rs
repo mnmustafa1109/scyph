@@ -2,6 +2,7 @@
 
 use crate::pagination::error::PaginationError;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use scyph_core::PagedResponse;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -42,12 +43,12 @@ impl Cursor {
         Uuid::from_slice(&bytes).map_err(|e| PaginationError::InvalidCursor(e.to_string()))
     }
 
-    /// Automatically builds a [`PagedResponse`](scyph_core::PagedResponse) envelope from a fetched item vector.
+    /// Automatically builds a [`PagedResponse`] envelope from a fetched item vector.
     ///
     /// Inspects the item list length against `limit`:
     /// - If `items.len() > limit`, pops the extra element (fetched to detect `has_next`),
     /// - Encodes the next cursor using `get_id(&last_item)`,
-    /// - Returns a clean [`PagedResponse`](scyph_core::PagedResponse).
+    /// - Returns a clean [`PagedResponse`].
     ///
     /// # Arguments
     ///
@@ -76,7 +77,7 @@ impl Cursor {
         items: &mut Vec<T>,
         limit: i64,
         get_id: F,
-    ) -> scyph_core::PagedResponse<T>
+    ) -> PagedResponse<T>
     where
         T: Serialize,
         F: Fn(&T) -> Uuid,
@@ -95,7 +96,7 @@ impl Cursor {
         };
 
         let count = items.len() as i64;
-        let mut resp = scyph_core::PagedResponse::new(std::mem::take(items), count, 1, limit);
+        let mut resp = PagedResponse::new(std::mem::take(items), count, 1, limit);
         resp.has_next = has_next;
         if let Some(nc) = next_cursor {
             resp = resp.with_next_cursor(nc);

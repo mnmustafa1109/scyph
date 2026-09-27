@@ -2,10 +2,11 @@
 
 use crate::webhook::verifier::verify_webhook_header;
 use axum::{
-    body::Bytes,
+    body::{Body, Bytes},
     extract::FromRequest,
     http::Request,
 };
+use scyph_core::AppError;
 use serde::de::DeserializeOwned;
 use std::{env, marker::PhantomData};
 
@@ -88,16 +89,16 @@ where
     T: DeserializeOwned + 'static,
     S: Send + Sync,
 {
-    type Rejection = scyph_core::AppError;
+    type Rejection = AppError;
 
-    async fn from_request(req: Request<axum::body::Body>, state: &S) -> Result<Self, Self::Rejection> {
+    async fn from_request(req: Request<Body>, state: &S) -> Result<Self, Self::Rejection> {
         let headers = req.headers();
 
         let sig_header = headers
             .get(C::header_name())
             .and_then(|v| v.to_str().ok())
             .ok_or_else(|| {
-                scyph_core::AppError::BadRequest(format!(
+                AppError::BadRequest(format!(
                     "Missing expected webhook signature header '{}'",
                     C::header_name()
                 ))
@@ -105,7 +106,7 @@ where
             .to_string();
 
         let secret = env::var(C::secret_env_var()).map_err(|_| {
-            scyph_core::AppError::internal(format!(
+            AppError::internal(format!(
                 "Environment variable '{}' must be set for webhook verification",
                 C::secret_env_var()
             ))
@@ -113,13 +114,13 @@ where
 
         let bytes = Bytes::from_request(req, state)
             .await
-            .map_err(|e| scyph_core::AppError::BadRequest(e.to_string()))?;
+            .map_err(|e| AppError::BadRequest(e.to_string()))?;
 
         verify_webhook_header(&bytes, &sig_header, &secret, C::tolerance_secs())
-            .map_err(scyph_core::AppError::from)?;
+            .map_err(AppError::from)?;
 
         let payload: T = serde_json::from_slice(&bytes)
-            .map_err(|e| scyph_core::AppError::BadRequest(format!("Invalid webhook JSON payload: {e}")))?;
+            .map_err(|e| AppError::BadRequest(format!("Invalid webhook JSON payload: {e}")))?;
 
         Ok(Self(payload, PhantomData))
     }
