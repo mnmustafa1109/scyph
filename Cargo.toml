@@ -10,7 +10,8 @@ description = "A collection of modular, independently usable Rust crates providi
 [features]
 default = ["auth", "db", "health"]
 auth = ["dep:scyph-auth"]
-abac = ["dep:scyph-abac"]
+abac = ["dep:scyph-abac", "scyph-abac?/cedar"]
+cedar = ["abac"]
 db = ["dep:scyph-db"]
 health = [
   "dep:scyph-health",
@@ -20,6 +21,8 @@ health = [
   "scyph-storage?/health",
 ]
 notify = ["dep:scyph-notify"]
+email = ["notify", "scyph-notify?/email"]
+fcm = ["notify", "scyph-notify?/fcm"]
 realtime = ["dep:scyph-realtime"]
 storage = ["dep:scyph-storage", "scyph-storage/s3"]
 s3 = ["storage"]
