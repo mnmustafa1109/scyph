@@ -14,6 +14,7 @@
 //! - **[`realtime`]**: Redis Pub/Sub WebSocket broadcasting, multi-recipient fanout, and typed real-time payload framing.
 //! - **[`storage`]**: S3/MinIO and in-memory object storage abstractions with streaming multipart extractors.
 //! - **[`telemetry`]**: Non-blocking tracing subscribers, time-ordered UUIDv7 request ID propagation, response metadata auto-injection, and dynamic compression.
+//! - **[`ratelimit`]**: IP-based rate limiting layers built on `tower-governor`.
 //!
 //! ## Feature Flags
 //!
@@ -25,6 +26,7 @@
 //! - `realtime`: Enables Redis Pub/Sub WebSocket broadcaster (`scyph-realtime`).
 //! - `storage`: Enables object storage and file extractors (`scyph-storage`).
 //! - `telemetry`: Enables tracing, UUIDv7 request IDs, and auto-meta response injection (`scyph-telemetry`).
+//! - `ratelimit`: Enables IP-based rate limiting middleware (`scyph-ratelimit`).
 //!
 //! ## Quickstart Example
 //!
@@ -89,6 +91,10 @@ pub use scyph_realtime as realtime;
 /// Structured tracing, non-blocking logging, UUIDv7 request ID middleware, response metadata auto-injection, and HTTP response compression.
 pub use scyph_telemetry as telemetry;
 
+#[cfg(feature = "ratelimit")]
+/// IP-based and key-based rate limiting middleware integration via `tower-governor`.
+pub use scyph_ratelimit as ratelimit;
+
 /// Convenient prelude re-exporting common framework types for single-line imports (`use scyph::prelude::*;`).
 pub mod prelude {
     pub use scyph_core::{
@@ -137,6 +143,11 @@ pub mod prelude {
         MakeRequestIdV7, RequestId, TelemetryConfig, TelemetryGuard,
     };
 
+    #[cfg(feature = "ratelimit")]
+    pub use scyph_ratelimit::{
+        per_ip_layer, relaxed_layer, strict_layer, PeerRateLimitLayer,
+    };
+
     #[cfg(all(feature = "db", feature = "health"))]
     pub use scyph_db::DbHealthExt;
 
@@ -181,6 +192,9 @@ pub use scyph_realtime::{
 pub use scyph_telemetry::{
     auto_meta_middleware, init_tracing, with_telemetry, RequestId, TelemetryGuard,
 };
+
+#[cfg(feature = "ratelimit")]
+pub use scyph_ratelimit::{per_ip_layer, relaxed_layer, strict_layer, PeerRateLimitLayer};
 
 #[cfg(all(feature = "realtime", feature = "health"))]
 pub use scyph_realtime::RealtimeHealthExt;

@@ -27,6 +27,7 @@ realtime = ["dep:scyph-realtime"]
 storage = ["dep:scyph-storage", "scyph-storage/s3"]
 s3 = ["storage"]
 telemetry = ["dep:scyph-telemetry"]
+ratelimit = ["dep:scyph-ratelimit"]
 
 [dependencies]
 scyph-core = { path = "crates/scyph-core", version = "0.1.0" }
@@ -38,6 +39,7 @@ scyph-notify = { path = "crates/scyph-notify", version = "0.1.0", optional = tru
 scyph-realtime = { path = "crates/scyph-realtime", version = "0.1.0", optional = true }
 scyph-storage = { path = "crates/scyph-storage", version = "0.1.0", optional = true }
 scyph-telemetry = { path = "crates/scyph-telemetry", version = "0.1.0", optional = true }
+scyph-ratelimit = { path = "crates/scyph-ratelimit", version = "0.1.0", optional = true }
 
 [workspace]
 resolver = "3"
@@ -52,6 +54,7 @@ members = [
   "crates/scyph-realtime",
   "crates/scyph-storage",
   "crates/scyph-telemetry",
+  "crates/scyph-ratelimit",
 ]
 
 [workspace.package]
@@ -118,6 +121,8 @@ tracing-subscriber = { version = "0.3.23", features = [
   "time",
 ] }
 tracing-appender = "0.2.3"
+tower_governor = "0.8.0"
+governor = "0.10.4"
 
 # ── Shared release profile for peak performance ──────────────────────────────
 [profile.release]

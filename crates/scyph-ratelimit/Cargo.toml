@@ -1,0 +1,19 @@
+# crates/scyph-ratelimit/Cargo.toml
+[package]
+name = "scyph-ratelimit"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "tower-governor rate-limit layer builder for scyph backends"
+
+[dependencies]
+axum = { workspace = true }
+governor = { workspace = true }
+tower_governor = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+tower = { version = "0.5.3", features = ["util"] }
