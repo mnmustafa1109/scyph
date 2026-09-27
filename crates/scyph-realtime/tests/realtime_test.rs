@@ -164,5 +164,5 @@ async fn test_realtime_health_check_integration() {
     let snapshot = registry.snapshot().await;
     assert!(snapshot.contains_key("test_realtime"));
     let service_status = &snapshot["test_realtime"];
-    assert_eq!(service_status.required, false);
+    assert!(!service_status.required);
 }
