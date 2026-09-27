@@ -24,8 +24,6 @@ allow = [
   "OpenSSL",
   "Zlib",
 ]
-deny = ["GPL-3.0", "AGPL-3.0", "LGPL-3.0"]
-unlicensed = "deny"
 private = { ignore = true }
 
 [advisories]
