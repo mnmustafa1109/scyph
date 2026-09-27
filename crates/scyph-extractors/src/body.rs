@@ -7,7 +7,7 @@ use axum::{
 };
 use garde::Validate;
 use sanitizer::Sanitizer;
-use scyph_core::error::AppError;
+use scyph_core::error::{AppError, ErrorDetails};
 use serde::de::DeserializeOwned;
 use std::ops::{Deref, DerefMut};
 
@@ -16,6 +16,8 @@ use std::ops::{Deref, DerefMut};
 /// 1. Deserializes raw JSON bytes into `T`.
 /// 2. Applies string sanitization via [`Sanitizer::sanitize`].
 /// 3. Validates domain constraints via [`Validate::validate_with`].
+///
+/// Converts validation failures into structured [`AppError::ValidationError`] containing field-level error details.
 ///
 /// # Examples
 ///
@@ -77,9 +79,24 @@ where
 
         value.sanitize();
 
-        value
-            .validate_with(&Default::default())
-            .map_err(|e| ExtractorError::Validation(e.to_string()))?;
+        if let Err(report) = value.validate_with(&Default::default()) {
+            let details: Vec<ErrorDetails> = report
+                .iter()
+                .map(|(path, error)| {
+                    let field = path.to_string();
+                    ErrorDetails {
+                        code: "VALIDATION_ERROR".to_string(),
+                        message: error.to_string(),
+                        field: if field.is_empty() { None } else { Some(field) },
+                    }
+                })
+                .collect();
+
+            return Err(AppError::ValidationError {
+                message: "JSON body payload validation failed".to_string(),
+                details,
+            });
+        }
 
         Ok(ValidatedJson(value))
     }

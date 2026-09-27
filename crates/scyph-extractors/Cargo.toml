@@ -16,3 +16,4 @@ garde = { workspace = true }
 sanitizer = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+url = { workspace = true }

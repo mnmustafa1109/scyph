@@ -135,6 +135,7 @@ hex = "0.4.3"
 base64 = "0.23.1"
 garde = { version = "0.23.0", features = ["derive", "email", "url"] }
 sanitizer = { version = "1.0.0", features = ["derive"] }
+url = "2.5.4"
 
 # ── Shared release profile for peak performance ──────────────────────────────
 [profile.release]

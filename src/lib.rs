@@ -169,7 +169,9 @@ pub mod prelude {
 
     #[cfg(feature = "extractors")]
     pub use scyph_extractors::{
-        ExtractorError, SanitizedJson, TypedPath, ValidatedJson, ValidatedPath, ValidatedQuery,
+        ExtractorError, FilterParams, LinkBuilder, LinkGenerator, PaginationParams, RequestParams,
+        SanitizedJson, SearchParams, SortOrder, SortParams, TypedPath, ValidatedJson,
+        ValidatedPath, ValidatedQuery, deserialize_number_from_string,
     };
 
     #[cfg(all(feature = "db", feature = "health"))]
@@ -230,7 +232,11 @@ pub use scyph_utils::{
 };
 
 #[cfg(feature = "extractors")]
-pub use scyph_extractors::{ExtractorError, SanitizedJson, TypedPath, ValidatedJson, ValidatedPath, ValidatedQuery};
+pub use scyph_extractors::{
+    ExtractorError, FilterParams, LinkBuilder, LinkGenerator, PaginationParams, RequestParams,
+    SanitizedJson, SearchParams, SortOrder, SortParams, TypedPath, ValidatedJson, ValidatedPath,
+    ValidatedQuery, deserialize_number_from_string,
+};
 
 #[cfg(all(feature = "realtime", feature = "health"))]
 pub use scyph_realtime::RealtimeHealthExt;
