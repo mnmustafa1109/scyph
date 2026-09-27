@@ -3,14 +3,16 @@
 use std::fmt::{Display, Formatter};
 
 use axum::{
-    extract::FromRequestParts,
-    http::{request::Parts, HeaderName, HeaderValue, Request},
     Router,
+    extract::FromRequestParts,
+    http::{HeaderName, HeaderValue, Request, request::Parts},
 };
 use scyph_core::AppError;
 use tower_http::{
     compression::CompressionLayer,
-    request_id::{MakeRequestId, PropagateRequestIdLayer, RequestId as TowerRequestId, SetRequestIdLayer},
+    request_id::{
+        MakeRequestId, PropagateRequestIdLayer, RequestId as TowerRequestId, SetRequestIdLayer,
+    },
     trace::TraceLayer,
 };
 use uuid::Uuid;
@@ -21,8 +23,9 @@ pub struct MakeRequestIdV7;
 
 impl MakeRequestId for MakeRequestIdV7 {
     fn make_request_id<B>(&mut self, _request: &Request<B>) -> Option<TowerRequestId> {
-        let uuid_str = Uuid::now_v7().to_string();
-        let header_val = HeaderValue::from_str(&uuid_str).ok()?;
+        let mut buf = [0u8; 36];
+        let uuid_str = Uuid::now_v7().as_hyphenated().encode_lower(&mut buf);
+        let header_val = HeaderValue::from_str(uuid_str).ok()?;
         Some(TowerRequestId::new(header_val))
     }
 }
@@ -55,6 +58,14 @@ impl RequestId {
 impl Display for RequestId {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+
+impl std::ops::Deref for RequestId {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
