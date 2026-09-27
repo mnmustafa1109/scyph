@@ -30,11 +30,9 @@ private = { ignore = true }
 
 [advisories]
 db-urls = ["https://github.com/rustsec/advisory-db"]
-vulnerability = "deny"
-unmaintained = "warn"
-unsound = "deny"
 yanked = "warn"
-notice = "warn"
+unmaintained = "workspace"
+unsound = "workspace"
 
 [bans]
 multiple-versions = "warn"
