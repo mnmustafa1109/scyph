@@ -41,6 +41,10 @@ pub use scyph_storage as storage;
 /// Redis Pub/Sub WebSocket broadcaster for cross-replica message fanout.
 pub use scyph_realtime as realtime;
 
+#[cfg(feature = "telemetry")]
+/// Structured tracing, non-blocking logging, UUIDv7 request ID middleware, and HTTP response compression.
+pub use scyph_telemetry as telemetry;
+
 /// Convenient prelude re-exporting common framework types for single-line imports (`use scyph::prelude::*;`).
 pub mod prelude {
     pub use scyph_core::{
@@ -83,6 +87,12 @@ pub mod prelude {
         RealtimePayload, RealtimeSession,
     };
 
+    #[cfg(feature = "telemetry")]
+    pub use scyph_telemetry::{
+        init_tracing, with_telemetry, with_telemetry_config, MakeRequestIdV7, RequestId,
+        TelemetryConfig, TelemetryGuard,
+    };
+
     #[cfg(all(feature = "db", feature = "health"))]
     pub use scyph_db::DbHealthExt;
 
@@ -120,6 +130,9 @@ pub use scyph_storage::StorageError;
 pub use scyph_realtime::{
     RealtimeBroadcaster, RealtimeError, RealtimeEvent, RealtimePayload, RealtimeSession,
 };
+
+#[cfg(feature = "telemetry")]
+pub use scyph_telemetry::{init_tracing, with_telemetry, RequestId, TelemetryGuard};
 
 #[cfg(all(feature = "realtime", feature = "health"))]
 pub use scyph_realtime::RealtimeHealthExt;
