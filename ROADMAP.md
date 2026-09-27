@@ -55,12 +55,21 @@ This document outlines the development roadmap, planned features, and architectu
 
 ---
 
+### 🗄️ `scyph-db` (PostgreSQL Database & Dynamic Queries)
+
+- 🟢 **Connection Pooling**: SQLx PostgreSQL connection pool builder with environment-driven tuning.
+- 🟢 **Transactions & Migrations**: Safe transaction lifecycle management, automated SQL migrations, and database seeding.
+- 🟢 **Dynamic Query Composition**: Type-safe `QueryBuilder` extension traits for multi-column ILIKE search (with wildcard sanitization), column filtering, ORDER BY sorting, and LIMIT/OFFSET pagination.
+- 🟢 **Count Query Separation**: `apply_conditions` separation for high-performance `SELECT COUNT(*)` queries alongside paginated data queries.
+
+---
+
 ### 🗄️ `scyph-storage` (Object Storage & Files)
 
 - 🟢 **Dual-Client S3 Architecture**: Separate client configurations for internal cluster communication (e.g. MinIO) and public presigned CDN URLs.
 - 🟢 **Multipart File Extractors**: Type-safe Axum extractors (`FileExtractor`, `MultiFileExtractor`) with size/MIME validation.
+- 🟢 **Image Processing & Thumbnails**: Automated aspect-ratio-preserving thumbnail generation, decompression bomb protection, format conversion, and atomic dual-storage uploading (`StorageThumbnailExt`).
 - 🟡 **Resumable Uploads**: Support for S3 multipart upload session initiation, chunk streaming, and completion.
-- 🔵 **Image Processing Middleware**: Optional feature flag for automated thumbnail generation and format conversion upon upload.
 
 ---
 
