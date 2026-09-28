@@ -101,11 +101,11 @@ impl IdempotencyStore {
         match res {
             Ok(Some(_)) => Ok(IdempotencyCheck::New),
             Ok(None) => {
-                let cached: String = conn.get(&redis_key).await?;
-                if cached == Self::IN_PROGRESS_MARKER {
-                    Ok(IdempotencyCheck::InProgress)
-                } else {
-                    Ok(IdempotencyCheck::Seen(cached))
+                let cached: Option<String> = conn.get(&redis_key).await?;
+                match cached.as_deref() {
+                    Some(Self::IN_PROGRESS_MARKER) => Ok(IdempotencyCheck::InProgress),
+                    Some(val) => Ok(IdempotencyCheck::Seen(val.to_string())),
+                    None => Ok(IdempotencyCheck::New),
                 }
             }
             Err(e) => Err(IdempotencyError::Redis(e)),
