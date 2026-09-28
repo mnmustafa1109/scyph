@@ -14,14 +14,46 @@ use crate::{
     multipart::{config::FileConfig, util::read_field_bytes},
 };
 
-/// Axum request extractor for single-file uploads with type-level validation configuration `C`.
+/// Axum request extractor for single required file uploads with type-level validation configuration `C`.
 ///
-/// Automatically parses the multipart boundary, verifies the field name matches [`FileConfig::field_name`],
-/// validates the Content-Type header against [`FileConfig::allowed_mime_types`], streams binary data
-/// chunk-by-chunk with immediate enforcement of [`FileConfig::max_size`], and formats a time-ordered
-/// UUID v7 S3 key path.
+/// Implements [`FromRequest`](axum::extract::FromRequest) — Axum calls it automatically when
+/// used as a handler parameter. It parses the multipart boundary, locates the field matching
+/// [`FileConfig::field_name`], validates Content-Type and magic bytes, buffers the data with
+/// size enforcement, and generates a time-ordered UUIDv7 S3 key.
 ///
-/// # Examples
+/// ## Type Parameter
+///
+/// `C` must implement [`FileConfig`]. Use a zero-sized marker struct:
+///
+/// ```rust
+/// use scyph_storage::FileConfig;
+///
+/// pub struct AvatarUpload; // zero-sized, zero runtime cost
+///
+/// impl FileConfig for AvatarUpload {
+///     fn field_name() -> &'static str { "avatar" }
+///     fn max_size() -> usize { 2 * 1024 * 1024 }
+///     fn allowed_mime_types() -> Vec<&'static str> { vec!["image/jpeg", "image/png"] }
+///     fn storage_path() -> &'static str { "avatars" }
+/// }
+/// ```
+///
+/// ## Validation Steps (in order)
+///
+/// 1. Parse multipart boundary from `Content-Type: multipart/form-data; boundary=...`
+/// 2. Iterate fields until one matching [`FileConfig::field_name()`](FileConfig::field_name) is found
+/// 3. Verify the field carries a `filename` (rejects non-file fields)
+/// 4. Check `Content-Type` header against [`allowed_mime_types()`](FileConfig::allowed_mime_types)
+/// 5. Stream data chunks, abort immediately if accumulated size exceeds [`max_size()`](FileConfig::max_size)
+/// 6. If [`enforce_magic_bytes()`](FileConfig::enforce_magic_bytes) is `true`, verify binary signature
+/// 7. Generate key: `{storage_path()}/{uuid_v7}.{extension}`
+///
+/// ## Rejection Behavior
+///
+/// Returns `AppError` (HTTP 400/422) if any validation step fails. The request body is consumed.
+/// Use [`OptionalFileExtractor`](crate::multipart::OptionalFileExtractor) if the file field is optional.
+///
+/// ## Full Handler Example
 ///
 /// ```rust,no_run
 /// use axum::response::Json;
@@ -39,19 +71,38 @@ use crate::{
 /// async fn upload_doc_handler(
 ///     file: FileExtractor<DocumentUpload>,
 /// ) -> Result<Json<String>, AppError> {
+///     // file.path is a ready-to-use S3 key, e.g., "documents/018f2d5e-....pdf"
 ///     Ok(Json(file.path))
 /// }
 /// ```
 #[derive(Debug, Clone)]
 pub struct FileExtractor<C: FileConfig> {
-    /// Zero-copy byte buffer containing the uploaded file content.
+    /// Zero-copy byte buffer containing the complete uploaded file content.
+    ///
+    /// The entire file is buffered in memory after passing size validation.
+    /// Pass this directly to [`StorageService::store`](crate::traits::StorageService::store).
     pub data: Bytes,
-    /// MIME content-type of the file (e.g. `"image/png"`).
+
+    /// MIME content-type of the file as declared in the multipart `Content-Type` header.
+    ///
+    /// Always a string from [`FileConfig::allowed_mime_types()`](FileConfig::allowed_mime_types),
+    /// defaulting to `"application/octet-stream"` if the header was absent.
     pub content_type: String,
-    /// Generated S3 destination path formatted as `{storage_path}/{uuid_v7}.{ext}`.
+
+    /// Generated S3 destination key formatted as `{storage_path}/{uuid_v7}.{ext}`.
+    ///
+    /// This is a relative path/key suitable for use as the `path` argument to
+    /// [`StorageService::store`](crate::traits::StorageService::store).
+    /// Example: `"avatars/018f2d5e-4a6c-7000-8000-000000000001.png"`
     pub path: String,
-    /// Original filename sent by the client's browser (e.g. `"resume.pdf"`).
+
+    /// Original filename submitted by the client's browser (e.g., `"resume.pdf"`, `"photo.jpg"`).
+    ///
+    /// This is the raw filename from the multipart `Content-Disposition` header. It is
+    /// **not** used for the S3 key (a UUID v7 path is generated instead), but may be useful
+    /// for display purposes or audit logging.
     pub original_name: String,
+
     _config: PhantomData<C>,
 }
 

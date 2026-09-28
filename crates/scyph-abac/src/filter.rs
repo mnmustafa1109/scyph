@@ -3,7 +3,44 @@
 //! Provides [`FilterBuilder`], a wrapper around [`sqlx::QueryBuilder`] for appending
 //! parameterized SQL `WHERE` clauses safely without SQL injection vulnerabilities.
 //!
-//! # Examples
+//! # Design
+//!
+//! `FilterBuilder` wraps SQLx's `QueryBuilder<Postgres>` and exposes a chainable API
+//! for constructing dynamic `WHERE` clauses driven by ABAC policy logic. The key distinction
+//! from raw string concatenation:
+//!
+//! - **`push`**: Appends trusted static SQL fragments (column names, operators, SQL keywords).
+//! - **`push_bind` / `push_uuid`**: Appends parameterized placeholders (`$1`, `$2`, …) and
+//!   binds the actual value safely via the database driver, preventing SQL injection.
+//!
+//! # Usage Pattern
+//!
+//! `FilterBuilder` is typically used inside [`AbacPolicy::apply_query_filter`] implementations
+//! to scope list queries to records the user is allowed to see:
+//!
+//! ```rust,ignore
+//! use scyph_abac::{AbacPolicy, AbacError, FilterBuilder};
+//! use scyph_auth::AuthUser;
+//! use scyph_core::Action;
+//!
+//! struct DocumentPolicy;
+//! impl AbacPolicy for DocumentPolicy {
+//!     type Resource = ();
+//!     type Claims = AppClaims;
+//!
+//!     fn check(_: &AuthUser<AppClaims>, _: &(), _: Action) -> Result<(), AbacError> { Ok(()) }
+//!
+//!     fn apply_query_filter(filter: &mut FilterBuilder, subject: &AuthUser<AppClaims>, _: Action) {
+//!         // Scope results: user sees public docs OR their own docs
+//!         filter
+//!             .push("(is_public = true OR owner_id = ")
+//!             .push_uuid(subject.id)
+//!             .push(")");
+//!     }
+//! }
+//! ```
+//!
+//! Then in a handler:
 //!
 //! ```rust
 //! use scyph_abac::FilterBuilder;
@@ -16,6 +53,11 @@
 //! let sql_query = filter.into_inner().into_sql();
 //! assert!(sql_query.as_str().contains("WHERE is_public = true OR owner_id = "));
 //! ```
+//!
+//! # Security Note
+//!
+//! Never pass user-controlled input to [`FilterBuilder::push`]. Always use
+//! [`FilterBuilder::push_bind`] or [`FilterBuilder::push_uuid`] for runtime values.
 
 use scyph_auth::AuthUser;
 use scyph_core::Action;

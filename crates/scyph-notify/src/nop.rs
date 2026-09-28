@@ -2,15 +2,41 @@
 //!
 //! These dummy services implement the [`PushService`] and [`EmailService`] traits with zero-cost
 //! `Ok(())` stubs. They are ideal for unit testing, offline development, or feature-flagging notification logic.
+//!
+//! ## When to Use No-Op Services
+//!
+//! - **Unit tests**: Replace real SMTP/FCM services to avoid network calls and environment config.
+//! - **Local development**: Run the full application stack without setting up an SMTP relay or Firebase project.
+//! - **CI/CD pipelines**: Keep tests fast and hermetic.
+//!
+//! ## Dependency Injection Pattern
+//!
+//! Because handlers depend on the `EmailService`/`PushService` traits (not concrete types), swapping
+//! in no-op services requires zero handler changes:
+//!
+//! ```rust,ignore
+//! use std::sync::Arc;
+//! use scyph_notify::{EmailService, NoEmailService};
+//!
+//! // Production
+//! // let email: Arc<dyn EmailService> = Arc::new(LettreSMTPService::from_env().unwrap());
+//!
+//! // Tests / local dev
+//! let email: Arc<dyn EmailService> = Arc::new(NoEmailService);
+//! ```
 
 use crate::{
     NotifyError,
     traits::{EmailMessage, EmailService, PushNotification, PushService},
 };
 
-/// Dummy no-op [`PushService`] implementation that silently logs/swallows push notifications.
+/// Dummy no-op [`PushService`] implementation that silently discards push notifications.
 ///
-/// Useful for testing, offline local development, or disabling push notifications without mutating application logic.
+/// Implements `PushService` with an instant `Ok(())` return — no network calls, no configuration
+/// required. Use this during testing, local development, or any environment where push notification
+/// delivery is intentionally disabled.
+///
+/// `NoPushService` is a zero-sized type (`Copy + Clone + Default`), so it carries no runtime overhead.
 ///
 /// # Examples
 ///
@@ -44,9 +70,13 @@ impl PushService for NoPushService {
     }
 }
 
-/// Dummy no-op [`EmailService`] implementation that silently logs/swallows email delivery requests.
+/// Dummy no-op [`EmailService`] implementation that silently discards email delivery requests.
 ///
-/// Useful for unit testing, integration tests, or local environments where no SMTP server is configured.
+/// Implements `EmailService` with an instant `Ok(())` return — no SMTP connection, no TLS handshake,
+/// no credentials required. Use this during unit testing, integration tests, or local environments
+/// where no SMTP relay is available.
+///
+/// `NoEmailService` is a zero-sized type (`Copy + Clone + Default`), so it carries no runtime overhead.
 ///
 /// # Examples
 ///

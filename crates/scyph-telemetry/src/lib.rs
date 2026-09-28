@@ -13,6 +13,42 @@
 //! - **Automatic Telemetry Headers & Envelope Metadata Injection ([`auto_meta_middleware`])**: Measures request processing latency (`processing_time_ms`), attaches HTTP telemetry response headers (`x-response-time-ms`, `x-api-version`, `x-trace-id`) to all responses, and safely injects ISO-8601 UTC timestamps, request trace ID, and API version (`ResponseMeta`) directly into discrete JSON response envelopes ([`ApiResponse`](scyph_core::ApiResponse) and [`PagedResponse`](scyph_core::PagedResponse)) with streaming guards and zero-loss error fallbacks.
 //! - **Configurable Telemetry Builder ([`TelemetryConfig`])**: Enables or disables compression, tracing, auto-meta injection, API version, and custom request ID header names.
 //!
+//! ## Layer Stack Order
+//!
+//! When using [`with_telemetry`] or [`with_telemetry_config`], the middleware layers are applied
+//! in the following order (innermost to outermost from the request's perspective):
+//!
+//! ```text
+//! Incoming Request
+//!     ↓
+//! [4] SetRequestIdLayer        — generate UUIDv7 x-request-id if absent
+//!     ↓
+//! [3] CompressionLayer         — compress response after all other layers
+//!     ↓
+//! [2] TraceLayer               — create tracing span with request_id, method, uri
+//!     ↓
+//! [1] auto_meta_middleware      — inject ResponseMeta + telemetry headers
+//!     ↓
+//! Route Handler
+//!     ↑
+//! [1] auto_meta_middleware      — intercepts response, injects "meta" JSON key
+//!     ↑
+//! [2] TraceLayer               — records span end with status code
+//!     ↑
+//! [3] CompressionLayer         — compresses finalized response body
+//!     ↑
+//! [4] PropagateRequestIdLayer  — propagates x-request-id from request to response
+//!     ↑
+//! Outgoing Response
+//! ```
+//!
+//! ## Environment Variables
+//!
+//! | Variable | Used By | Values | Default |
+//! |----------|---------|--------|---------|
+//! | `RUST_LOG` | [`init_tracing`] | Standard `tracing` filter directives | `"info"` |
+//! | `LOG_FORMAT` | [`init_tracing`] | `"json"` or `"pretty"` | `"json"` |
+//!
 //! ## Quickstart Example
 //!
 //! ```rust,ignore
@@ -32,6 +68,8 @@
 //!     // 3. Attach telemetry middleware (request ID, tracing, auto-meta, compression)
 //!     let app = with_telemetry(app);
 //!
+//!     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
+//!     axum::serve(listener, app).await?;
 //!     Ok(())
 //! }
 //!

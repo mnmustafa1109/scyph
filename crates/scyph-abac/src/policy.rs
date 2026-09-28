@@ -3,16 +3,49 @@
 //! Provides [`AbacPolicy`], the core interface for defining fine-grained authorization rules
 //! and SQL query filter injections for application entities.
 //!
+//! # Design
+//!
+//! Each protected resource type in your domain gets its own policy struct. The policy struct
+//! holds no state — it is a zero-sized type used purely as a namespace for associated functions.
+//! This design keeps authorization logic co-located with the domain resource it guards.
+//!
+//! ```text
+//! Document resource  →  DocumentPolicy  (implements AbacPolicy)
+//! User resource      →  UserPolicy      (implements AbacPolicy)
+//! Invoice resource   →  InvoicePolicy   (implements AbacPolicy)
+//! ```
+//!
+//! # The Three Authorization Methods
+//!
+//! [`AbacPolicy`] provides three optional SQL filter hooks in addition to the required `check`:
+//!
+//! - [`check`](AbacPolicy::check): In-memory authorization against a loaded resource instance.
+//!   Use this for single-resource operations (GET, UPDATE, DELETE).
+//!
+//! - [`apply_query_filter`](AbacPolicy::apply_query_filter): Appends SQL `WHERE` conditions
+//!   for list queries where no specific resource instance exists yet.
+//!   Use this for collection endpoints (LIST, SEARCH) to scope results to what the user can see.
+//!
+//! - [`apply_query_filter_with_resource`](AbacPolicy::apply_query_filter_with_resource):
+//!   Appends SQL `WHERE` conditions using both user and resource attributes.
+//!   Use this for sub-resource list queries (e.g., "list comments on this document").
+//!
+//! - [`apply_query_filter_with_alias`](AbacPolicy::apply_query_filter_with_alias):
+//!   Like `apply_query_filter` but for JOIN queries using table aliases (e.g., `d.owner_id`).
+//!
 //! # Examples
 //!
 //! ```rust,ignore
-//! use scyph_abac::{AbacPolicy, FilterBuilder};
+//! use scyph_abac::{AbacPolicy, AbacError, FilterBuilder};
 //! use scyph_auth::AuthUser;
-//! use scyph_core::{Action, AppError, Claims};
+//! use scyph_core::{Action, Claims};
 //! use uuid::Uuid;
+//! use serde::{Serialize, Deserialize};
 //!
+//! #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 //! enum Role { User, Admin }
 //!
+//! #[derive(Clone, Serialize, Deserialize)]
 //! struct MyClaims { sub: Uuid, exp: i64, jti: String, role: Role }
 //! impl Claims for MyClaims {
 //!     type Role = Role;
@@ -29,21 +62,47 @@
 //!     type Resource = Document;
 //!     type Claims = MyClaims;
 //!
+//!     /// Enforce rules on a loaded document instance (GET / UPDATE / DELETE).
 //!     fn check(
 //!         subject: &AuthUser<Self::Claims>,
 //!         resource: &Self::Resource,
 //!         action: Action,
-//!     ) -> Result<(), AppError> {
+//!     ) -> Result<(), AbacError> {
+//!         let is_owner = resource.owner_id == subject.id;
+//!         let is_admin = *subject.claims.role() == Role::Admin;
+//!
 //!         match action {
 //!             Action::Read => {
-//!                 if resource.is_public || resource.owner_id == subject.id || *subject.claims.role() == Role::Admin {
+//!                 if resource.is_public || is_owner || is_admin {
 //!                     Ok(())
 //!                 } else {
-//!                     Err(AppError::Forbidden("Access denied".into()))
+//!                     Err(AbacError::Forbidden("Cannot read this document".into()))
+//!                 }
+//!             }
+//!             Action::Update | Action::Delete => {
+//!                 if is_owner || is_admin {
+//!                     Ok(())
+//!                 } else {
+//!                     Err(AbacError::Forbidden("Cannot modify this document".into()))
 //!                 }
 //!             }
 //!             _ => Ok(()),
 //!         }
+//!     }
+//!
+//!     /// Scope LIST queries so users only see documents they can access.
+//!     fn apply_query_filter(
+//!         filter: &mut FilterBuilder,
+//!         subject: &AuthUser<Self::Claims>,
+//!         _action: Action,
+//!     ) {
+//!         if *subject.claims.role() != Role::Admin {
+//!             filter
+//!                 .push("(is_public = true OR owner_id = ")
+//!                 .push_uuid(subject.id)
+//!                 .push(")");
+//!         }
+//!         // Admins see all documents — no filter appended
 //!     }
 //! }
 //! ```

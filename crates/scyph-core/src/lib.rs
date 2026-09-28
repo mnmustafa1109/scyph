@@ -1,7 +1,8 @@
 //! # Scyph Core
 //!
 //! `scyph-core` provides the foundational building blocks for web applications built
-//! with the Scyph framework.
+//! with the Scyph framework. It is deliberately minimal — containing only types,
+//! traits, and response envelopes — with no web-framework dependencies beyond Axum.
 //!
 //! ## Overview
 //!
@@ -9,6 +10,25 @@
 //! - **[`error`]**: Standardized RFC 7807 Problem Details HTTP error handling via [`AppError`].
 //! - **[`response`]**: Standardized API response envelopes ([`ApiResponse`] and [`PagedResponse`]).
 //! - **[`traits`]**: Traits for user identity, JWT claims parsing ([`Claims`]), and authorization actions ([`Action`]).
+//!
+//! ## Architecture
+//!
+//! `scyph-core` sits at the bottom of the Scyph dependency graph. All other crates depend on
+//! it, but it depends on nothing Scyph-specific:
+//!
+//! ```text
+//! ┌─────────────────────────────────────────────┐
+//! │               Your Application              │
+//! └──────────┬─────────────┬────────────────────┘
+//!            │             │
+//!     ┌──────▼──────┐  ┌───▼──────┐
+//!     │ scyph-auth  │  │scyph-abac│
+//!     └──────┬──────┘  └───┬──────┘
+//!            └──────┬──────┘
+//!             ┌─────▼─────┐
+//!             │scyph-core │  ← you are here
+//!             └───────────┘
+//! ```
 //!
 //! ## Quick Example
 //!
@@ -18,6 +38,22 @@
 //!
 //! async fn example_handler() -> Result<ApiResponse<&'static str>, AppError> {
 //!     Ok(ApiResponse::ok("Hello, Scyph!"))
+//! }
+//! ```
+//!
+//! ## Error Handling Pattern
+//!
+//! Define handlers that return `Result<ApiResponse<T>, AppError>`. Axum will automatically
+//! call `IntoResponse` on the error path, producing an RFC 7807 JSON error body:
+//!
+//! ```rust
+//! use scyph_core::{ApiResponse, AppError};
+//!
+//! async fn get_user(id: u64) -> Result<ApiResponse<String>, AppError> {
+//!     if id == 0 {
+//!         return Err(AppError::NotFound("User not found".into()));
+//!     }
+//!     Ok(ApiResponse::ok_msg("Alice".into(), "User fetched successfully"))
 //! }
 //! ```
 

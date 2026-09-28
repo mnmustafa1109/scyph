@@ -14,7 +14,22 @@
 //! - **[`relaxed_layer`] / [`smart_relaxed_layer`]**: High-throughput rate limiter (500 requests per 100ms) for high-traffic APIs.
 //! - **[`RateLimitError`]**: Strongly-typed error enum for rate limiter initialization.
 //!
-//! ## Quick Example
+//! ## Choosing a Layer Variant
+//!
+//! | Deployment | Recommended Layer | Key Extractor |
+//! |---|---|---|
+//! | Direct (no proxy) | [`PeerRateLimitLayer`] / [`strict_layer`] / [`relaxed_layer`] | `PeerIpKeyExtractor` (socket addr) |
+//! | Behind Nginx/Cloudflare/ALB | [`SmartRateLimitLayer`] / [`smart_strict_layer`] / [`smart_relaxed_layer`] | `SmartIpKeyExtractor` (headers + fallback) |
+//!
+//! When using [`PeerRateLimitLayer`], the Axum server **must** be started with
+//! `.into_make_service_with_connect_info::<SocketAddr>()` so that the socket peer address
+//! is available in request extensions. Failing to do so results in all requests being treated
+//! as coming from the same IP, effectively applying a global rate limit.
+//!
+//! [`SmartRateLimitLayer`] does not require `ConnectInfo` and is therefore the safer default
+//! for most production deployments.
+//!
+//! ## Quick Start — Reverse Proxy Deployment
 //!
 //! ```rust,ignore
 //! use axum::{routing::get, Router};
@@ -24,6 +39,40 @@
 //! let app = Router::new()
 //!     .route("/api/data", get(|| async { "OK" }))
 //!     .rate_limit_smart_relaxed();
+//! ```
+//!
+//! ## Quick Start — Direct Socket Deployment
+//!
+//! ```rust,ignore
+//! use axum::{Router, routing::post};
+//! use scyph_ratelimit::RateLimitRouterExt;
+//! use std::net::SocketAddr;
+//!
+//! let app = Router::new()
+//!     .route("/login", post(|| async { "login" }))
+//!     .rate_limit_strict();
+//!
+//! // IMPORTANT: ConnectInfo MUST be provided for PeerIpKeyExtractor to work.
+//! let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+//! axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
+//!     .await
+//!     .unwrap();
+//! ```
+//!
+//! ## Quick Start — Custom Configuration
+//!
+//! ```rust,ignore
+//! use axum::{Router, routing::get};
+//! use scyph_ratelimit::{RateLimitConfig, RateLimitRouterExt};
+//! use std::time::Duration;
+//!
+//! // Load from environment or fall back to defaults
+//! let config = RateLimitConfig::from_env()
+//!     .unwrap_or_else(|_| RateLimitConfig::new().with_burst(50).with_period(Duration::from_secs(1)));
+//!
+//! let app = Router::new()
+//!     .route("/api/v1/feed", get(|| async { "feed" }))
+//!     .rate_limit_smart(config);
 //! ```
 
 /// Rate limit configuration builder.

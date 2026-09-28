@@ -1,4 +1,51 @@
 //! Standard JSON envelope for single objects or lists.
+//!
+//! This module provides [`ApiResponse<T>`], the canonical success response wrapper used
+//! across all Scyph-based HTTP handlers. It ensures every successful response shares a
+//! consistent JSON shape regardless of the underlying payload type.
+//!
+//! # Wire Format
+//!
+//! A typical `200 OK` response produced by [`ApiResponse::ok`] serializes as:
+//!
+//! ```json
+//! {
+//!   "success": true,
+//!   "message": "OK",
+//!   "data": {
+//!     "id": "01923f81-5c8e-7e9b-b4a1-8d2f1e4067a9",
+//!     "name": "Alice",
+//!     "email": "alice@example.com"
+//!   }
+//! }
+//! ```
+//!
+//! When optional metadata is attached via [`ApiResponse::with_meta`], the `meta` key is included:
+//!
+//! ```json
+//! {
+//!   "success": true,
+//!   "message": "OK",
+//!   "meta": {
+//!     "processing_time_ms": 5,
+//!     "timestamp": "2026-09-28T12:00:00Z",
+//!     "trace_id": "01923f81-5c8e-7e9b-b4a1-8d2f1e4067a9",
+//!     "version": "0.1.0"
+//!   },
+//!   "data": { "id": "...", "name": "Alice" }
+//! }
+//! ```
+//!
+//! When `data` is `None` (e.g. using `ApiResponse::no_content`), neither `data` nor `meta`
+//! keys appear in the serialized JSON (controlled by `#[serde(skip_serializing_if = "Option::is_none")]`).
+//!
+//! # Design Notes
+//!
+//! - `ApiResponse<T>` implements [`IntoResponse`](axum::response::IntoResponse) directly,
+//!   so handlers can return `Result<ApiResponse<T>, AppError>` without explicit conversion.
+//! - The `created` and `no_content` constructors return `impl IntoResponse` rather than
+//!   `ApiResponse<T>` because they set non-200 status codes (201, 204) that don't match the
+//!   default `IntoResponse` impl's 200 status.
 
 use super::meta::ResponseMeta;
 use axum::{

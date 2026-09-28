@@ -1,4 +1,75 @@
 //! Redis-backed idempotency store implementation.
+//!
+//! This module provides [`IdempotencyStore`] — a Redis-backed service that ensures any API
+//! request submitted with a unique idempotency key is executed **at most once**, even when the
+//! client retries the same request due to network timeouts or other transient errors.
+//!
+//! ## How It Works
+//!
+//! 1. **Atomic reservation** (`SET NX EX`): The first request atomically writes an `IN_PROGRESS`
+//!    marker to Redis with an expiry. Concurrent duplicate requests see the marker and get a
+//!    `409 Conflict` response.
+//! 2. **Business logic execution**: The handler runs normally.
+//! 3. **Cache result** (`SETEX`): On success, the response is serialized to JSON and stored in
+//!    Redis under the same key with the configured TTL.
+//! 4. **Serve from cache** on retry: Subsequent requests with the same key get the cached response
+//!    without re-executing business logic.
+//! 5. **Cancel on failure**: If the handler returns an error, the key is deleted so the client
+//!    can retry immediately.
+//!
+//! ```text
+//! Client Request ──► begin(key)
+//!                       ├── New ──────────────────► execute handler ──► complete_json / cancel
+//!                       ├── InProgress ──────────► 409 Conflict
+//!                       └── Seen(cached_json) ───► return cached response
+//! ```
+//!
+//! ## Complete Axum Handler Example
+//!
+//! ```rust,ignore
+//! use axum::{extract::{Extension, Json}, http::{HeaderMap, StatusCode}};
+//! use scyph_utils::idempotency::{IdempotencyStore, IdempotencyError};
+//! use scyph_core::AppError;
+//! use serde::{Deserialize, Serialize};
+//!
+//! #[derive(Deserialize)]
+//! pub struct ChargeRequest {
+//!     pub amount_cents: u64,
+//!     pub currency: String,
+//! }
+//!
+//! #[derive(Serialize, Deserialize)]
+//! pub struct ChargeResponse {
+//!     pub transaction_id: String,
+//!     pub status: String,
+//! }
+//!
+//! pub async fn charge_handler(
+//!     Extension(idem): Extension<IdempotencyStore>,
+//!     headers: HeaderMap,
+//!     Json(req): Json<ChargeRequest>,
+//! ) -> Result<Json<ChargeResponse>, AppError> {
+//!     // Extract idempotency key from request header
+//!     let key = headers
+//!         .get("Idempotency-Key")
+//!         .and_then(|v| v.to_str().ok())
+//!         .ok_or_else(|| AppError::BadRequest("Missing Idempotency-Key header".into()))?;
+//!
+//!     // execute() handles begin/complete/cancel automatically
+//!     let response = idem
+//!         .execute(key, || async {
+//!             // Your business logic runs only once per unique key
+//!             let txn_id = charge_payment(req.amount_cents, &req.currency).await?;
+//!             Ok::<_, AppError>(ChargeResponse {
+//!                 transaction_id: txn_id,
+//!                 status: "succeeded".into(),
+//!             })
+//!         })
+//!         .await?;
+//!
+//!     Ok(Json(response))
+//! }
+//! ```
 
 use crate::idempotency::{config::IdempotencyConfig, error::IdempotencyError};
 use redis::{AsyncCommands, Client, RedisResult};
@@ -6,6 +77,30 @@ use serde::Serialize;
 use std::future::Future;
 
 /// Outcome of an idempotency key lookup.
+///
+/// Returned by [`IdempotencyStore::begin`]. Drives the caller's decision on whether to
+/// execute business logic, return a conflict response, or serve a cached result.
+///
+/// # Handling Each Variant
+///
+/// ```rust,ignore
+/// match store.begin(&key).await? {
+///     IdempotencyCheck::New => {
+///         // Safe to execute — key was atomically reserved
+///         let result = do_work().await?;
+///         store.complete_json(&key, &result).await?;
+///     }
+///     IdempotencyCheck::InProgress => {
+///         // Return 409 Conflict — another request is currently processing this key
+///     }
+///     IdempotencyCheck::Seen(cached_json) => {
+///         // Return cached response — this exact request was already processed
+///         let result: MyResponse = serde_json::from_str(&cached_json)?;
+///     }
+/// }
+/// ```
+///
+/// In practice, prefer [`IdempotencyStore::execute`] which handles this match automatically.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IdempotencyCheck {
     /// The request key has not been seen before. Proceed with execution.

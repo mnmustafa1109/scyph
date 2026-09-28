@@ -1,4 +1,32 @@
 //! ABAC error type definitions for `scyph-abac`.
+//!
+//! Defines [`AbacError`] — the unified error type for all attribute-based access control
+//! policy enforcement failures in `scyph-abac`.
+//!
+//! ## Error Hierarchy and HTTP Mapping
+//!
+//! | Variant | HTTP Status (via `AppError`) | Cause |
+//! |---------|------------------------------|-------|
+//! | `Forbidden` | 403 Forbidden | User attributes do not satisfy policy conditions |
+//! | `Unauthorized` | 401 Unauthorized | No authenticated principal provided |
+//! | `ValidationError` | 422 Unprocessable Entity | Policy attribute validation failed |
+//! | `Cedar` | 500 Internal Server Error | Cedar engine evaluation/parse error |
+//! | `Internal` | 500 Internal Server Error | Generic ABAC infrastructure failure |
+//!
+//! ## Conversion to `AppError`
+//!
+//! `AbacError` implements `From<AbacError> for AppError`, enabling seamless propagation
+//! with `?` in Axum handlers that return `Result<_, AppError>`:
+//!
+//! ```rust,ignore
+//! use scyph_abac::{AbacPolicy, AbacError, AuthUserEnforceExt};
+//! use scyph_core::{Action, AppError, ApiResponse};
+//!
+//! async fn get_document(user: AuthUser<AppClaims>, doc: Document) -> Result<ApiResponse<Document>, AppError> {
+//!     user.enforce::<DocumentPolicy>(&doc, Action::Read)?;  // AbacError -> AppError via ?
+//!     Ok(ApiResponse::ok(doc))
+//! }
+//! ```
 
 use scyph_core::{AppError, ErrorDetails};
 

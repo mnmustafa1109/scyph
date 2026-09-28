@@ -2,10 +2,48 @@
 //!
 //! Categorizes all possible failures occurring during email compilation, SMTP delivery,
 //! FCM push API calls, template rendering, and missing configuration variables.
+//!
+//! ## Error Hierarchy
+//!
+//! ```text
+//! NotifyError
+//! ├── Configuration  – missing or invalid env vars (SMTP_HOST, FCM_PROJECT_ID, etc.)
+//! ├── Template       – Tera parse/render error            [feature = "email"]
+//! ├── Smtp           – lettre SMTP transport error        [feature = "email"]
+//! ├── Address        – malformed email address string     [feature = "email"]
+//! ├── EmailBuild     – lettre message construction error  [feature = "email"]
+//! ├── FcmHttp        – reqwest HTTP transport error       [feature = "fcm"]
+//! ├── FcmAuth        – GCP OAuth2 token failure           [feature = "fcm"]
+//! └── Internal       – catch-all internal error
+//! ```
+//!
+//! ## HTTP Mapping
+//!
+//! All `NotifyError` variants convert to HTTP 500 Internal Server Error via the
+//! `From<NotifyError> for AppError` implementation. Notification failures are considered
+//! server-side infrastructure faults rather than client errors.
 
 use scyph_core::AppError;
 
 /// Error type for all notification services and utilities in `scyph-notify`.
+///
+/// Implements `thiserror::Error` for ergonomic display messages and `From` conversions from
+/// underlying library errors (`tera::Error`, `lettre` errors, `reqwest::Error`, `gcp_auth::Error`).
+///
+/// Convert to an Axum-compatible response using `AppError::from(notify_error)`, which produces
+/// an HTTP 500 RFC 7807 problem details response.
+///
+/// # Examples
+///
+/// ```rust
+/// use scyph_notify::NotifyError;
+///
+/// let err = NotifyError::Configuration("SMTP_HOST is not set".into());
+/// assert_eq!(err.to_string(), "Configuration error: SMTP_HOST is not set");
+///
+/// let err = NotifyError::Internal("unexpected state".into());
+/// assert_eq!(err.to_string(), "Notification error: unexpected state");
+/// ```
 #[derive(Debug, thiserror::Error)]
 pub enum NotifyError {
     /// Missing, empty, or unparseable configuration settings or environment variables (e.g. `SMTP_HOST`, `FCM_PROJECT_ID`).

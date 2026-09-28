@@ -1,4 +1,22 @@
-//! Cedar integration error definitions.
+//! Cedar policy engine error types.
+//!
+//! Defines [`CedarError`] — failures from AWS Cedar policy parsing, schema validation,
+//! request construction, and authorization evaluation.
+//!
+//! ## Error Hierarchy
+//!
+//! ```text
+//! CedarError
+//! ├── PolicyParse   — Cedar policy DSL syntax error
+//! ├── SchemaParse   — Cedar schema syntax error
+//! ├── RequestBuild  — Entity UID resolution or request construction failure
+//! ├── Evaluation    — Cedar evaluator runtime error
+//! └── AccessDenied  — Policy returned Decision::Deny (authorization failure)
+//! ```
+//!
+//! `AccessDenied` converts to HTTP 403 Forbidden. All other variants convert to HTTP 500
+//! Internal Server Error — they indicate a server-side configuration or programming error
+//! rather than a client access denial.
 
 use scyph_core::AppError;
 use thiserror::Error;

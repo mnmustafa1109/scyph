@@ -1,4 +1,42 @@
 //! HMAC-SHA256 webhook verifier logic.
+//!
+//! ## Two Verification Formats
+//!
+//! Different webhook providers use different signature header formats. This module supports both:
+//!
+//! ### 1. Timestamped Format (Stripe, Svix, Clerk)
+//!
+//! The header contains a Unix timestamp **and** the HMAC signature separated by commas:
+//!
+//! ```text
+//! Stripe-Signature: t=1714000000,v1=abc123def456...
+//! Svix-Signature: t=1714000000,v1=abc123def456...
+//! ```
+//!
+//! The HMAC is computed over `"{timestamp}.{payload_bytes}"` — the timestamp is incorporated into
+//! the signed message. This prevents **replay attacks**: an attacker who captures a valid webhook
+//! cannot re-send it minutes later because the timestamp check (controlled by `tolerance_secs`) will
+//! reject it. Use [`verify_webhook`] for this format.
+//!
+//! ### 2. Direct Digest Format (GitHub, Shopify, custom)
+//!
+//! The header contains only the HMAC signature (with an optional prefix):
+//!
+//! ```text
+//! X-Hub-Signature-256: sha256=abc123def456...
+//! X-Shopify-Hmac-Sha256: abc123def456...
+//! ```
+//!
+//! The HMAC is computed directly over the raw payload bytes only — no timestamp component.
+//! This format does **not** inherently protect against replay attacks, so providers using it
+//! typically rely on other mechanisms (event IDs, short delivery windows). Use [`verify_raw_webhook`]
+//! for this format.
+//!
+//! ### Automatic Detection via [`verify_webhook_header`]
+//!
+//! [`verify_webhook_header`] inspects the header value and automatically dispatches to the correct
+//! verifier: if a `t=` timestamp component is found, it uses the timestamped format; otherwise it
+//! falls back to direct digest verification. This is the recommended entry point for most use cases.
 
 use crate::webhook::error::WebhookError;
 use chrono::Utc;
@@ -86,15 +124,49 @@ pub fn verify_webhook(
 ///
 /// Automatically strips standard signature prefixes like `sha256=` or `v1=`.
 ///
+/// ## Direct Digest Format
+///
+/// This function handles the **direct digest** format where the header contains only the HMAC
+/// signature with no timestamp component. The HMAC is computed as:
+///
+/// ```text
+/// HMAC-SHA256(secret, payload_bytes)
+/// ```
+///
+/// **Note**: This format does not protect against replay attacks on its own since there is no
+/// timestamp in the signed message. Use this for providers like GitHub, Shopify, or any provider
+/// that relies on HTTPS + short delivery windows for replay protection.
+///
 /// # Arguments
 ///
 /// * `payload` - Raw binary body slice of the webhook request.
-/// * `signature` - Expected hex signature string.
+/// * `signature` - Expected hex signature string (may include `sha256=` or `v1=` prefix; stripped automatically).
 /// * `secret` - Shared webhook signing secret.
 ///
 /// # Errors
 ///
 /// Returns [`WebhookError::SignatureMismatch`] if signature validation fails.
+/// Returns [`WebhookError::HmacKey`] if the secret key is invalid.
+///
+/// # Examples
+///
+/// ```rust
+/// use scyph_utils::webhook::verify_raw_webhook;
+/// use hmac::{Hmac, KeyInit, Mac};
+/// use sha2::Sha256;
+///
+/// let payload = b"{\"action\":\"opened\",\"number\":1}";
+/// let secret = "my_github_secret";
+///
+/// // Compute the expected signature as GitHub would
+/// let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).unwrap();
+/// mac.update(payload);
+/// let sig = format!("sha256={}", hex::encode(mac.finalize().into_bytes()));
+///
+/// // Both prefixed and raw hex forms are accepted
+/// assert!(verify_raw_webhook(payload, &sig, secret).is_ok());
+/// assert!(verify_raw_webhook(payload, sig.strip_prefix("sha256=").unwrap(), secret).is_ok());
+/// ```
 pub fn verify_raw_webhook(
     payload: &[u8],
     signature: &str,
@@ -121,15 +193,41 @@ pub fn verify_raw_webhook(
     Ok(())
 }
 
-/// Helper function to parse standard webhook signature headers.
+/// Helper function to parse standard webhook signature headers and dispatch to the correct verifier.
 ///
-/// Supports:
-/// - Timestamped headers (e.g. Stripe `t=1234567,v1=hex_signature`)
-/// - Direct digest headers (e.g. GitHub `sha256=hex_signature` or raw hex)
+/// ## Automatic Format Detection
+///
+/// This function inspects the `header_val` string and routes to the appropriate verifier:
+///
+/// | Header contains `t=` or `,` | Routes to | Example providers |
+/// |---|---|---|
+/// | Yes | [`verify_webhook`] (timestamped, replay-safe) | Stripe, Svix, Clerk |
+/// | No | [`verify_raw_webhook`] (direct digest) | GitHub, Shopify, custom |
+///
+/// ### Timestamped header example (Stripe):
+/// ```text
+/// Stripe-Signature: t=1714000000,v1=abc123...
+/// ```
+/// Parsed as: `timestamp = 1714000000`, `signature = "abc123..."`.
+/// HMAC input: `"1714000000.{raw_body}"`.
+///
+/// ### Direct digest header example (GitHub):
+/// ```text
+/// X-Hub-Signature-256: sha256=abc123...
+/// ```
+/// Parsed as: `signature = "sha256=abc123..."` (prefix stripped automatically).
+/// HMAC input: `raw_body`.
+///
+/// # Arguments
+///
+/// * `payload` - Raw binary body slice of the webhook request.
+/// * `header_val` - Raw header value string (e.g. `"t=1714000000,v1=abc123..."` or `"sha256=abc123..."`).
+/// * `secret` - Shared webhook signing secret.
+/// * `tolerance_secs` - Maximum allowed age of the timestamp in seconds (only applies to timestamped format).
 ///
 /// # Errors
 ///
-/// Returns [`WebhookError::InvalidHeaderFormat`] if the header is malformed,
+/// Returns [`WebhookError::InvalidHeaderFormat`] if the header is malformed (missing signature component),
 /// or verification errors from [`verify_webhook`] / [`verify_raw_webhook`].
 pub fn verify_webhook_header(
     payload: &[u8],

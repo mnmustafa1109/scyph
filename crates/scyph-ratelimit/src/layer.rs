@@ -12,16 +12,46 @@ use crate::error::RateLimitError;
 
 /// Type alias for the standard peer-IP rate limiting layer.
 ///
-/// **Note:** Requires `ConnectInfo<SocketAddr>` to be configured on Axum via
-/// `into_make_service_with_connect_info::<SocketAddr>()`. For reverse proxy deployments,
-/// prefer [`SmartRateLimitLayer`].
+/// Uses `PeerIpKeyExtractor` which reads the remote socket address from Axum's
+/// [`ConnectInfo<SocketAddr>`](axum::extract::ConnectInfo) request extension.
+///
+/// ## ⚠ Important: ConnectInfo Requirement
+///
+/// For this layer to extract per-IP keys correctly, the Axum server **must** be initialized with:
+///
+/// ```rust,ignore
+/// use std::net::SocketAddr;
+///
+/// let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+/// axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
+///     .await
+///     .unwrap();
+/// ```
+///
+/// If `ConnectInfo` is not set up, all requests appear to come from the same IP address,
+/// effectively turning this into a global rate limiter. For deployments behind a reverse
+/// proxy, prefer [`SmartRateLimitLayer`] which reads from forwarding headers.
 pub type PeerRateLimitLayer<B = Body> = GovernorLayer<
     PeerIpKeyExtractor,
     NoOpMiddleware<<DefaultClock as governor::clock::Clock>::Instant>,
     B,
 >;
 
-/// Type alias for smart IP rate limiting layer that handles reverse proxies (extracts client IP from `Forwarded` or `X-Forwarded-For`).
+/// Type alias for the smart IP rate limiting layer for reverse-proxy deployments.
+///
+/// Uses `SmartIpKeyExtractor` which inspects the following headers in priority order,
+/// falling back to the socket peer address when none are present:
+///
+/// 1. `CF-Connecting-IP` (Cloudflare)
+/// 2. `X-Real-IP` (Nginx)
+/// 3. `X-Forwarded-For` (first entry in the list)
+/// 4. Socket peer address (direct connections)
+///
+/// This type alias does **not** require `ConnectInfo<SocketAddr>` to be configured on the
+/// Axum server, making it suitable for deployments behind any reverse proxy.
+///
+/// Prefer this over [`PeerRateLimitLayer`] whenever running behind Nginx, Cloudflare, AWS ALB,
+/// or any other load balancer that injects IP forwarding headers.
 pub type SmartRateLimitLayer<B = Body> = GovernorLayer<
     SmartIpKeyExtractor,
     NoOpMiddleware<<DefaultClock as governor::clock::Clock>::Instant>,
@@ -137,6 +167,13 @@ pub fn strict_layer<B>() -> Result<PeerRateLimitLayer<B>, RateLimitError> {
 }
 
 /// Creates a strict smart rate limiting layer for proxy environments (5 requests per 2 seconds).
+///
+/// Identical policy to [`strict_layer`] but uses [`SmartIpKeyExtractor`] to correctly extract
+/// the real client IP behind reverse proxies. Does not require `ConnectInfo<SocketAddr>`.
+///
+/// # Errors
+///
+/// Returns [`RateLimitError::ConfigurationFailed`] if layer construction fails.
 pub fn smart_strict_layer<B>() -> Result<SmartRateLimitLayer<B>, RateLimitError> {
     smart_ip_layer(5, Duration::from_secs(2))
 }
@@ -153,6 +190,13 @@ pub fn relaxed_layer<B>() -> Result<PeerRateLimitLayer<B>, RateLimitError> {
 }
 
 /// Creates a relaxed smart rate limiting layer for proxy environments (500 requests per 100 milliseconds).
+///
+/// Identical policy to [`relaxed_layer`] but uses [`SmartIpKeyExtractor`] to correctly extract
+/// the real client IP behind reverse proxies. Does not require `ConnectInfo<SocketAddr>`.
+///
+/// # Errors
+///
+/// Returns [`RateLimitError::ConfigurationFailed`] if layer construction fails.
 pub fn smart_relaxed_layer<B>() -> Result<SmartRateLimitLayer<B>, RateLimitError> {
     smart_ip_layer(500, Duration::from_millis(100))
 }

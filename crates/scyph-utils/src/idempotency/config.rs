@@ -1,8 +1,43 @@
 //! Environment configuration for API idempotency checks.
+//!
+//! Provides [`IdempotencyConfig`] — the configuration struct for [`IdempotencyStore`](super::store::IdempotencyStore).
+//! Supports both environment-variable-driven loading ([`IdempotencyConfig::from_env`]) and
+//! programmatic builder-style configuration for tests.
 
 use std::{env, time::Duration};
 
 /// Configuration options for Redis-backed API idempotency store.
+///
+/// ## Environment Variables
+///
+/// | Variable | Required | Default | Description |
+/// |----------|----------|---------|-------------|
+/// | `IDEMPOTENCY_REDIS_URL` or `REDIS_URL` | No | `redis://127.0.0.1:6379` | Redis connection URL |
+/// | `IDEMPOTENCY_TTL_SECS` | No | `86400` (24h) | Key expiry in seconds |
+/// | `IDEMPOTENCY_PREFIX` | No | `"idem"` | Redis key namespace prefix |
+///
+/// ## Key Naming
+///
+/// All idempotency keys stored in Redis are namespaced as `{prefix}:{key}`, e.g.:
+/// - `idem:pay_abc123xyz` (default prefix)
+/// - `payments:pay_abc123xyz` (custom prefix)
+///
+/// This prevents key collisions when multiple services share the same Redis instance.
+///
+/// ## Builder Pattern
+///
+/// ```rust
+/// use scyph_utils::idempotency::IdempotencyConfig;
+/// use std::time::Duration;
+///
+/// let config = IdempotencyConfig::default()
+///     .with_redis_url("redis://redis.internal:6379")
+///     .with_ttl(Duration::from_secs(3600))   // 1 hour TTL
+///     .with_prefix("payments");              // namespace: payments:{key}
+///
+/// assert_eq!(config.prefix, "payments");
+/// assert_eq!(config.ttl.as_secs(), 3600);
+/// ```
 #[derive(Debug, Clone)]
 pub struct IdempotencyConfig {
     /// Redis connection URL string (e.g. `"redis://127.0.0.1:6379"`).

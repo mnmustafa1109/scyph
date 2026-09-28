@@ -13,9 +13,33 @@
 //! 4. **Graceful Task Shutdown**: Integrated [`tokio_util::sync::CancellationToken`] support in `start_subscriber` for clean shutdown on `SIGTERM`.
 //! 5. **Automated Health Probes ([`RealtimeHealthExt`])**: First-class integration with [`scyph_health::HealthRegistry`] for Kubernetes `/livez` and `/readyz` monitoring.
 //!
+//! ## Architecture Diagram
+//!
+//! ```text
+//! ┌─────────────────────────────────────────────────────────────────┐
+//! │  Replica 1                     │  Replica 2                     │
+//! │                                │                                │
+//! │  Client A ──► WebSocket        │  Client B ──► WebSocket        │
+//! │               │                │               │                │
+//! │       ConnectionRegistry       │       ConnectionRegistry       │
+//! │               │                │               │                │
+//! │       RealtimeBroadcaster      │       RealtimeBroadcaster      │
+//! │           │       ▲            │           │       ▲            │
+//! │       publish   subscribe      │       publish   subscribe      │
+//! └───────────┼───────┼────────────┴───────────┼───────┼────────────┘
+//!             │       │                        │       │
+//!             ▼       │                        ▼       │
+//!         ┌───────────────────────────────────────┐
+//!         │         Redis Pub/Sub Channel         │
+//!         │    {channel_prefix}:events            │
+//!         └───────────────────────────────────────┘
+//! ```
+//!
 //! ## Feature Flags
 //!
-//! - **`health`**: Enables [`RealtimeHealthExt`] extension trait for automated Redis liveness and readiness monitoring using [`scyph_health::HealthRegistry`].
+//! | Feature | Description |
+//! |---|---|
+//! | `health` | Enables [`RealtimeHealthExt`] for automated Redis liveness/readiness monitoring via [`scyph_health::HealthRegistry`] |
 //!
 //! ## Quickstart Example (Without Health Feature)
 //!
@@ -56,9 +80,12 @@
 //!
 //! async fn handle_ws(mut socket: WebSocket, user_id: Uuid, broadcaster: RealtimeBroadcaster) {
 //!     // Connects using bounded MPSC channel (capacity 256) and returns RAII session guard
-//!     let (_conn_id, mut rx, _session) = broadcaster.connect(user_id).await;
+//!     let session = broadcaster.connect_session(user_id).await;
+//!     // session automatically deregisters on drop — no manual cleanup needed
+//!     // (store session in a variable to keep the connection alive)
+//!     let mut session = session;
 //!
-//!     while let Some(msg) = rx.recv().await {
+//!     while let Some(msg) = session.recv().await {
 //!         if socket.send(axum::extract::ws::Message::Text(msg.into())).await.is_err() {
 //!             break;
 //!         }

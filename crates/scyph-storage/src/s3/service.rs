@@ -1,4 +1,33 @@
-//! Implementation of `StorageService` trait for `S3StorageService`.
+//! [`StorageService`] implementation for AWS S3 and S3-compatible object storage.
+//!
+//! This module implements all methods of the [`StorageService`] trait for [`S3StorageService`],
+//! including object upload (`store`), download (`retrieve`), signed view URLs, signed download
+//! URLs (with `Content-Disposition: attachment`), object deletion, and bucket connectivity probes.
+//!
+//! ## Dual Client Architecture
+//!
+//! `S3StorageService` maintains **two separate AWS SDK clients**:
+//!
+//! - `client` — Internal client using the cluster-internal endpoint (e.g., `http://minio:9000`).
+//!   Used for `PUT`, `GET`, and `DELETE` operations that run server-side.
+//! - `presign_client` — Presign client using the public endpoint (e.g., `https://cdn.example.com`
+//!   or `http://localhost:9000`). Used for generating presigned URLs that will be clicked by
+//!   users' browsers. If no public prefix is configured separately, falls back to `client`.
+//!
+//! This separation means internal service traffic uses the fast private network while presigned
+//! URLs point to the public-facing CDN or external endpoint.
+//!
+//! ## Key Normalization
+//!
+//! [`normalize_key`](S3StorageService::normalize_key) strips any `public_url_prefix` or full
+//! URL prefix from incoming paths, allowing handlers to pass either a relative key
+//! (`"avatars/abc.png"`) or a full presigned URL without special casing.
+//!
+//! ## Presigned URL Format
+//!
+//! All presigned URLs include standard AWS Signature v4 query parameters:
+//! `X-Amz-Algorithm`, `X-Amz-Credential`, `X-Amz-Date`, `X-Amz-Expires`,
+//! `X-Amz-Security-Token` (if using STS), and `X-Amz-Signature`.
 
 use crate::{error::StorageError, s3::S3StorageService, traits::StorageService};
 use aws_sdk_s3::{presigning::PresigningConfig, primitives::ByteStream};

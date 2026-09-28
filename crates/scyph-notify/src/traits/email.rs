@@ -1,4 +1,21 @@
 //! Email notification traits, domain template abstractions, and asynchronous message delivery contracts.
+//!
+//! This module defines the building blocks for email delivery in `scyph-notify`:
+//!
+//! - [`EmailMessage`]: A concrete, already-rendered email payload ready for SMTP delivery.
+//! - [`EmailTemplate`]: A domain-level trait for encapsulating template name, context, and recipients.
+//! - [`EmailService`]: The core async delivery trait with raw send, template send, and background variants.
+//!
+//! ## Delivery Flow
+//!
+//! ```text
+//! EmailTemplate  ──► TemplateEngine::render_email()  ──► EmailMessage  ──► EmailService::send()
+//! ```
+//!
+//! Or, using the combined helper:
+//! ```text
+//! EmailService::send_template(&engine, &template)
+//! ```
 
 use crate::NotifyError;
 use std::sync::Arc;
@@ -6,6 +23,23 @@ use std::sync::Arc;
 /// Email message payload for dispatch via [`EmailService`].
 ///
 /// Contains recipient addresses, subject header, HTML formatted body, and an optional plaintext alternative.
+///
+/// Construct this directly when you have pre-rendered email content. For template-driven emails,
+/// use [`EmailTemplate`] with [`EmailService::send_template`] instead — the [`crate::TemplateEngine`]
+/// will produce an `EmailMessage` internally from the template.
+///
+/// # Examples
+///
+/// ```rust
+/// use scyph_notify::EmailMessage;
+///
+/// let msg = EmailMessage {
+///     to: vec!["alice@example.com".into(), "bob@example.com".into()],
+///     subject: "Your order has shipped".into(),
+///     html: "<h1>Order #1234</h1><p>Your package is on the way!</p>".into(),
+///     text: Some("Order #1234 - Your package is on the way!".into()),
+/// };
+/// ```
 #[derive(Debug, Clone)]
 pub struct EmailMessage {
     /// List of recipient email addresses.
@@ -22,6 +56,19 @@ pub struct EmailMessage {
 ///
 /// Implement this trait on domain structs (e.g. `WelcomeEmail`, `PasswordResetEmail`) to encapsulate template selection,
 /// context variables, subject headers, and recipient target addresses cleanly.
+///
+/// ## Plaintext Fallback Behavior
+///
+/// When [`EmailTemplate::template_name`] ends in `.html` and [`EmailTemplate::text`] returns `None`,
+/// the [`crate::TemplateEngine`] will automatically attempt to render a sibling `.txt` template
+/// with the same base name (e.g. `welcome.txt` alongside `welcome.html`). If no `.txt` file exists,
+/// the email is sent HTML-only.
+///
+/// ## Context Variables
+///
+/// The [`EmailTemplate::context`] method returns a [`serde_json::Value`] (typically a JSON object)
+/// that is passed directly into the Tera rendering context. Every key in the object becomes a
+/// template variable: `{{ name }}`, `{{ reset_url }}`, etc.
 ///
 /// # Examples
 ///
@@ -44,11 +91,36 @@ pub struct EmailMessage {
 ///     }
 ///
 ///     fn template_name(&self) -> &str {
+///         // TemplateEngine will also try to render "welcome.txt" for plaintext fallback
 ///         "welcome.html"
 ///     }
 ///
 ///     fn context(&self) -> serde_json::Value {
 ///         json!({ "name": self.user_name })
+///     }
+/// }
+///
+/// struct PasswordResetEmail {
+///     user_email: String,
+///     reset_token: String,
+/// }
+///
+/// impl EmailTemplate for PasswordResetEmail {
+///     fn to(&self) -> Vec<String> { vec![self.user_email.clone()] }
+///     fn subject(&self) -> String { "Reset your password".into() }
+///     fn template_name(&self) -> &str { "password_reset.html" }
+///     fn context(&self) -> serde_json::Value {
+///         json!({
+///             "reset_url": format!("https://example.com/reset?token={}", self.reset_token),
+///             "expires_in": "24 hours",
+///         })
+///     }
+///     // Override with hardcoded plaintext instead of a .txt template file
+///     fn text(&self) -> Option<String> {
+///         Some(format!(
+///             "Reset your password: https://example.com/reset?token={}",
+///             self.reset_token
+///         ))
 ///     }
 /// }
 /// ```
@@ -76,6 +148,43 @@ pub trait EmailTemplate {
 ///
 /// Provides primary asynchronous delivery ([`EmailService::send`]), template rendering ([`EmailService::send_template`]),
 /// and non-blocking background dispatch variants ([`EmailService::send_background`], [`EmailService::send_template_background`]).
+///
+/// ## Choosing the Right Method
+///
+/// | Method | Use When |
+/// |--------|----------|
+/// | `send` | You have pre-rendered [`EmailMessage`] content and need async delivery with error propagation. |
+/// | `send_template` | You have an [`EmailTemplate`] and need delivery with error propagation back to the caller. |
+/// | `send_background` | Delivery errors are non-critical (e.g. welcome emails). Caller does not need to await. |
+/// | `send_template_background` | Template-driven background dispatch. Handler returns immediately. |
+///
+/// ## Implementing `EmailService`
+///
+/// ```rust,ignore
+/// use scyph_notify::{EmailMessage, EmailService, NotifyError};
+///
+/// struct MySmtpService { /* ... */ }
+///
+/// impl EmailService for MySmtpService {
+///     async fn send(&self, msg: EmailMessage) -> Result<(), NotifyError> {
+///         // Deliver via your SMTP client
+///         Ok(())
+///     }
+/// }
+/// ```
+///
+/// ## Injecting into Axum State
+///
+/// ```rust,ignore
+/// use std::sync::Arc;
+/// use scyph_notify::{EmailService, NoEmailService};
+///
+/// // In tests, swap LettreSMTPService for NoEmailService without changing handlers:
+/// let svc: Arc<dyn EmailService> = Arc::new(NoEmailService);
+/// let app = axum::Router::new()
+///     .route("/register", axum::routing::post(register_handler))
+///     .layer(axum::extract::Extension(svc));
+/// ```
 pub trait EmailService: Send + Sync + 'static {
     /// Sends an [`EmailMessage`] payload asynchronously.
     fn send(&self, msg: EmailMessage) -> impl Future<Output = Result<(), NotifyError>> + Send;

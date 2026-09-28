@@ -2,6 +2,18 @@
 //!
 //! Provides the data model [`InAppNotification`] and repository trait [`NotificationRepository`]
 //! for persisting, querying, and managing unread user in-app notification centers in PostgreSQL or memory.
+//!
+//! ## Usage Pattern
+//!
+//! In-app notifications represent persistent messages stored in your database and displayed in the
+//! application UI (notification bell/inbox). Unlike email or push, they are read and managed by
+//! the user through explicit API calls.
+//!
+//! Typical lifecycle:
+//! 1. **Create**: Business logic triggers a notification event → `repository.create(notification).await?`
+//! 2. **List**: User opens notification inbox → `repository.list_unread(user_id).await?`
+//! 3. **Mark read**: User clicks a notification → `repository.mark_as_read(notif_id, user_id).await?`
+//! 4. **Clear all**: User clicks "Mark all as read" → `repository.mark_all_as_read(user_id).await?`
 
 use crate::NotifyError;
 use chrono::{DateTime, Utc};
@@ -61,6 +73,50 @@ pub struct InAppNotification {
 /// Abstract repository contract for persisting and managing user in-app notification records.
 ///
 /// Implementations can back this trait with PostgreSQL (via `sqlx`), Redis, or mock memory stores.
+///
+/// ## Implementing the Repository
+///
+/// ```rust,ignore
+/// use scyph_notify::{InAppNotification, NotificationRepository, NotifyError};
+/// use uuid::Uuid;
+///
+/// struct PostgresNotificationRepo { pool: sqlx::PgPool }
+///
+/// impl NotificationRepository for PostgresNotificationRepo {
+///     async fn create(&self, n: InAppNotification) -> Result<(), NotifyError> {
+///         sqlx::query!(
+///             "INSERT INTO notifications (id, user_id, title, body, category, metadata, is_read, created_at, updated_at)
+///              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+///             n.id, n.user_id, n.title, n.body, n.category, n.metadata, n.is_read, n.created_at, n.updated_at
+///         )
+///         .execute(&self.pool)
+///         .await
+///         .map_err(|e| NotifyError::Internal(e.to_string()))?;
+///         Ok(())
+///     }
+///
+///     async fn mark_as_read(&self, id: Uuid, user: Uuid) -> Result<(), NotifyError> {
+///         sqlx::query!("UPDATE notifications SET is_read = true WHERE id = $1 AND user_id = $2", id, user)
+///             .execute(&self.pool)
+///             .await
+///             .map_err(|e| NotifyError::Internal(e.to_string()))?;
+///         Ok(())
+///     }
+///
+///     async fn mark_all_as_read(&self, user: Uuid) -> Result<(), NotifyError> {
+///         sqlx::query!("UPDATE notifications SET is_read = true WHERE user_id = $1", user)
+///             .execute(&self.pool)
+///             .await
+///             .map_err(|e| NotifyError::Internal(e.to_string()))?;
+///         Ok(())
+///     }
+///
+///     async fn list_unread(&self, user: Uuid) -> Result<Vec<InAppNotification>, NotifyError> {
+///         // SELECT ... WHERE user_id = $1 AND is_read = false ORDER BY created_at DESC
+///         todo!()
+///     }
+/// }
+/// ```
 pub trait NotificationRepository: Send + Sync + 'static {
     /// Creates and persists a new [`InAppNotification`] record in the repository.
     ///

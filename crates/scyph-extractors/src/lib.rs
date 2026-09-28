@@ -12,6 +12,18 @@
 //! - **[`query`]**: Validated query parameter extractor ([`ValidatedQuery`]), request query parameter models ([`RequestParams`], [`PaginationParams`], [`SortParams`], [`FilterParams`], [`SearchParams`]), and string-to-number deserializer ([`deserialize_number_from_string`]).
 //! - **[`error`]**: Granular extraction and validation errors ([`ExtractorError`]) converted automatically to RFC 7807 problem details ([`AppError`](scyph_core::AppError)).
 //!
+//! ## Extractor Decision Guide
+//!
+//! | Scenario | Extractor |
+//! |----------|-----------|
+//! | JSON body with sanitize + validate | [`ValidatedJson<T>`](body::ValidatedJson) |
+//! | JSON body with sanitize only | [`SanitizedJson<T>`](body::SanitizedJson) |
+//! | URL path param (UUID, i32, etc.) | [`TypedPath<T>`](path::TypedPath) |
+//! | URL path param struct with validation | [`ValidatedPath<T>`](path::ValidatedPath) |
+//! | Query params with `garde` validation | [`ValidatedQuery<T>`](query::ValidatedQuery) |
+//! | Combined pagination/sort/filter | [`RequestParams<S, F>`](query::RequestParams) |
+//! | Canonical URL builder | [`LinkGenerator`](link::LinkGenerator) |
+//!
 //! ## Quick Example
 //!
 //! ```rust,ignore
@@ -25,13 +37,24 @@
 //!     #[sanitizer(trim, lower_case)]
 //!     #[garde(email)]
 //!     pub email: String,
+//!     #[sanitizer(trim)]
+//!     #[garde(length(min = 2, max = 100))]
+//!     pub name: String,
 //! }
 //!
+//! // POST /users — sanitizes email, validates constraints
 //! async fn create_user_handler(
 //!     ValidatedJson(payload): ValidatedJson<CreateUser>,
 //! ) -> &'static str {
-//!     println!("User email: {}", payload.email);
+//!     println!("Creating: {} <{}>", payload.name, payload.email);
 //!     "Created"
+//! }
+//!
+//! // GET /users?page=2&limit=25&sort_by=name&sort_order=desc
+//! async fn list_users_handler(
+//!     ValidatedQuery(params): ValidatedQuery<RequestParams<String, String>>,
+//! ) {
+//!     println!("Page: {}, Limit: {}", params.pagination.page, params.pagination.limit);
 //! }
 //! ```
 

@@ -11,11 +11,28 @@ use crate::{
 
 /// Axum request extractor for optional single-file uploads with type-level validation configuration `C`.
 ///
-/// Wraps an `Option<FileExtractor<C>>`. If the multipart request contains the specified field,
-/// it parses and validates the file as `Some(FileExtractor<C>)`. If the field is omitted,
-/// it evaluates to `None` without rejecting the request.
+/// A thin wrapper around `Option<FileExtractor<C>>`. If the multipart request contains the
+/// configured field name with a valid file, it extracts and validates it as `Some(FileExtractor<C>)`.
+/// If the field is absent or has no filename, it returns `None` without rejecting the request.
 ///
-/// # Examples
+/// Use this for endpoints where file upload is optional — for example, a profile update form
+/// that may or may not include a new avatar.
+///
+/// ## Difference from `FileExtractor<C>`
+///
+/// | Scenario | `FileExtractor<C>` | `OptionalFileExtractor<C>` |
+/// |---|---|---|
+/// | Field present, valid file | `Ok(extractor)` | `Ok(Some(extractor))` |
+/// | Field absent | `Err(400)` | `Ok(None)` |
+/// | Field present, invalid MIME | `Err(422)` | `Err(422)` |
+/// | Field present, file too large | `Err(422)` | `Err(422)` |
+///
+/// Validation errors (wrong MIME type, file too large, magic byte mismatch) are still
+/// propagated as `AppError` rejections even when the extractor is optional.
+///
+/// ## Accessing the Inner Value
+///
+/// The inner `Option<FileExtractor<C>>` is in the public `.0` tuple field:
 ///
 /// ```rust,no_run
 /// use axum::response::Json;
@@ -34,8 +51,10 @@ use crate::{
 ///     avatar: OptionalFileExtractor<AvatarConfig>,
 /// ) -> Result<Json<&'static str>, AppError> {
 ///     if let Some(file) = avatar.0 {
-///         println!("Received optional avatar: {}", file.path);
+///         // File was provided — store it
+///         println!("Received optional avatar: {} ({})", file.original_name, file.path);
 ///     }
+///     // No file provided — that's fine, proceed with the rest of the update
 ///     Ok(Json("Profile updated"))
 /// }
 /// ```

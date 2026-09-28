@@ -15,15 +15,29 @@ use crate::{
 };
 
 /// Represents an individual validated file extracted from a multi-file upload payload.
+///
+/// Each `ExtractedFile` holds the complete buffered content of one file along with its
+/// metadata. Use `data`, `content_type`, `path`, and `original_name` to store and track the file.
 #[derive(Debug, Clone)]
 pub struct ExtractedFile {
-    /// Zero-copy byte buffer containing the uploaded file content.
+    /// Zero-copy byte buffer containing the complete uploaded file content.
+    ///
+    /// Pass directly to [`StorageService::store`](crate::traits::StorageService::store).
     pub data: Bytes,
-    /// MIME content-type of the file.
+
+    /// MIME content-type of the file as declared in the multipart `Content-Type` header.
     pub content_type: String,
-    /// Generated S3 destination path formatted as `{storage_path}/{uuid_v7}.{ext}`.
+
+    /// Generated S3 destination key formatted as `{storage_path}/{uuid_v7}.{ext}`.
+    ///
+    /// Each file in the batch gets its own unique UUIDv7-based key. Store this path in
+    /// your database to retrieve or generate signed URLs later.
     pub path: String,
-    /// Original filename submitted by the client.
+
+    /// Original filename submitted by the client (e.g., `"photo1.jpg"`).
+    ///
+    /// The original name is **not** used in the storage key. It may be useful for display
+    /// purposes or audit logs.
     pub original_name: String,
 }
 
@@ -53,11 +67,34 @@ impl ExtractedFile {
 
 /// Axum request extractor for batch/multi-file uploads with type-level validation configuration `C`.
 ///
-/// Matches field names matching the configured name, plural suffixes, and array notation
-/// (e.g. `attachment`, `attachments`, `attachment[]`, `files[]`).
+/// Implements [`FromRequest`](axum::extract::FromRequest) and collects all matching file fields
+/// from a multipart request into a `Vec<ExtractedFile>`. Each file is individually validated
+/// for MIME type, size, and magic bytes according to the [`FileConfig`] type parameter.
 ///
-/// Implements [`Deref<Target = [ExtractedFile]>`](Deref) and [`IntoIterator<Item = ExtractedFile>`](IntoIterator)
-/// for ergonomic iteration and indexing.
+/// ## Field Name Matching
+///
+/// `MultiFileExtractor` accepts multiple naming conventions for the multipart field name.
+/// For a `FileConfig` with `field_name() = "photo"`, it matches:
+///
+/// | Form field name | Matched? |
+/// |---|---|
+/// | `photo` | ✓ |
+/// | `photos` | ✓ (plural suffix) |
+/// | `photo[]` | ✓ (array notation) |
+/// | `photos[]` | ✓ (plural array notation) |
+/// | `image` | ✗ |
+///
+/// ## Rejection Behavior
+///
+/// - Returns `422 Unprocessable Entity` if any single file fails MIME type validation or magic bytes
+/// - Returns `422 Unprocessable Entity` if any single file exceeds [`max_size()`](FileConfig::max_size)
+/// - Returns `422 Unprocessable Entity` if more than [`max_files()`](FileConfig::max_files) files are submitted
+/// - Returns `400 Bad Request` if no matching files are found at all
+///
+/// ## Iteration
+///
+/// `MultiFileExtractor` implements [`Deref<Target = [ExtractedFile]>`](Deref) and
+/// [`IntoIterator<Item = ExtractedFile>`](IntoIterator) for ergonomic iteration and indexing.
 ///
 /// # Examples
 ///
@@ -77,17 +114,14 @@ impl ExtractedFile {
 ///
 /// async fn upload_gallery_handler(
 ///     upload: MultiFileExtractor<GalleryUpload>,
-/// ) -> Result<Json<usize>, AppError> {
-///     println!("Uploaded {} photos", upload.len());
-///     for file in upload {
-///         // Process individual ExtractedFile
-///     }
-///     Ok(Json(200))
+/// ) -> Result<Json<Vec<String>>, AppError> {
+///     let paths: Vec<String> = upload.files.iter().map(|f| f.path.clone()).collect();
+///     Ok(Json(paths))
 /// }
 /// ```
 #[derive(Debug, Clone)]
 pub struct MultiFileExtractor<C: FileConfig> {
-    /// Vector of extracted and validated files.
+    /// Vector of extracted and validated files, one per matching multipart field entry.
     pub files: Vec<ExtractedFile>,
     _config: PhantomData<C>,
 }

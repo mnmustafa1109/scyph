@@ -5,8 +5,87 @@ use bytes::Bytes;
 
 /// Asynchronous interface for cloud and local object storage providers.
 ///
-/// Implemented by concrete storage backends like [`S3StorageService`](crate::s3::S3StorageService)
-/// as well as custom in-memory or mock adapters for automated integration tests.
+/// `StorageService` defines the canonical async API for object storage operations used
+/// throughout the scyph ecosystem. Concrete implementations include:
+/// - [`S3StorageService`](crate::s3::S3StorageService) — AWS S3 / MinIO / Cloudflare R2 backend
+/// - [`InMemoryStorageService`](crate::memory::InMemoryStorageService) — In-memory mock for tests
+/// - Custom implementations for other backends (local filesystem, GCS, Azure Blob, etc.)
+///
+/// ## No `async_trait` Required
+///
+/// This trait uses **Return Position Impl Trait in Traits (RPITIT)**, stabilized in Rust 1.75.
+/// There is no need for the `#[async_trait]` macro — simply `impl StorageService for YourType`
+/// with `async fn` methods directly:
+///
+/// ```rust,ignore
+/// use bytes::Bytes;
+/// use scyph_storage::{StorageService, StorageError};
+///
+/// struct LocalFsStorage {
+///     base_dir: std::path::PathBuf,
+/// }
+///
+/// impl StorageService for LocalFsStorage {
+///     async fn store(&self, path: &str, _content_type: &str, data: Bytes) -> Result<String, StorageError> {
+///         let full = self.base_dir.join(path);
+///         if let Some(parent) = full.parent() {
+///             tokio::fs::create_dir_all(parent).await
+///                 .map_err(|e| StorageError::Internal(e.to_string()))?;
+///         }
+///         tokio::fs::write(&full, &data).await
+///             .map_err(|e| StorageError::Internal(e.to_string()))?;
+///         Ok(path.to_string())
+///     }
+///
+///     async fn retrieve(&self, file_url: &str) -> Result<Bytes, StorageError> {
+///         let full = self.base_dir.join(file_url);
+///         let data = tokio::fs::read(&full).await
+///             .map_err(|_| StorageError::NotFound(file_url.to_string()))?;
+///         Ok(Bytes::from(data))
+///     }
+///
+///     async fn get_view_url(&self, file_url: &str, _expires_in_seconds: u64) -> Result<String, StorageError> {
+///         Ok(format!("file://{}/{file_url}", self.base_dir.display()))
+///     }
+///
+///     async fn get_view_urls(&self, file_urls: Vec<String>, expires: u64) -> Result<Vec<String>, StorageError> {
+///         let mut results = Vec::with_capacity(file_urls.len());
+///         for url in file_urls {
+///             results.push(self.get_view_url(&url, expires).await?);
+///         }
+///         Ok(results)
+///     }
+///
+///     async fn get_download_url(&self, file_url: &str, _download_name: &str, _expires: u64) -> Result<String, StorageError> {
+///         Ok(format!("file://{}/{file_url}", self.base_dir.display()))
+///     }
+///
+///     async fn delete(&self, file_url: &str) -> Result<(), StorageError> {
+///         let full = self.base_dir.join(file_url);
+///         tokio::fs::remove_file(&full).await
+///             .map_err(|e| StorageError::Internal(e.to_string()))
+///     }
+///
+///     async fn test_connection(&self) -> Result<(), StorageError> {
+///         if self.base_dir.exists() { Ok(()) }
+///         else { Err(StorageError::Configuration("Base directory does not exist".to_string())) }
+///     }
+/// }
+/// ```
+///
+/// ## Using as a Trait Object
+///
+/// Because `StorageService` uses RPITIT, it cannot be used as a bare `dyn StorageService`
+/// (the trait is not object-safe). Wrap it in `Arc<dyn StorageService>` using a
+/// helper crate like `async-trait` or use a concrete type / enum dispatch instead:
+///
+/// ```rust,ignore
+/// use std::sync::Arc;
+/// use scyph_storage::{InMemoryStorageService, StorageService};
+///
+/// // Concrete type works everywhere:
+/// let storage: Arc<InMemoryStorageService> = Arc::new(InMemoryStorageService::new());
+/// ```
 pub trait StorageService: Send + Sync + 'static {
     /// Uploads raw binary data to the target storage path with the given MIME content-type.
     ///

@@ -1,4 +1,52 @@
 //! Standardized envelope for paginated responses.
+//!
+//! This module provides [`PagedResponse<T>`], the canonical wrapper for list endpoints that
+//! return paginated data. It supports both **offset-based** and **cursor-based** pagination
+//! in a single struct, omitting cursor fields when they are not used.
+//!
+//! # Wire Format
+//!
+//! A typical `200 OK` offset-paginated response from [`PagedResponse::new`] serializes as:
+//!
+//! ```json
+//! {
+//!   "success": true,
+//!   "message": "OK",
+//!   "data": [
+//!     { "id": "...", "name": "Alice" },
+//!     { "id": "...", "name": "Bob" }
+//!   ],
+//!   "total": 42,
+//!   "page": 1,
+//!   "per_page": 20,
+//!   "has_next": true
+//! }
+//! ```
+//!
+//! When cursor-based pagination tokens are attached via [`PagedResponse::with_cursors`]:
+//!
+//! ```json
+//! {
+//!   "success": true,
+//!   "message": "OK",
+//!   "data": [...],
+//!   "total": 42,
+//!   "page": 2,
+//!   "per_page": 20,
+//!   "has_next": true,
+//!   "prev_cursor": "eyJpZCI6IjAxOTIzZiJ9",
+//!   "next_cursor": "eyJpZCI6IjAxOTI0MCJ9"
+//! }
+//! ```
+//!
+//! # Design Notes
+//!
+//! - `has_next` is computed automatically by [`PagedResponse::new`] as `page * per_page < total`.
+//! - Cursor fields (`prev_cursor`, `next_cursor`) are omitted from JSON when `None`
+//!   via `#[serde(skip_serializing_if = "Option::is_none")]`.
+//! - You can use offset pagination, cursor pagination, or both simultaneously in the same response.
+//! - [`PagedResponse`] implements [`IntoResponse`](axum::response::IntoResponse), so it can be
+//!   returned directly from Axum handlers.
 
 use super::meta::ResponseMeta;
 use axum::{

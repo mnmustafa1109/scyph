@@ -139,7 +139,50 @@ where
 
 /// Spawns a periodic background task using a `tokio::sync::watch` channel receiver.
 ///
-/// Compatible with watch channel receiver state checks (`*shutdown.borrow() == true`).
+/// An alternative to [`spawn_worker_cancel`] that integrates with `tokio::sync::watch` shutdown
+/// broadcasting channels (commonly used in Axum application shutdown patterns). The worker polls
+/// the `shutdown` receiver on each tick and after each task run. When `*shutdown.borrow() == true`,
+/// it completes any currently running task iteration and exits cleanly.
+///
+/// Returns a [`JoinHandle<()>`] for awaiting the worker's exit; unlike [`WorkerHandle`], this
+/// variant does not provide a `cancel()` method — shutdown is signalled externally via the
+/// `watch::Sender`.
+///
+/// ## When to Use This vs. `spawn_worker_cancel`
+///
+/// | Use `spawn_worker` | Use `spawn_worker_cancel` |
+/// |---|---|
+/// | Already have a `watch::Receiver<bool>` for app-wide shutdown | Prefer [`CancellationToken`](tokio_util::sync::CancellationToken) or need `WorkerHandle::cancel()` |
+/// | Integrating with existing watch channel broadcast | Standalone task with independent lifecycle |
+///
+/// # Arguments
+///
+/// * `name` - Static human-readable identifier logged on start and shutdown.
+/// * `interval` - Duration between successive task executions.
+/// * `shutdown` - Watch channel receiver; worker exits when `*borrow() == true`.
+/// * `task` - Closure factory returning an async task future.
+///
+/// # Examples
+///
+/// ```rust
+/// use scyph_utils::worker::spawn_worker;
+/// use tokio::sync::watch;
+/// use std::time::Duration;
+///
+/// # #[tokio::main]
+/// # async fn main() {
+/// let (shutdown_tx, shutdown_rx) = watch::channel(false);
+///
+/// let handle = spawn_worker("metrics_flush", Duration::from_secs(30), shutdown_rx, || async {
+///     println!("Flushing metrics buffer...");
+///     // flush_metrics().await;
+/// });
+///
+/// // Later, during graceful shutdown:
+/// shutdown_tx.send(true).unwrap();
+/// handle.await.expect("Worker exited cleanly");
+/// # }
+/// ```
 pub fn spawn_worker<F, Fut>(
     name: &'static str,
     interval: Duration,

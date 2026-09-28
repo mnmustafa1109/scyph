@@ -2,6 +2,40 @@
 //!
 //! Evaluates authenticated user credentials extracted upstream and restricts access to routes
 //! based on allowed roles.
+//!
+//! # How It Works
+//!
+//! [`require_roles_layer`] is an Axum middleware function that:
+//! 1. Extracts and verifies the JWT token from the request (delegates to [`AuthUser`]).
+//! 2. Reads the [`AllowedRoles`] extension injected by [`RoleRouterExt::require_roles`].
+//! 3. Checks whether the authenticated user's role appears in the allowed list.
+//! 4. On success, reconstructs the request (with `AuthUser` in extensions) and calls `next`.
+//!
+//! # Integration
+//!
+//! This middleware is not typically used directly. The idiomatic API is via [`RoleRouterExt`]:
+//!
+//! ```rust,no_run
+//! use axum::{Router, routing::get};
+//! use scyph_auth::RoleRouterExt;
+//!
+//! // (Assuming AppClaims and UserRole are defined in your app)
+//! // let protected = Router::new()
+//! //     .route("/admin", get(admin_handler))
+//! //     .require_roles::<AppClaims>(state, &[UserRole::Admin, UserRole::Moderator]);
+//! ```
+//!
+//! If you need to apply the middleware manually (e.g., for custom layer ordering), use:
+//!
+//! ```rust,no_run
+//! use axum::{Router, routing::get, extract::Extension, middleware::from_fn_with_state};
+//! use scyph_auth::middleware::{AllowedRoles, require_roles_layer};
+//!
+//! // let router = Router::new()
+//! //     .route("/admin", get(admin_handler))
+//! //     .layer(Extension(AllowedRoles(&[UserRole::Admin])))
+//! //     .route_layer(from_fn_with_state(state, require_roles_layer::<AppState, AppClaims>));
+//! ```
 
 use crate::{AuthExtractorState, AuthUser, error::AuthError};
 use axum::{
@@ -24,10 +58,27 @@ use tracing::{debug, warn};
 /// Extracts and verifies the user's JWT credentials, checks token revocation, and enforces
 /// that the authenticated user's role is in [`AllowedRoles`].
 ///
+/// # Arguments
+///
+/// * `state` - The Axum application state, must implement [`AuthExtractorState<C>`].
+/// * `allowed` - The [`AllowedRoles`] extension containing the permitted roles for this route.
+/// * `request` - The incoming HTTP request.
+/// * `next` - The next middleware or handler in the Axum tower stack.
+///
 /// # Errors
 ///
-/// - Returns [`AuthError::Unauthorized`] if the token is missing, invalid, expired, or revoked.
-/// - Returns [`AuthError::Forbidden`] if the user's role is not in the list of allowed roles.
+/// - Returns [`AppError::Unauthorized`] (HTTP 401) if the token is missing, invalid, expired, or revoked.
+///   This is propagated from [`AuthUser::from_request_parts`].
+/// - Returns [`AppError::Forbidden`] (HTTP 403) if the user is authenticated but their role
+///   does not appear in [`AllowedRoles`].
+///
+/// # Notes
+///
+/// - The `AuthUser` is inserted into request extensions after successful verification, so
+///   downstream handlers receiving `AuthUser<C>` as a parameter will use the fast-path and
+///   avoid redundant token verification.
+/// - Role comparison uses `PartialEq` via [`AllowedRoles::0.contains()`], which requires
+///   [`C::Role`] to implement [`Eq`] (guaranteed by [`Authorizable`](scyph_core::traits::Authorizable)).
 pub async fn require_roles_layer<S, C>(
     State(state): State<S>,
     Extension(allowed): Extension<AllowedRoles<C::Role>>,

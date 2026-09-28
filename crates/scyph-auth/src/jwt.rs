@@ -1,6 +1,75 @@
 //! JSON Web Token (JWT) encoding, decoding, and validation.
 //!
 //! High-level wrapper around the [`jsonwebtoken`] library using secure types from [`secrecy`].
+//!
+//! # Algorithm
+//!
+//! All tokens are signed using **HMAC-SHA256 (HS256)** — a symmetric algorithm where the same
+//! secret is used for both signing and verification. This is appropriate for single-service
+//! or service-mesh deployments where the secret can be shared securely. For multi-party
+//! scenarios requiring asymmetric signing (RS256/ES256), extend or replace these functions.
+//!
+//! # Security Considerations
+//!
+//! - The `secret` parameter is wrapped in [`secrecy::SecretString`] to prevent it from
+//!   accidentally appearing in log output, debug formatting, or error messages.
+//! - Tokens include a `jti` (JWT ID) claim. Use [`AuthCacheService::blacklist_token`] to
+//!   revoke individual tokens before their natural expiration.
+//! - Always set a short expiration (`exp`) on access tokens (e.g., 15–60 minutes).
+//!   Use a separate refresh token flow for long-lived sessions.
+//!
+//! # Examples
+//!
+//! Full round-trip: create a token, verify it, and read claims back:
+//!
+//! ```rust
+//! use scyph_auth::{create_token, verify_token};
+//! use scyph_core::Claims;
+//! use secrecy::SecretString;
+//! use serde::{Serialize, Deserialize};
+//! use uuid::Uuid;
+//!
+//! #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+//! enum Role { Admin, User }
+//!
+//! #[derive(Clone, Serialize, Deserialize)]
+//! struct AppClaims {
+//!     sub: Uuid,
+//!     exp: i64,
+//!     jti: String,
+//!     role: Role,
+//!     email: String,
+//! }
+//!
+//! impl Claims for AppClaims {
+//!     type Role = Role;
+//!     fn subject(&self) -> Uuid     { self.sub }
+//!     fn expiry(&self) -> i64       { self.exp }
+//!     fn jti(&self) -> &str         { &self.jti }
+//!     fn role(&self) -> &Self::Role { &self.role }
+//! }
+//!
+//! let user_id = Uuid::now_v7();
+//! let claims = AppClaims {
+//!     sub: user_id,
+//!     exp: chrono::Utc::now().timestamp() + 3600,
+//!     jti: Uuid::now_v7().to_string(),
+//!     role: Role::Admin,
+//!     email: "alice@example.com".into(),
+//! };
+//!
+//! let secret = SecretString::from("at-least-32-bytes-long-secret-key!!");
+//!
+//! // Sign the token
+//! let token = create_token(&claims, &secret).expect("encoding failed");
+//! assert!(!token.is_empty());
+//!
+//! // Verify and decode
+//! let token_data = verify_token::<AppClaims>(&token, &secret).expect("verification failed");
+//! assert_eq!(token_data.claims.subject(), user_id);
+//! assert_eq!(*token_data.claims.role(), Role::Admin);
+//! assert_eq!(token_data.claims.email, "alice@example.com");
+//! ```
 
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, TokenData, Validation, decode, encode};
 use scyph_core::traits::Claims;

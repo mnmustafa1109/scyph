@@ -2,6 +2,69 @@
 //!
 //! Provides [`AuthUser<C>`], an extractor that parses, verifies, and validates JWT Bearer tokens
 //! from incoming HTTP `Authorization` headers, checks token revocation, and injects user identity into handler parameters.
+//!
+//! # Extraction Workflow
+//!
+//! When Axum resolves `AuthUser<C>` as a handler parameter, the following steps run in order:
+//!
+//! ```text
+//! 1. Fast-path check
+//!    └─ Is AuthUser<C> already in request extensions?
+//!       YES → return it immediately (middleware pre-populated it)
+//!       NO  → continue to step 2
+//!
+//! 2. Authorization header extraction
+//!    └─ Read the `Authorization` HTTP header
+//!       Missing → 401 Unauthorized ("Missing Authorization header")
+//!
+//! 3. Bearer scheme validation
+//!    └─ Strip "Bearer " prefix from header value
+//!       Wrong scheme → 401 Unauthorized ("Invalid Authorization scheme; expected Bearer")
+//!
+//! 4. JWT verification
+//!    └─ verify_token::<C>(token, jwt_secret)
+//!       Expired      → 401 Unauthorized ("Token has expired")
+//!       Invalid sig  → 401 Unauthorized ("Invalid token: ...")
+//!
+//! 5. jti presence check
+//!    └─ claims.jti() must be non-empty
+//!       Empty jti    → 401 Unauthorized ("Token jti claim is missing")
+//!
+//! 6. Revocation check
+//!    └─ AuthCacheService::is_token_revoked(jti)
+//!       Revoked      → 401 Unauthorized ("Token has been revoked")
+//!
+//! 7. Success
+//!    └─ AuthUser { id: claims.subject(), claims } inserted into extensions
+//!       C::Role inserted into extensions for downstream middleware
+//!       AuthUser returned to handler
+//! ```
+//!
+//! # State Requirements
+//!
+//! Your Axum application state must implement [`AuthExtractorState<C>`] to provide:
+//! - The JWT signing secret ([`AuthExtractorState::jwt_secret`])
+//! - The authentication cache ([`AuthExtractorState::auth_cache`])
+//!
+//! # Usage in Handlers
+//!
+//! ```rust,no_run
+//! use scyph_auth::{AuthUser, OptionalAuthUser};
+//! use scyph_core::Claims;
+//!
+//! // Require authentication — returns 401 if token is absent or invalid
+//! async fn protected_handler<C: Claims>(user: AuthUser<C>) -> String {
+//!     format!("Welcome, user {}", user.id)
+//! }
+//!
+//! // Optional authentication — never rejects the request
+//! async fn hybrid_handler<C: Claims>(user: OptionalAuthUser<C>) -> String {
+//!     match user.0 {
+//!         Some(u) => format!("Hello, authenticated user {}", u.id),
+//!         None    => "Hello, anonymous visitor!".into(),
+//!     }
+//! }
+//! ```
 
 use axum::{
     extract::FromRequestParts,
@@ -92,10 +155,20 @@ where
     ///
     /// # Extraction Workflow
     /// 1. **Fast Path**: Checks if [`AuthUser`] is already present in request extensions (e.g. added by middleware).
+    ///    If found, the role is also re-inserted if missing, and the cached user is returned immediately.
     /// 2. **Header Parsing**: Extracts the `Authorization` header and ensures it uses the `Bearer` scheme.
-    /// 3. **Token Verification**: Validates the JWT signature and expiration using [`verify_token`].
-    /// 4. **Revocation Check**: Queries [`AuthCacheService`] to verify the token's `jti` is not blacklisted.
-    /// 5. **Caching**: Inserts the parsed [`AuthUser`] and [`Claims::Role`] into request extensions for downstream handlers.
+    ///    Returns `401 Unauthorized` if the header is absent or uses a different scheme.
+    /// 3. **Token Verification**: Calls [`verify_token`] to validate the JWT signature and expiration.
+    ///    Returns `401 Unauthorized` with [`JwtError`](crate::jwt::JwtError) detail if invalid.
+    /// 4. **jti Validation**: Ensures the `jti` claim is non-empty (required for revocation support).
+    /// 5. **Revocation Check**: Queries [`AuthCacheService`] to verify the token's `jti` is not blacklisted.
+    ///    Returns `401 Unauthorized` if the token has been explicitly revoked.
+    /// 6. **Extension Population**: Inserts the resolved [`AuthUser`] and `C::Role` into request extensions
+    ///    so downstream middleware and handlers can access them cheaply without re-parsing.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AppError::Unauthorized`] (HTTP 401) on any authentication failure.
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, AppError> {
         // Fast-path: if already verified, ensure both user and role are available
         if let Some(user) = parts.extensions.get::<AuthUser<C>>() {

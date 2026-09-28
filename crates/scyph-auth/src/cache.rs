@@ -2,6 +2,70 @@
 //!
 //! Provides [`AuthCacheService`] to cache user profiles in memory (reducing database hits)
 //! and maintain a JWT revocation blacklist using unique token identifiers (`jti`).
+//!
+//! # Caching Strategy
+//!
+//! `AuthCacheService` uses two separate [`moka::future::Cache`] instances:
+//!
+//! - **Profile cache** (`Uuid → P`): Stores application-defined profile structs (e.g. `UserProfile`),
+//!   keyed by user UUID. Reduces repeated database queries for frequently accessed user data.
+//!   Profiles expire after `profile_ttl_secs` seconds of inactivity.
+//!
+//! - **Blacklist cache** (`String → ()`): Stores revoked JWT `jti` values. When a token is
+//!   revoked (logout, password change, admin action), its `jti` is inserted here. The extractor
+//!   checks this cache on every request. Entries expire after `blacklist_ttl_secs` seconds,
+//!   which should be set to the maximum possible JWT lifetime to ensure revocation persists
+//!   until natural token expiry.
+//!
+//! # Full Workflow Example
+//!
+//! ```rust,ignore
+//! use scyph_auth::AuthCacheService;
+//! use uuid::Uuid;
+//!
+//! #[derive(Clone)]
+//! struct UserProfile {
+//!     id: Uuid,
+//!     email: String,
+//!     is_active: bool,
+//! }
+//!
+//! # #[tokio::main]
+//! # async fn main() {
+//! // Build a cache: up to 10k profiles, 5-minute profile TTL, 1-hour blacklist TTL
+//! let cache = AuthCacheService::<UserProfile>::new(10_000, 300, 3600);
+//!
+//! let user_id = Uuid::now_v7();
+//! let profile = UserProfile {
+//!     id: user_id,
+//!     email: "alice@example.com".into(),
+//!     is_active: true,
+//! };
+//!
+//! // Cache the user profile after a successful database lookup
+//! cache.set_profile(user_id, profile).await;
+//!
+//! // Fast path: retrieve profile from cache (no DB hit)
+//! if let Some(p) = cache.get_profile(&user_id).await {
+//!     assert_eq!(p.email, "alice@example.com");
+//! }
+//!
+//! // Simulate a logout: blacklist the token's jti
+//! let jti = "token-unique-id-abc123";
+//! cache.blacklist_token(jti).await;
+//! assert!(cache.is_token_revoked(jti).await);
+//!
+//! // When user's role changes, invalidate their profile cache
+//! cache.invalidate_profile(&user_id).await;
+//! assert!(cache.get_profile(&user_id).await.is_none());
+//! # }
+//! ```
+//!
+//! # Concurrency
+//!
+//! `AuthCacheService<P>` implements `Clone` — cloning it shares the underlying cache between
+//! Axum handler tasks. It is safe to hold in an `Arc<AppState>` or as a plain field in a
+//! `#[derive(Clone)]` state struct.
 
 use moka::future::Cache;
 use std::time::Duration;

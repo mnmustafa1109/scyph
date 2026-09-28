@@ -50,28 +50,61 @@ impl Cursor {
     /// - Encodes the next cursor using `get_id(&last_item)`,
     /// - Returns a clean [`PagedResponse`].
     ///
+    /// ## "Limit + 1" Pattern
+    ///
+    /// The standard cursor pagination pattern is to query `LIMIT limit + 1` rows from the database.
+    /// If more than `limit` rows are returned, there is a next page. `build_page` implements this
+    /// pattern automatically: pass it `limit` (the user-requested page size) and a vector fetched
+    /// with `LIMIT limit + 1`. It truncates to `limit`, sets `has_next`, and encodes the cursor
+    /// from the **last item in the page** (not the extra row).
+    ///
+    /// ## Database Query Pattern
+    ///
+    /// ```sql
+    /// -- Fetch one extra row to determine if a next page exists
+    /// SELECT id, name, created_at FROM users
+    /// WHERE id > $1           -- cursor_id (None = first page)
+    /// ORDER BY id ASC
+    /// LIMIT $2 + 1            -- limit + 1
+    /// ```
+    ///
     /// # Arguments
     ///
     /// * `items` - Mutable vector of fetched items (typically queried with `LIMIT limit + 1`).
-    /// * `limit` - Target page size limit.
-    /// * `get_id` - Closure returning the [`Uuid`] cursor identifier from an item.
+    /// * `limit` - Target page size limit (automatically clamped to `[1, 100]`).
+    /// * `get_id` - Closure returning the [`Uuid`] cursor identifier from an item reference.
     ///
     /// # Examples
     ///
     /// ```rust
-    /// use scyph_utils::pagination::Cursor;
+    /// use scyph_utils::pagination::{Cursor, PageParams};
     /// use serde::Serialize;
     /// use uuid::Uuid;
     ///
     /// #[derive(Serialize)]
     /// struct User { id: Uuid, name: String }
     ///
-    /// let mut users = vec![
-    ///     User { id: Uuid::nil(), name: "Alice".into() },
-    /// ];
+    /// // Simulating: DB returned 21 rows for a page size of 20 (limit + 1 pattern)
+    /// let mut users: Vec<User> = (0..21u8)
+    ///     .map(|i| User { id: Uuid::nil(), name: format!("User {i}") })
+    ///     .collect();
     ///
-    /// let paged = Cursor::build_page(&mut users, 20, |u| u.id);
-    /// assert_eq!(paged.data.len(), 1);
+    /// let page = Cursor::build_page(&mut users, 20, |u| u.id);
+    ///
+    /// // Page contains exactly 20 items
+    /// assert_eq!(page.data.len(), 20);
+    /// // has_next is true because 21 > 20
+    /// assert!(page.has_next);
+    /// // next_cursor is set to the encoded UUID of the 20th item
+    /// assert!(page.next_cursor.is_some());
+    ///
+    /// // First page (only 5 rows returned — no next page)
+    /// let mut small: Vec<User> = (0..5u8)
+    ///     .map(|i| User { id: Uuid::nil(), name: format!("User {i}") })
+    ///     .collect();
+    /// let last_page = Cursor::build_page(&mut small, 20, |u| u.id);
+    /// assert!(!last_page.has_next);
+    /// assert!(last_page.next_cursor.is_none());
     /// ```
     pub fn build_page<T, F>(items: &mut Vec<T>, limit: i64, get_id: F) -> PagedResponse<T>
     where

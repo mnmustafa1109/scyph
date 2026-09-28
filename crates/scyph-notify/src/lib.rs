@@ -10,13 +10,96 @@
 //! - **Template Engine (`TemplateEngine`)**: Seamlessly compiles HTML and plaintext Tera templates, supporting strongly-typed domain templates ([`EmailTemplate`]) and automatic fallback to matching `.txt` plaintext files.
 //! - **Multi-Channel Broadcaster (`NotificationBroadcaster`)**: Allows single-line event dispatch across Email and Push channels simultaneously via [`CompositeNotification`].
 //! - **Automated Health Checks**: Extends services with `check_health` pings integrated into `scyph-health` registries without taking down `/readyz` API endpoints during transient external vendor outages.
-//! - **No-Op Test Drivers**: Includes `NoEmailService` and `NoPushService` for zero-setup unit testing and local development.
+//! - **No-Op Test Drivers**: Includes [`NoEmailService`] and [`NoPushService`] for zero-setup unit testing and local development.
+//!
+//! ## Architecture Overview
+//!
+//! The crate is organized around trait abstractions that decouple business logic from delivery
+//! mechanisms. Application code depends on [`EmailService`] and [`PushService`] traits, making
+//! it trivial to swap `LettreSMTPService` for `NoEmailService` in tests without changing any
+//! handler code.
+//!
+//! ```text
+//! ┌─────────────────────────────────────────────────┐
+//! │              Application Handler                │
+//! │  Arc<dyn EmailService> + Arc<dyn PushService>   │
+//! └────────────────┬────────────────────────────────┘
+//!                  │ injects
+//!      ┌───────────┴────────────┐
+//!      ▼                        ▼
+//! ┌─────────────┐        ┌──────────────┐
+//! │ EmailService│        │  PushService │
+//! │  (trait)    │        │   (trait)    │
+//! └──────┬──────┘        └──────┬───────┘
+//!        │                      │
+//!  ┌─────┴──────┐        ┌──────┴──────┐
+//!  │LettreSMTP  │        │  FcmPush    │
+//!  │  Service   │        │  Service    │
+//!  │(production)│        │(production) │
+//!  └────────────┘        └─────────────┘
+//!  ┌────────────┐        ┌─────────────┐
+//!  │NoEmailSvc  │        │ NoPushSvc   │
+//!  │ (testing)  │        │  (testing)  │
+//!  └────────────┘        └─────────────┘
+//! ```
+//!
+//! ## Quick Start
+//!
+//! ### Sending an email in an Axum handler
+//!
+//! ```rust,ignore
+//! use std::sync::Arc;
+//! use scyph_notify::{EmailMessage, EmailService, NoEmailService};
+//!
+//! async fn welcome_handler(
+//!     email_service: axum::extract::Extension<Arc<dyn EmailService>>,
+//! ) {
+//!     let msg = EmailMessage {
+//!         to: vec!["user@example.com".into()],
+//!         subject: "Welcome!".into(),
+//!         html: "<p>Hello world!</p>".into(),
+//!         text: Some("Hello world!".into()),
+//!     };
+//!     // Fire-and-forget in background — handler returns immediately
+//!     email_service.0.clone().send_background(msg);
+//! }
+//! ```
+//!
+//! ### Using a typed email template
+//!
+//! ```rust,ignore
+//! use scyph_notify::{EmailTemplate, EmailService, LettreSMTPService, TemplateEngine};
+//! use serde_json::json;
+//! use std::sync::Arc;
+//!
+//! struct WelcomeEmail { user_name: String, user_email: String }
+//!
+//! impl EmailTemplate for WelcomeEmail {
+//!     fn to(&self) -> Vec<String> { vec![self.user_email.clone()] }
+//!     fn subject(&self) -> String { "Welcome to Scyph!".into() }
+//!     fn template_name(&self) -> &str { "welcome.html" }
+//!     fn context(&self) -> serde_json::Value { json!({ "name": self.user_name }) }
+//! }
+//!
+//! async fn register_handler(
+//!     svc: Arc<LettreSMTPService>,
+//!     engine: Arc<TemplateEngine>,
+//! ) {
+//!     let template = WelcomeEmail {
+//!         user_name: "Alice".into(),
+//!         user_email: "alice@example.com".into(),
+//!     };
+//!     svc.send_template_background(engine, template);
+//! }
+//! ```
 //!
 //! ## Feature Flags
 //!
-//! - `email`: Enables `lettre` SMTP email transport and `Tera` template rendering engine.
-//! - `fcm`: Enables Firebase Cloud Messaging HTTP v1 push notification client via `reqwest` and `gcp_auth`.
-//! - `health`: Enables `DbHealthExt`-style health check integration with `scyph-health`.
+//! | Flag | Description |
+//! |------|-------------|
+//! | `email` | Enables `lettre` SMTP email transport and `Tera` template rendering engine. |
+//! | `fcm` | Enables Firebase Cloud Messaging HTTP v1 push notification client via `reqwest` and `gcp_auth`. |
+//! | `health` | Enables `DbHealthExt`-style health check integration with `scyph-health`. |
 
 #![warn(missing_docs)]
 

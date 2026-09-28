@@ -1,4 +1,18 @@
 //! Axum URL path parameter extractors.
+//!
+//! This module provides two extractors for Axum path parameters:
+//!
+//! - [`TypedPath<T>`]: Thin wrapper around `axum::extract::Path<T>` that converts parse errors
+//!   into [`AppError`] automatically. Use for simple scalar types (`Uuid`, `i64`, etc.).
+//!
+//! - [`ValidatedPath<T>`]: Extends `TypedPath` with `garde` validation. Use when the path
+//!   parameter is a struct that needs constraint validation (e.g. range checks on an integer ID).
+//!
+//! ## Context Type Note
+//!
+//! [`ValidatedPath`] calls `validate_with(&Default::default())`. The `garde::Validate::Context`
+//! associated type must implement `Default`. For most structs this is `()`, which satisfies
+//! the bound automatically.
 
 use crate::error::ExtractorError;
 use axum::{

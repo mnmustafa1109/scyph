@@ -4,12 +4,38 @@
 //! Scyph services. It follows the [RFC 7807 Problem Details](https://tools.ietf.org/html/rfc7807)
 //! format for HTTP APIs.
 //!
+//! # Architecture Overview
+//!
+//! Every Scyph handler returns `Result<T, AppError>`. When an error is returned, Axum calls
+//! [`AppError::into_response`](axum::response::IntoResponse::into_response) automatically,
+//! which serializes the error into the RFC 7807 JSON shape and sets the correct HTTP status code.
+//!
+//! The conversion chain is designed to be ergonomic:
+//!
+//! ```text
+//! Domain Error (e.g. sqlx::Error)
+//!      │  AppError::internal_from(e, "context")
+//!      ▼
+//! AppError::Internal { source, context }
+//!      │  IntoResponse
+//!      ▼
+//! HTTP 500 with opaque body:
+//! { "type": "https://httpstatuses.io/500",
+//!   "title": "INTERNAL_SERVER_ERROR",
+//!   "status": 500,
+//!   "detail": "An unexpected error occurred." }
+//! ```
+//!
 //! # Key Features
 //! - **RFC 7807 Compliance**: Serializes responses with `type`, `title`, `status`, and `detail`.
 //! - **Automatic Response Mapping**: Implements [`IntoResponse`](axum::response::IntoResponse) to easily return errors from Axum handlers.
 //! - **Security First**: Internal server errors mask sensitive implementation details from clients while logging full tracebacks.
+//! - **Structured Validation**: [`AppError::ValidationError`] carries per-field [`ErrorDetails`] for rich 422 responses.
+//! - **Custom Domain Errors**: [`AppError::Custom`] allows arbitrary status codes for domain-specific edge cases.
 //!
 //! # Examples
+//!
+//! Basic handler returning a typed error:
 //!
 //! ```rust
 //! use scyph_core::AppError;
@@ -20,6 +46,52 @@
 //!         Err(AppError::NotFound("User not found".into()))
 //!     } else {
 //!         Ok("Alice".into())
+//!     }
+//! }
+//! ```
+//!
+//! Wrapping a library error with [`AppError::internal_from`]:
+//!
+//! ```rust,ignore
+//! use scyph_core::AppError;
+//!
+//! async fn fetch_user(pool: &sqlx::PgPool, id: uuid::Uuid) -> Result<String, AppError> {
+//!     sqlx::query_scalar::<_, String>("SELECT name FROM users WHERE id = $1")
+//!         .bind(id)
+//!         .fetch_one(pool)
+//!         .await
+//!         .map_err(|e| AppError::internal_from(e, "fetch_user: database query failed"))
+//! }
+//! ```
+//!
+//! Returning a [`AppError::ValidationError`] with per-field details:
+//!
+//! ```rust
+//! use scyph_core::{AppError, ErrorDetails};
+//!
+//! fn validate_registration(email: &str, age: u8) -> Result<(), AppError> {
+//!     let mut errors = Vec::new();
+//!     if !email.contains('@') {
+//!         errors.push(ErrorDetails {
+//!             code: "INVALID_EMAIL".into(),
+//!             message: "Must be a valid email address".into(),
+//!             field: Some("email".into()),
+//!         });
+//!     }
+//!     if age < 18 {
+//!         errors.push(ErrorDetails {
+//!             code: "UNDERAGE".into(),
+//!             message: "Must be at least 18 years old".into(),
+//!             field: Some("age".into()),
+//!         });
+//!     }
+//!     if errors.is_empty() {
+//!         Ok(())
+//!     } else {
+//!         Err(AppError::ValidationError {
+//!             message: "Registration validation failed".into(),
+//!             details: errors,
+//!         })
 //!     }
 //! }
 //! ```
@@ -103,6 +175,19 @@ pub enum AppError {
     ///
     /// The full error context is logged via `tracing::error!`, but the client receives an
     /// opaque generic detail message `"An unexpected error occurred."` to preserve security.
+    ///
+    /// # Security Masking
+    ///
+    /// This variant intentionally hides the underlying `source` error and `context` from HTTP
+    /// clients. Exposing database errors, stack traces, or internal service messages in API
+    /// responses is a common information-disclosure vulnerability (CWE-209). Instead:
+    ///
+    /// - The `source` and `context` are emitted to the structured tracing log at `ERROR` level,
+    ///   visible in your log aggregator (e.g., CloudWatch, Datadog).
+    /// - The HTTP response body always contains the fixed string `"An unexpected error occurred."`.
+    ///
+    /// This makes internal errors safe to return from any handler without risk of leaking
+    /// secrets, database schema details, or service internals to end users.
     #[error("Internal server error")]
     Internal {
         /// The underlying source error causing the failure.
@@ -135,7 +220,15 @@ impl AppError {
     /// * `err` - The underlying source error.
     /// * `ctx` - A human-readable context description explaining where the error occurred.
     ///
+    /// # Security Note
+    ///
+    /// The `err` and `ctx` values are logged at `ERROR` level via `tracing` but are **never**
+    /// included in the HTTP response body. Clients always receive the opaque message
+    /// `"An unexpected error occurred."`.
+    ///
     /// # Examples
+    ///
+    /// Wrapping a standard parse error:
     ///
     /// ```rust
     /// use scyph_core::AppError;
@@ -143,6 +236,20 @@ impl AppError {
     /// let parse_result: Result<i32, _> = "invalid".parse();
     /// let app_err = parse_result.map_err(|e| AppError::internal_from(e, "Failed to parse integer"));
     /// assert_eq!(app_err.unwrap_err().status(), axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+    /// ```
+    ///
+    /// Wrapping a `sqlx` database error (requires `sqlx` in scope):
+    ///
+    /// ```rust,ignore
+    /// use scyph_core::AppError;
+    ///
+    /// async fn get_user(pool: &sqlx::PgPool, id: uuid::Uuid) -> Result<String, AppError> {
+    ///     sqlx::query_scalar::<_, String>("SELECT name FROM users WHERE id = $1")
+    ///         .bind(id)
+    ///         .fetch_one(pool)
+    ///         .await
+    ///         .map_err(|e| AppError::internal_from(e, "get_user: failed to query users table"))
+    /// }
     /// ```
     pub fn internal_from<E: std::error::Error + Send + Sync + 'static>(
         err: E,

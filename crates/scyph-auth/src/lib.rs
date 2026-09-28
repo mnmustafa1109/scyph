@@ -11,6 +11,63 @@
 //! - **[`rbac`]**: Predicate-based function helper for checking user roles in handlers.
 //! - **[`router_ext`]**: Extension trait ([`RoleRouterExt`]) to protect router routes easily.
 //! - **[`error`]**: Authentication and authorization error types ([`AuthError`]).
+//!
+//! ## Authentication Flow
+//!
+//! The typical end-to-end authentication flow in a Scyph application:
+//!
+//! ```text
+//! Client
+//!   │  POST /auth/login  { email, password }
+//!   ▼
+//! Login Handler
+//!   ├── verify_password_async(&input_pw, &stored_hash)
+//!   ├── create_token(&claims, &jwt_secret)
+//!   └── returns JWT string to client
+//!
+//! Client
+//!   │  GET /protected  Authorization: Bearer <token>
+//!   ▼
+//! require_roles_layer middleware
+//!   ├── AuthUser::from_request_parts (parses + verifies JWT)
+//!   ├── AuthCacheService::is_token_revoked (checks blacklist)
+//!   ├── checks role in AllowedRoles
+//!   └── calls next handler with AuthUser in extensions
+//!
+//! Protected Handler
+//!   ├── AuthUser<MyClaims> injected as parameter
+//!   └── optionally: user.enforce::<MyPolicy>(&resource, Action::Read)
+//! ```
+//!
+//! ## Quick Start
+//!
+//! ```rust,ignore
+//! use scyph_auth::{
+//!     AuthCacheService, AuthExtractorState, AuthUser,
+//!     create_token, hash_password_async, verify_password_async,
+//!     RoleRouterExt,
+//! };
+//! use secrecy::SecretString;
+//! use std::sync::Arc;
+//!
+//! // 1. Build your app state implementing AuthExtractorState
+//! #[derive(Clone)]
+//! struct AppState {
+//!     jwt_secret: SecretString,
+//!     cache: Arc<AuthCacheService<UserProfile>>,
+//! }
+//!
+//! // 2. Hash passwords at registration
+//! let hash = hash_password_async(&SecretString::from("hunter2")).await?;
+//!
+//! // 3. Issue tokens at login
+//! let token = create_token(&claims, &state.jwt_secret)?;
+//!
+//! // 4. Protect routes with roles
+//! let admin_routes = Router::new()
+//!     .route("/admin", get(admin_handler))
+//!     .require_roles::<AppClaims>(state.clone(), &[UserRole::Admin]);
+//! ```
 
 #![warn(missing_docs)]
 

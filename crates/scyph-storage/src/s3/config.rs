@@ -1,4 +1,54 @@
-//! S3 client configuration and environment loaders.
+//! AWS S3 / S3-compatible client configuration and environment variable loaders.
+//!
+//! Provides [`S3StorageService::new`] (explicit credentials) and [`S3StorageService::from_env`]
+//! (environment-driven) constructors for building a configured storage service.
+//!
+//! ## Environment Variables
+//!
+//! | Variable | Required | Default | Description |
+//! |----------|----------|---------|-------------|
+//! | `S3_BUCKET` | **Yes** | — | S3 bucket name |
+//! | `S3_ENDPOINT_URL` | No | AWS default endpoint | Custom S3-compatible endpoint (MinIO, LocalStack) |
+//! | `S3_PUBLIC_URL_PREFIX` | No | Derived from bucket/region | Browser-accessible presigned URL base |
+//! | `S3_REGION` / `AWS_REGION` | No | `us-east-1` | AWS region |
+//! | `AWS_ACCESS_KEY_ID` | No | IAM role / instance profile | Static access key |
+//! | `AWS_SECRET_ACCESS_KEY` | No | IAM role / instance profile | Static secret key |
+//!
+//! ## Path-Style vs Virtual-Hosted Addressing
+//!
+//! When `S3_ENDPOINT_URL` is set to a custom non-AWS endpoint (e.g. `http://localhost:9000`),
+//! path-style addressing is automatically enabled (`force_path_style(true)`). This is required
+//! for MinIO, LocalStack, and Ceph RGW, which do not support virtual-hosted bucket addressing.
+//!
+//! AWS S3 uses virtual-hosted style by default:
+//! ```text
+//! https://{bucket}.s3.{region}.amazonaws.com/{key}
+//! ```
+//!
+//! MinIO / LocalStack uses path-style:
+//! ```text
+//! http://localhost:9000/{bucket}/{key}
+//! ```
+//!
+//! ## MinIO Local Development Example
+//!
+//! ```env
+//! S3_BUCKET=my-bucket
+//! S3_ENDPOINT_URL=http://localhost:9000
+//! S3_PUBLIC_URL_PREFIX=http://localhost:9000
+//! S3_REGION=us-east-1
+//! AWS_ACCESS_KEY_ID=minioadmin
+//! AWS_SECRET_ACCESS_KEY=minioadmin
+//! ```
+//!
+//! ## AWS Production Example (IAM Role, no static keys)
+//!
+//! ```env
+//! S3_BUCKET=my-prod-bucket
+//! S3_REGION=us-east-1
+//! S3_PUBLIC_URL_PREFIX=https://cdn.example.com
+//! # AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY omitted — uses EC2 instance profile / ECS task role
+//! ```
 
 use crate::error::StorageError;
 use crate::s3::S3StorageService;

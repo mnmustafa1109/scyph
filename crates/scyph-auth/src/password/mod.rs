@@ -2,6 +2,56 @@
 //!
 //! Integrates [`argon2`] and [`secrecy`] to handle user passwords safely without leaving secrets in memory.
 //! Provides [`PasswordService`] for configurable, concurrency-managed password hashing in production backends.
+//!
+//! # Algorithm
+//!
+//! All password hashing uses **Argon2id**, the winner of the Password Hashing Competition (PHC).
+//! Argon2id is a memory-hard function resistant to GPU and ASIC brute-force attacks, providing
+//! strong protection even if a database is compromised.
+//!
+//! Hashes are stored in the **PHC string format** (`$argon2id$v=19$m=...,t=...,p=...$<salt>$<hash>`),
+//! which embeds all parameters needed for verification, making it forward-compatible with parameter upgrades.
+//!
+//! # Security Properties
+//!
+//! - **`SecretString` wrapping**: Passwords are passed as [`secrecy::SecretString`] to prevent
+//!   accidental exposure in `Debug` output, panic messages, or log lines.
+//! - **Constant-time comparison**: [`verify_password`] delegates to `argon2`'s `verify_password`,
+//!   which is implemented to resist timing side-channel attacks.
+//! - **Blocking offload**: CPU-intensive Argon2 computation is moved off the async executor via
+//!   `tokio::task::spawn_blocking` in the `_async` variants, preventing event-loop starvation.
+//!
+//! # Sync vs Async
+//!
+//! | Function                  | When to use                                  |
+//! |---------------------------|----------------------------------------------|
+//! | [`hash_password`]         | Tests, CLI tools, synchronous contexts       |
+//! | [`hash_password_async`]   | Axum handlers, async services (recommended)  |
+//! | [`verify_password`]       | Tests, CLI tools, synchronous contexts       |
+//! | [`verify_password_async`] | Axum handlers, async services (recommended)  |
+//!
+//! For high-throughput production use, prefer [`PasswordService`] which adds a concurrency
+//! semaphore to cap simultaneous Argon2 computations and protect the system under load.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use scyph_auth::{hash_password, verify_password};
+//! use secrecy::SecretString;
+//!
+//! let password = SecretString::from("correct-horse-battery-staple");
+//! let hash = hash_password(&password).expect("hashing failed");
+//!
+//! // Hash starts with Argon2id PHC prefix
+//! assert!(hash.starts_with("$argon2id$"));
+//!
+//! // Correct password verifies successfully
+//! assert!(verify_password(&password, &hash).is_ok());
+//!
+//! // Wrong password fails verification
+//! let wrong = SecretString::from("hunter2");
+//! assert!(verify_password(&wrong, &hash).is_err());
+//! ```
 
 mod error;
 mod service;
