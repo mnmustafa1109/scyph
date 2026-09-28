@@ -13,6 +13,11 @@ pub struct LinkGenerator {
 }
 
 impl LinkGenerator {
+    /// Constructs a new [`LinkGenerator`] with an explicit base URL.
+    pub fn new(base_url: Url) -> Self {
+        Self { base_url }
+    }
+
     /// Returns the parsed base URL instance.
     pub fn base_url(&self) -> &Url {
         &self.base_url
@@ -65,6 +70,15 @@ where
     type Rejection = AppError;
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        // 1. If canonical APP_BASE_URL is configured, use it as trusted base URL
+        if let Ok(app_base) = std::env::var("APP_BASE_URL") {
+            let base_url = Url::parse(&app_base).map_err(|e| {
+                AppError::internal(format!("Invalid APP_BASE_URL configuration: {e}"))
+            })?;
+            return Ok(LinkGenerator { base_url });
+        }
+
+        // 2. Extract host from headers
         let host = parts
             .headers
             .get("x-forwarded-host")
@@ -74,6 +88,25 @@ where
             .map(|h| h.trim())
             .ok_or_else(|| AppError::BadRequest("Missing Host header".to_string()))?;
 
+        // Basic sanity check to prevent CRLF or header splitting in host
+        if host.contains(['/', '\\', '\r', '\n', ' ', '@']) {
+            return Err(AppError::BadRequest("Malformed Host header".to_string()));
+        }
+
+        // 3. If ALLOWED_HOSTS is defined, validate host against whitelist
+        if let Ok(allowed) = std::env::var("ALLOWED_HOSTS") {
+            let host_without_port = host.split(':').next().unwrap_or(host);
+            let is_allowed = allowed.split(',').any(|a| {
+                let a = a.trim();
+                a.eq_ignore_ascii_case(host) || a.eq_ignore_ascii_case(host_without_port)
+            });
+            if !is_allowed {
+                return Err(AppError::BadRequest(
+                    "Untrusted Host header rejected".to_string(),
+                ));
+            }
+        }
+
         let scheme = parts
             .headers
             .get("x-forwarded-proto")
@@ -82,7 +115,12 @@ where
             .map(|h| h.trim())
             .unwrap_or("http");
 
-        let base_url_str = format!("{}://{}", scheme, host);
+        let valid_scheme = match scheme {
+            "https" => "https",
+            _ => "http",
+        };
+
+        let base_url_str = format!("{}://{}", valid_scheme, host);
         let base_url = Url::parse(&base_url_str)
             .map_err(|e| AppError::BadRequest(format!("Failed to parse base URL: {e}")))?;
 
