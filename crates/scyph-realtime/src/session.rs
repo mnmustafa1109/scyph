@@ -1,9 +1,9 @@
 //! RAII WebSocket connection session handle.
 
-use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::mpsc::Receiver;
 use uuid::Uuid;
 
-use crate::registry::ConnectionRegistry;
+use crate::registry::{ConnectionRegistry, DEFAULT_CONNECTION_BUFFER_SIZE};
 
 /// RAII guard representing an active WebSocket client session registered with [`ConnectionRegistry`].
 ///
@@ -12,16 +12,25 @@ use crate::registry::ConnectionRegistry;
 pub struct RealtimeSession {
     user_id: Uuid,
     conn_id: Uuid,
-    rx: UnboundedReceiver<String>,
+    rx: Receiver<String>,
     registry: ConnectionRegistry,
     closed: bool,
 }
 
 impl RealtimeSession {
-    /// Constructs a new [`RealtimeSession`] and registers it with the given [`ConnectionRegistry`].
+    /// Constructs a new [`RealtimeSession`] with default channel buffer capacity (256) and registers it with the given [`ConnectionRegistry`].
     pub async fn connect(registry: ConnectionRegistry, user_id: Uuid) -> Self {
+        Self::connect_with_capacity(registry, user_id, DEFAULT_CONNECTION_BUFFER_SIZE).await
+    }
+
+    /// Constructs a new [`RealtimeSession`] with custom channel buffer capacity and registers it with the given [`ConnectionRegistry`].
+    pub async fn connect_with_capacity(
+        registry: ConnectionRegistry,
+        user_id: Uuid,
+        buffer_size: usize,
+    ) -> Self {
         let conn_id = Uuid::now_v7();
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        let (tx, rx) = tokio::sync::mpsc::channel(buffer_size.max(1));
         registry.register(user_id, conn_id, tx).await;
         Self {
             user_id,
@@ -60,9 +69,11 @@ impl Drop for RealtimeSession {
             let registry = self.registry.clone();
             let user_id = self.user_id;
             let conn_id = self.conn_id;
-            tokio::spawn(async move {
-                registry.deregister(user_id, conn_id).await;
-            });
+            if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                handle.spawn(async move {
+                    registry.deregister(user_id, conn_id).await;
+                });
+            }
         }
     }
 }

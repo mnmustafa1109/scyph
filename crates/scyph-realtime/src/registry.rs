@@ -1,11 +1,14 @@
 //! In-memory WebSocket connection registry.
 
 use std::{collections::HashMap, sync::Arc};
-use tokio::sync::{RwLock, mpsc::UnboundedSender};
+use tokio::sync::{RwLock, mpsc::Sender};
 use uuid::Uuid;
 
+/// Default buffer capacity for a WebSocket connection channel to prevent OOM attacks.
+pub const DEFAULT_CONNECTION_BUFFER_SIZE: usize = 256;
+
 /// Sender handle for an active WebSocket connection instance.
-pub type ConnectionTx = UnboundedSender<String>;
+pub type ConnectionTx = Sender<String>;
 
 /// Map of connection IDs to their sender handles for a single user.
 pub type UserConnections = HashMap<Uuid, ConnectionTx>;
@@ -35,21 +38,39 @@ impl ConnectionRegistry {
     }
 
     /// Delivers a raw serialized message string to all active connection channels for `user_id` on this replica.
+    /// Drops message if the channel buffer is full to prevent memory exhaustion from slow/unresponsive clients.
     pub async fn broadcast_local(&self, user_id: Uuid, raw_message: &str) {
         let guard = self.inner.read().await;
         if let Some(conns) = guard.get(&user_id) {
-            for tx in conns.values() {
-                let _ = tx.send(raw_message.to_string());
+            for (&conn_id, tx) in conns.iter() {
+                if let Err(tokio::sync::mpsc::error::TrySendError::Full(_)) =
+                    tx.try_send(raw_message.to_string())
+                {
+                    tracing::warn!(
+                        user_id = %user_id,
+                        conn_id = %conn_id,
+                        "WebSocket channel buffer full; dropping message to prevent OOM"
+                    );
+                }
             }
         }
     }
 
     /// Delivers a raw serialized message string to ALL active connection channels across ALL users connected to this replica.
+    /// Drops message if a channel buffer is full to prevent memory exhaustion from slow/unresponsive clients.
     pub async fn broadcast_global(&self, raw_message: &str) {
         let guard = self.inner.read().await;
-        for conns in guard.values() {
-            for tx in conns.values() {
-                let _ = tx.send(raw_message.to_string());
+        for (&user_id, conns) in guard.iter() {
+            for (&conn_id, tx) in conns.iter() {
+                if let Err(tokio::sync::mpsc::error::TrySendError::Full(_)) =
+                    tx.try_send(raw_message.to_string())
+                {
+                    tracing::warn!(
+                        user_id = %user_id,
+                        conn_id = %conn_id,
+                        "WebSocket channel buffer full; dropping message to prevent OOM"
+                    );
+                }
             }
         }
     }

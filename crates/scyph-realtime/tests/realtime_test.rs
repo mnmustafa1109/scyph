@@ -4,7 +4,7 @@ use scyph_realtime::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use tokio::sync::mpsc::unbounded_channel;
+use tokio::sync::mpsc::channel;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
@@ -13,7 +13,7 @@ async fn test_connection_registry_lifecycle() {
     let registry = ConnectionRegistry::default();
     let user_id = Uuid::now_v7();
     let conn_id = Uuid::now_v7();
-    let (tx, mut rx) = unbounded_channel();
+    let (tx, mut rx) = channel(100);
 
     assert_eq!(registry.active_connections_count().await, 0);
 
@@ -92,8 +92,8 @@ async fn test_global_broadcast_registry() {
     let user1 = Uuid::now_v7();
     let user2 = Uuid::now_v7();
 
-    let (tx1, mut rx1) = unbounded_channel();
-    let (tx2, mut rx2) = unbounded_channel();
+    let (tx1, mut rx1) = channel(100);
+    let (tx2, mut rx2) = channel(100);
 
     registry.register(user1, Uuid::now_v7(), tx1).await;
     registry.register(user2, Uuid::now_v7(), tx2).await;

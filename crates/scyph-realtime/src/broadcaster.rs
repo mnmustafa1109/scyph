@@ -21,6 +21,7 @@ pub struct RealtimeBroadcaster {
     client: Client,
     config: RealtimeConfig,
     registry: ConnectionRegistry,
+    publisher: std::sync::Arc<tokio::sync::Mutex<Option<redis::aio::MultiplexedConnection>>>,
 }
 
 impl RealtimeBroadcaster {
@@ -45,6 +46,7 @@ impl RealtimeBroadcaster {
             client,
             config,
             registry: ConnectionRegistry::default(),
+            publisher: std::sync::Arc::new(tokio::sync::Mutex::new(None)),
         })
     }
 
@@ -112,7 +114,19 @@ impl RealtimeBroadcaster {
         self.publish(P::EVENT_NAME, user_id, payload).await
     }
 
+    async fn get_connection(&self) -> Result<redis::aio::MultiplexedConnection, RealtimeError> {
+        let mut guard = self.publisher.lock().await;
+        if let Some(conn) = guard.as_ref() {
+            return Ok(conn.clone());
+        }
+        let conn = self.client.get_multiplexed_async_connection().await?;
+        *guard = Some(conn.clone());
+        Ok(conn)
+    }
+
     /// Publishes a domain event to multiple recipient users across all cluster replicas.
+    ///
+    /// Reuses a single multiplexed Redis connection across all recipient dispatches.
     ///
     /// # Errors
     ///
@@ -123,8 +137,15 @@ impl RealtimeBroadcaster {
         user_ids: &[Uuid],
         payload: &T,
     ) -> Result<(), RealtimeError> {
+        let mut conn = self.get_connection().await?;
+        let channel = format!("{}:events", self.config.channel_prefix);
         for &user_id in user_ids {
-            self.publish(event_name, user_id, payload).await?;
+            let event = RealtimeEvent::new(event_name, user_id, payload);
+            let raw = serde_json::to_string(&event)?;
+            if let Err(e) = conn.publish::<_, _, ()>(&channel, raw).await {
+                *self.publisher.lock().await = None;
+                return Err(RealtimeError::from(e));
+            }
         }
         Ok(())
     }
@@ -178,10 +199,13 @@ impl RealtimeBroadcaster {
         event: &RealtimeEvent<T>,
     ) -> Result<(), RealtimeError> {
         let payload = serde_json::to_string(event)?;
-        let mut conn = self.client.get_multiplexed_async_connection().await?;
+        let mut conn = self.get_connection().await?;
         let channel = format!("{}:events", self.config.channel_prefix);
 
-        conn.publish::<_, _, ()>(channel, payload).await?;
+        if let Err(e) = conn.publish::<_, _, ()>(channel, payload).await {
+            *self.publisher.lock().await = None;
+            return Err(RealtimeError::from(e));
+        }
         Ok(())
     }
 
