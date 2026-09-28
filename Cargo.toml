@@ -117,13 +117,12 @@ sqlx = { version = "0.9.0", features = [
   "migrate",
 ] }
 cedar-policy = "4.13.0"
-lettre = { version = "0.11.23", features = [
+lettre = { version = "0.11.23", default-features = false, features = [
   "builder",
   "tokio1",
   "smtp-transport",
   "rustls-tls",
   "tokio1-rustls",
-  "tokio1-native-tls",
 ] }
 tera = { version = "2.4.0", features = ["glob_fs"] }
 gcp_auth = "0.12.7"
@@ -157,8 +156,12 @@ base64 = "0.23.1"
 garde = { version = "0.23.0", features = ["derive", "email", "url"] }
 sanitizer = { version = "1.0.0", features = ["derive"] }
 url = "2.5.4"
-image = { version = "0.25.5", default-features = false, features = ["jpeg", "png", "webp"] }
-strum = { version = "0.27.1", features = ["derive"] }
+image = { version = "0.25.5", default-features = false, features = [
+  "jpeg",
+  "png",
+  "webp",
+] }
+strum = { version = "0.28.0", features = ["derive"] }
 
 # ── Shared release profile for peak performance ──────────────────────────────
 [profile.release]
