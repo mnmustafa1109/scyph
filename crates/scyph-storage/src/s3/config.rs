@@ -32,15 +32,21 @@ impl S3StorageService {
             .load()
             .await;
 
-        let s3_config = aws_sdk_s3::config::Builder::from(&shared_config)
-            .endpoint_url(&endpoint)
-            .force_path_style(true)
-            .build();
+        let is_custom_endpoint = !endpoint.contains("amazonaws.com");
 
-        let presign_config = aws_sdk_s3::config::Builder::from(&shared_config)
-            .endpoint_url(&public_url_prefix)
-            .force_path_style(true)
-            .build();
+        let mut s3_builder = aws_sdk_s3::config::Builder::from(&shared_config)
+            .endpoint_url(&endpoint);
+        if is_custom_endpoint {
+            s3_builder = s3_builder.force_path_style(true);
+        }
+        let s3_config = s3_builder.build();
+
+        let mut presign_builder = aws_sdk_s3::config::Builder::from(&shared_config)
+            .endpoint_url(&public_url_prefix);
+        if is_custom_endpoint {
+            presign_builder = presign_builder.force_path_style(true);
+        }
+        let presign_config = presign_builder.build();
 
         Self {
             client: Client::from_conf(s3_config),
@@ -95,9 +101,16 @@ impl S3StorageService {
         );
 
         if let (Some(ak), Some(sk)) = (access_key, secret_key) {
-            let endpoint =
-                endpoint_url.unwrap_or_else(|| format!("https://s3.{region_str}.amazonaws.com"));
-            let pub_prefix = public_url_prefix.unwrap_or_else(|| format!("{endpoint}/{bucket}"));
+            let endpoint = endpoint_url
+                .clone()
+                .unwrap_or_else(|| format!("https://s3.{region_str}.amazonaws.com"));
+            let pub_prefix = public_url_prefix.unwrap_or_else(|| {
+                if endpoint_url.is_some() {
+                    format!("{endpoint}/{bucket}")
+                } else {
+                    format!("https://{bucket}.s3.{region_str}.amazonaws.com")
+                }
+            });
             Ok(Self::new(bucket, pub_prefix, endpoint, region_str, ak, sk).await)
         } else {
             let mut loader =
@@ -107,9 +120,9 @@ impl S3StorageService {
             }
             let cfg = loader.load().await;
 
-            let s3_builder = aws_sdk_s3::config::Builder::from(&cfg).force_path_style(true);
+            let s3_builder = aws_sdk_s3::config::Builder::from(&cfg);
             let s3_config = if let Some(ref url) = endpoint_url {
-                s3_builder.endpoint_url(url).build()
+                s3_builder.endpoint_url(url).force_path_style(true).build()
             } else {
                 s3_builder.build()
             };
@@ -117,11 +130,12 @@ impl S3StorageService {
             let client = Client::from_conf(s3_config);
 
             let presign_client = if let Some(ref pub_url) = public_url_prefix {
-                let presign_config = aws_sdk_s3::config::Builder::from(&cfg)
-                    .endpoint_url(pub_url)
-                    .force_path_style(true)
-                    .build();
-                Client::from_conf(presign_config)
+                let mut presign_builder =
+                    aws_sdk_s3::config::Builder::from(&cfg).endpoint_url(pub_url);
+                if endpoint_url.is_some() {
+                    presign_builder = presign_builder.force_path_style(true);
+                }
+                Client::from_conf(presign_builder.build())
             } else {
                 client.clone()
             };
