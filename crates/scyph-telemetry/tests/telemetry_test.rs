@@ -174,7 +174,10 @@ async fn test_existing_meta_preserved() {
     let app = Router::new().route("/custom", get(custom_meta_handler));
     let app = with_telemetry(app);
 
-    let request = Request::builder().uri("/custom").body(Body::empty()).unwrap();
+    let request = Request::builder()
+        .uri("/custom")
+        .body(Body::empty())
+        .unwrap();
     let response = app.oneshot(request).await.unwrap();
 
     let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
@@ -184,4 +187,3 @@ async fn test_existing_meta_preserved() {
 
     assert_eq!(json["meta"]["custom_field"], "do_not_overwrite");
 }
-

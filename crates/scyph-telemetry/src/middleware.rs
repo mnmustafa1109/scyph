@@ -198,7 +198,9 @@ pub async fn auto_meta_middleware(
         headers
             .entry(HeaderName::from_static("x-trace-id"))
             .or_insert_with(|| val.clone());
-        headers.entry(config.request_id_header.clone()).or_insert(val);
+        headers
+            .entry(config.request_id_header.clone())
+            .or_insert(val);
     }
 
     if !config.enable_auto_meta {
