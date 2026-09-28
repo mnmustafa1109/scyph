@@ -13,7 +13,7 @@
 //! - **[`notify`]**: Email delivery via Lettre & Tera templates, Firebase Cloud Messaging push notifications, and in-app repository traits.
 //! - **[`realtime`]**: Redis Pub/Sub WebSocket broadcasting, multi-recipient fanout, multiplexed connection pooling, and bounded per-session message queues.
 //! - **[`storage`]**: AWS S3 / MinIO (path-style aware) and in-memory object storage abstractions with streaming multipart extractors and image thumbnail processing.
-//! - **[`telemetry`]**: Non-blocking tracing subscribers, time-ordered UUIDv7 request ID propagation, response metadata auto-injection, and dynamic compression.
+//! - **[`telemetry`]**: Non-blocking tracing subscribers, time-ordered UUIDv7 request ID propagation, HTTP response telemetry headers (`x-response-time-ms`, `x-api-version`, `x-trace-id`), safe JSON response metadata injection, and dynamic compression.
 //! - **[`ratelimit`]**: IP-based and reverse-proxy-aware smart rate limiting layers built on `tower-governor`.
 //! - **[`utils`]**: Constant-time HMAC webhooks (direct digests and timestamped), background worker task loops with graceful shutdown, Base64 pagination cursors, and Redis API idempotency.
 //!

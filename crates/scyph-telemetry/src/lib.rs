@@ -10,7 +10,7 @@
 //! - **Time-Ordered UUIDv7 Request IDs**: Generates chronologically sortable UUIDv7 request identifiers (`x-request-id`) for request tracing across log aggregators.
 //! - **Axum Request ID Extractor ([`RequestId`])**: Type-safe extractor for route handlers to access the current request's UUIDv7 ID.
 //! - **Span Context Injection**: Automatically attaches `request_id`, HTTP method, and URI fields to tracing `Span`s so all downstream log lines inherit request context.
-//! - **Automatic Response Envelope Metadata Injection ([`auto_meta_middleware`])**: Auto-calculates request processing latency (`processing_time_ms`), attaches ISO-8601 UTC timestamps, injects request trace ID, and API version (`ResponseMeta`) directly into JSON response envelopes ([`ApiResponse`](scyph_core::ApiResponse) and [`PagedResponse`](scyph_core::PagedResponse)).
+//! - **Automatic Telemetry Headers & Envelope Metadata Injection ([`auto_meta_middleware`])**: Measures request processing latency (`processing_time_ms`), attaches HTTP telemetry response headers (`x-response-time-ms`, `x-api-version`, `x-trace-id`) to all responses, and safely injects ISO-8601 UTC timestamps, request trace ID, and API version (`ResponseMeta`) directly into discrete JSON response envelopes ([`ApiResponse`](scyph_core::ApiResponse) and [`PagedResponse`](scyph_core::PagedResponse)) with streaming guards and zero-loss error fallbacks.
 //! - **Configurable Telemetry Builder ([`TelemetryConfig`])**: Enables or disables compression, tracing, auto-meta injection, API version, and custom request ID header names.
 //!
 //! ## Quickstart Example

@@ -105,3 +105,83 @@ async fn test_telemetry_config_builder() {
 
     assert_eq!(json["meta"]["version"], "2.5.0");
 }
+
+#[tokio::test]
+async fn test_telemetry_headers_on_non_json() {
+    let app = Router::new().route("/text", get(|| async { "Hello, plaintext!" }));
+    let app = with_telemetry(app);
+
+    let request = Request::builder().uri("/text").body(Body::empty()).unwrap();
+    let response = app.oneshot(request).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    // Solution B: Telemetry headers must be present on non-JSON responses
+    assert!(response.headers().contains_key("x-response-time-ms"));
+    assert!(response.headers().contains_key("x-api-version"));
+    assert!(response.headers().contains_key("x-trace-id"));
+
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    assert_eq!(body_bytes.as_ref(), b"Hello, plaintext!");
+}
+
+#[tokio::test]
+async fn test_auto_meta_with_compression_enabled() {
+    let config = TelemetryConfig::new()
+        .with_compression(true)
+        .with_auto_meta(true);
+
+    let app = Router::new().route("/api/data", get(json_handler));
+    let app = with_telemetry_config(app, config);
+
+    let request = Request::builder()
+        .uri("/api/data")
+        .header("accept-encoding", "gzip")
+        .body(Body::empty())
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // CompressionLayer (outermost on response) compresses the body
+    assert_eq!(
+        response
+            .headers()
+            .get("content-encoding")
+            .and_then(|v| v.to_str().ok()),
+        Some("gzip")
+    );
+
+    // Telemetry headers are still attached
+    assert!(response.headers().contains_key("x-response-time-ms"));
+    assert!(response.headers().contains_key("x-api-version"));
+    assert!(response.headers().contains_key("x-trace-id"));
+}
+
+#[tokio::test]
+async fn test_existing_meta_preserved() {
+    async fn custom_meta_handler() -> axum::Json<serde_json::Value> {
+        axum::Json(serde_json::json!({
+            "success": true,
+            "data": "custom data",
+            "meta": {
+                "custom_field": "do_not_overwrite"
+            }
+        }))
+    }
+
+    let app = Router::new().route("/custom", get(custom_meta_handler));
+    let app = with_telemetry(app);
+
+    let request = Request::builder().uri("/custom").body(Body::empty()).unwrap();
+    let response = app.oneshot(request).await.unwrap();
+
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+
+    assert_eq!(json["meta"]["custom_field"], "do_not_overwrite");
+}
+
