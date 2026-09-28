@@ -110,8 +110,20 @@ where
                     break;
                 }
                 _ = ticker.tick() => {
-                    if let Err(err) = tokio::spawn(task()).await {
-                        error!(worker = name, error = ?err, "Background worker task panicked or failed to join");
+                    let mut task_handle = tokio::spawn(task());
+                    tokio::select! {
+                        _ = cancel_token.cancelled() => {
+                            info!(worker = name, "Cancellation signal received; awaiting in-progress worker task");
+                            if let Err(err) = (&mut task_handle).await {
+                                error!(worker = name, error = ?err, "Background worker task panicked on shutdown join");
+                            }
+                            break;
+                        }
+                        res = &mut task_handle => {
+                            if let Err(err) = res {
+                                error!(worker = name, error = ?err, "Background worker task panicked or failed to join");
+                            }
+                        }
                     }
                 }
             }
@@ -146,8 +158,22 @@ where
         loop {
             tokio::select! {
                 _ = ticker.tick() => {
-                    if let Err(err) = tokio::spawn(task()).await {
-                        error!(worker = name, error = ?err, "Background worker task panicked or failed to join");
+                    let mut task_handle = tokio::spawn(task());
+                    tokio::select! {
+                        _ = shutdown.changed() => {
+                            if *shutdown.borrow() {
+                                info!(worker = name, "Shutdown signal received; awaiting in-progress worker task");
+                                if let Err(err) = (&mut task_handle).await {
+                                    error!(worker = name, error = ?err, "Background worker task panicked on shutdown join");
+                                }
+                                break;
+                            }
+                        }
+                        res = &mut task_handle => {
+                            if let Err(err) = res {
+                                error!(worker = name, error = ?err, "Background worker task panicked or failed to join");
+                            }
+                        }
                     }
                 }
                 _ = shutdown.changed() => {
