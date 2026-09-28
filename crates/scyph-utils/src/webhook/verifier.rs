@@ -73,7 +73,10 @@ pub fn verify_webhook(
         .or_else(|| signature.strip_prefix("sha256="))
         .unwrap_or(signature);
 
-    if !ct_eq(clean_sig.to_ascii_lowercase().as_bytes(), expected.as_bytes()) {
+    if !ct_eq(
+        clean_sig.to_ascii_lowercase().as_bytes(),
+        expected.as_bytes(),
+    ) {
         return Err(WebhookError::SignatureMismatch);
     }
     Ok(())
@@ -109,7 +112,10 @@ pub fn verify_raw_webhook(
         .or_else(|| signature.strip_prefix("v0="))
         .unwrap_or(signature);
 
-    if !ct_eq(clean_sig.to_ascii_lowercase().as_bytes(), expected.as_bytes()) {
+    if !ct_eq(
+        clean_sig.to_ascii_lowercase().as_bytes(),
+        expected.as_bytes(),
+    ) {
         return Err(WebhookError::SignatureMismatch);
     }
     Ok(())

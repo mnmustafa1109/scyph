@@ -34,15 +34,15 @@ impl S3StorageService {
 
         let is_custom_endpoint = !endpoint.contains("amazonaws.com");
 
-        let mut s3_builder = aws_sdk_s3::config::Builder::from(&shared_config)
-            .endpoint_url(&endpoint);
+        let mut s3_builder =
+            aws_sdk_s3::config::Builder::from(&shared_config).endpoint_url(&endpoint);
         if is_custom_endpoint {
             s3_builder = s3_builder.force_path_style(true);
         }
         let s3_config = s3_builder.build();
 
-        let mut presign_builder = aws_sdk_s3::config::Builder::from(&shared_config)
-            .endpoint_url(&public_url_prefix);
+        let mut presign_builder =
+            aws_sdk_s3::config::Builder::from(&shared_config).endpoint_url(&public_url_prefix);
         if is_custom_endpoint {
             presign_builder = presign_builder.force_path_style(true);
         }
