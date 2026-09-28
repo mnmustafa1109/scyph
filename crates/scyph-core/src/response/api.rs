@@ -42,10 +42,10 @@
 //! # Design Notes
 //!
 //! - `ApiResponse<T>` implements [`IntoResponse`] directly,
-//!   so handlers can return `Result<ApiResponse<T>, AppError>` without explicit conversion.
-//! - The `created` and `no_content` constructors return `impl IntoResponse` rather than
-//!   `ApiResponse<T>` because they set non-200 status codes (201, 204) that don't match the
-//!   default `IntoResponse` impl's 200 status.
+//!   so handlers can return `Result<ApiResponse<T>, AppError>` uniformly across all HTTP status codes.
+//! - All constructors (`ok`, `created`, `accepted`, `no_content`) return a concrete `ApiResponse<T>`,
+//!   preserving consistent handler return types while correctly propagating the corresponding
+//!   HTTP status code (200, 201, 202, 204) when converting to an Axum response.
 
 use super::meta::ResponseMeta;
 use axum::{
@@ -55,12 +55,17 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
+fn default_status_code() -> StatusCode {
+    StatusCode::OK
+}
+
 /// Standard JSON envelope for successful API responses.
 ///
 /// Wraps response payload `data` alongside a `success` flag, a status `message`,
-/// and optional response metadata [`ResponseMeta`].
+/// an HTTP status code, and optional response metadata [`ResponseMeta`].
 /// When serialized, `data` and `meta` are omitted if `None`.
-#[derive(Debug, Serialize, Deserialize)]
+/// The `status` field is omitted from JSON serialization as it is communicated via the HTTP response status.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ApiResponse<T: Serialize> {
     /// Indicates whether the API operation succeeded (always `true` for `ApiResponse`).
     pub success: bool,
@@ -72,6 +77,9 @@ pub struct ApiResponse<T: Serialize> {
     /// The response payload data, or `None` if no body data is returned.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<T>,
+    /// HTTP status code used when converted to an Axum response (default: `200 OK`).
+    #[serde(skip, default = "default_status_code")]
+    pub status: StatusCode,
 }
 
 impl<T: Serialize> ApiResponse<T> {
@@ -95,6 +103,7 @@ impl<T: Serialize> ApiResponse<T> {
             message: "OK".into(),
             meta: None,
             data: Some(data),
+            status: StatusCode::OK,
         }
     }
 
@@ -119,10 +128,11 @@ impl<T: Serialize> ApiResponse<T> {
             message: msg.into(),
             meta: None,
             data: Some(data),
+            status: StatusCode::OK,
         }
     }
 
-    /// Creates a 201 Created Axum response containing [`ApiResponse`] payload.
+    /// Creates a 201 Created [`ApiResponse`] envelope containing `data` with default message `"Created"`.
     ///
     /// # Arguments
     ///
@@ -132,20 +142,64 @@ impl<T: Serialize> ApiResponse<T> {
     ///
     /// ```rust
     /// use scyph_core::ApiResponse;
-    /// use axum::response::IntoResponse;
     ///
     /// let res = ApiResponse::created("new_resource_id");
+    /// assert_eq!(res.status, axum::http::StatusCode::CREATED);
     /// ```
-    pub fn created(data: T) -> impl IntoResponse {
-        (
-            StatusCode::CREATED,
-            Json(Self {
-                success: true,
-                message: "Created".into(),
-                meta: None,
-                data: Some(data),
-            }),
-        )
+    pub fn created(data: T) -> Self {
+        Self {
+            success: true,
+            message: "Created".into(),
+            meta: None,
+            data: Some(data),
+            status: StatusCode::CREATED,
+        }
+    }
+
+    /// Creates a 201 Created [`ApiResponse`] envelope containing `data` and a custom message.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - Newly created entity data.
+    /// * `msg` - Custom message string describing the creation outcome.
+    pub fn created_msg(data: T, msg: impl Into<String>) -> Self {
+        Self {
+            success: true,
+            message: msg.into(),
+            meta: None,
+            data: Some(data),
+            status: StatusCode::CREATED,
+        }
+    }
+
+    /// Creates a 202 Accepted [`ApiResponse`] envelope containing `data` with default message `"Accepted"`.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - Payload data acknowledged for asynchronous processing.
+    pub fn accepted(data: T) -> Self {
+        Self {
+            success: true,
+            message: "Accepted".into(),
+            meta: None,
+            data: Some(data),
+            status: StatusCode::ACCEPTED,
+        }
+    }
+
+    /// Overrides the HTTP status code for this response.
+    ///
+    /// # Arguments
+    ///
+    /// * `status` - New HTTP status code to assign.
+    pub fn with_status(mut self, status: StatusCode) -> Self {
+        self.status = status;
+        self
+    }
+
+    /// Returns the HTTP status code configured for this response.
+    pub fn status(&self) -> StatusCode {
+        self.status
     }
 
     /// Attaches standardized request metadata [`ResponseMeta`] to the response envelope.
@@ -170,7 +224,10 @@ impl<T: Serialize> ApiResponse<T> {
 }
 
 impl ApiResponse<()> {
-    /// Creates a 204 No Content Axum response without a body.
+    /// Creates a 204 No Content [`ApiResponse`] envelope without a body.
+    ///
+    /// When converted to an HTTP response via [`IntoResponse`], produces an HTTP 204 No Content
+    /// status with an empty body.
     ///
     /// # Examples
     ///
@@ -178,14 +235,25 @@ impl ApiResponse<()> {
     /// use scyph_core::ApiResponse;
     ///
     /// let response = ApiResponse::no_content();
+    /// assert_eq!(response.status, axum::http::StatusCode::NO_CONTENT);
     /// ```
-    pub fn no_content() -> impl IntoResponse {
-        StatusCode::NO_CONTENT
+    pub fn no_content() -> Self {
+        Self {
+            success: true,
+            message: "No Content".into(),
+            meta: None,
+            data: None,
+            status: StatusCode::NO_CONTENT,
+        }
     }
 }
 
 impl<T: Serialize + Send> IntoResponse for ApiResponse<T> {
     fn into_response(self) -> Response {
-        (StatusCode::OK, Json(self)).into_response()
+        if self.status == StatusCode::NO_CONTENT {
+            StatusCode::NO_CONTENT.into_response()
+        } else {
+            (self.status, Json(self)).into_response()
+        }
     }
 }

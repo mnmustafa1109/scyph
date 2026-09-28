@@ -370,21 +370,23 @@ impl IntoResponse for AppError {
         }
 
         let status = self.status();
+        let detail = match &self {
+            Self::Internal { .. } => "An unexpected error occurred.".to_string(),
+            Self::ValidationError { message, .. } => message.clone(),
+            other => other.to_string(),
+        };
+
         let mut body = json!({
             "type":   format!("https://httpstatuses.io/{}", status.as_u16()),
             "title":  self.code(),
             "status": status.as_u16(),
-            "detail": match &self {
-                Self::Internal { .. } => "An unexpected error occurred.".to_string(),
-                Self::ValidationError { message, .. } => message.clone(),
-                other => other.to_string(),
-            },
+            "detail": detail,
         });
 
-        if let Self::ValidationError { details, .. } = &self {
-            body.as_object_mut()
-                .unwrap()
-                .insert("details".to_string(), json!(details));
+        if let Self::ValidationError { details, .. } = &self
+            && let Some(obj) = body.as_object_mut()
+        {
+            obj.insert("details".to_string(), json!(details));
         }
 
         (status, axum::Json(body)).into_response()
