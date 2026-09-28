@@ -59,7 +59,7 @@ pub const WILDCARD: char = '%';
 ///
 /// Ensures user-supplied search strings match literal text rather than behaving as wildcards.
 /// Must be called on every user-supplied search string before constructing a `LIKE` or
-/// `ILIKE` pattern. The result is then wrapped in `%…%` wildcards by [`ApplySearch`].
+/// `ILIKE` pattern. The result is then wrapped in `%…%` wildcards by [`crate::ApplySearch`].
 ///
 /// ## Escaped Characters
 ///

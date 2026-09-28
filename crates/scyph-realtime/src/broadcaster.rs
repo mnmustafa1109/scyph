@@ -25,7 +25,7 @@ use crate::{
 ///   across all publish calls to avoid connection overhead
 ///
 /// `RealtimeBroadcaster` is `Clone` and `Send + Sync`, making it safe to share as Axum
-/// [`State`](axum::extract::State) across handlers and tasks.
+/// `State` (`axum::extract::State`) across handlers and tasks.
 ///
 /// # Lifecycle
 ///

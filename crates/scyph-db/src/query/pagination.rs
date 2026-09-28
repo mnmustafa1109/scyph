@@ -27,7 +27,7 @@
 //! ## Usage
 //!
 //! Pagination must come after all `WHERE`, `ORDER BY` clauses. When using
-//! [`ApplyRequestParams::apply_request_params`], ordering is enforced automatically.
+//! [`crate::ApplyRequestParams::apply_request_params`], ordering is enforced automatically.
 
 use scyph_extractors::query::PaginationParams;
 use sqlx::{Postgres, QueryBuilder};

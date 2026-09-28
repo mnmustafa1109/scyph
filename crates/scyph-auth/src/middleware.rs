@@ -77,8 +77,8 @@ use tracing::{debug, warn};
 /// - The `AuthUser` is inserted into request extensions after successful verification, so
 ///   downstream handlers receiving `AuthUser<C>` as a parameter will use the fast-path and
 ///   avoid redundant token verification.
-/// - Role comparison uses `PartialEq` via [`AllowedRoles::0.contains()`], which requires
-///   [`C::Role`] to implement [`Eq`] (guaranteed by [`Authorizable`](scyph_core::traits::Authorizable)).
+/// - Role comparison uses `PartialEq` via `AllowedRoles::0.contains()`, which requires
+///   `C::Role` to implement [`Eq`] (guaranteed by [`Authorizable`](scyph_core::traits::Authorizable)).
 pub async fn require_roles_layer<S, C>(
     State(state): State<S>,
     Extension(allowed): Extension<AllowedRoles<C::Role>>,

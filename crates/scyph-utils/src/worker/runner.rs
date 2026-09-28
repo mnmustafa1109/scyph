@@ -152,7 +152,7 @@ where
 ///
 /// | Use `spawn_worker` | Use `spawn_worker_cancel` |
 /// |---|---|
-/// | Already have a `watch::Receiver<bool>` for app-wide shutdown | Prefer [`CancellationToken`](tokio_util::sync::CancellationToken) or need `WorkerHandle::cancel()` |
+/// | Already have a `watch::Receiver<bool>` for app-wide shutdown | Prefer [`CancellationToken`] or need `WorkerHandle::cancel()` |
 /// | Integrating with existing watch channel broadcast | Standalone task with independent lifecycle |
 ///
 /// # Arguments

@@ -3,7 +3,7 @@
 //! This module provides two extractors for Axum path parameters:
 //!
 //! - [`TypedPath<T>`]: Thin wrapper around `axum::extract::Path<T>` that converts parse errors
-//!   into [`AppError`] automatically. Use for simple scalar types (`Uuid`, `i64`, etc.).
+//!   into [`scyph_core::AppError`] automatically. Use for simple scalar types (`Uuid`, `i64`, etc.).
 //!
 //! - [`ValidatedPath<T>`]: Extends `TypedPath` with `garde` validation. Use when the path
 //!   parameter is a struct that needs constraint validation (e.g. range checks on an integer ID).

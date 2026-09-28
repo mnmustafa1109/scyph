@@ -45,7 +45,7 @@
 //! - Cursor fields (`prev_cursor`, `next_cursor`) are omitted from JSON when `None`
 //!   via `#[serde(skip_serializing_if = "Option::is_none")]`.
 //! - You can use offset pagination, cursor pagination, or both simultaneously in the same response.
-//! - [`PagedResponse`] implements [`IntoResponse`](axum::response::IntoResponse), so it can be
+//! - [`PagedResponse`] implements [`IntoResponse`], so it can be
 //!   returned directly from Axum handlers.
 
 use super::meta::ResponseMeta;

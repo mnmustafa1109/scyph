@@ -6,7 +6,7 @@
 //!
 //! # Error Mapping
 //!
-//! | [`AuthError`] variant  | [`AppError`] / HTTP status        |
+//! | [`AuthError`] variant  | [`scyph_core::AppError`] / HTTP status |
 //! |------------------------|-----------------------------------|
 //! | `Unauthorized`         | `AppError::Unauthorized` / 401    |
 //! | `Forbidden`            | `AppError::Forbidden` / 403       |

@@ -2,7 +2,7 @@
 //!
 //! ## Sanitization Pipeline
 //!
-//! Both extractors in this module use the `sanitizer` crate's [`Sanitizer`] derive macro to
+//! Both extractors in this module use the `sanitizer` crate's `Sanitizer` derive macro to
 //! apply string transformations (trimming, case conversion, etc.) **before** validation runs.
 //! This prevents spurious validation failures from leading/trailing whitespace and ensures
 //! consistent data storage.

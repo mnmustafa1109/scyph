@@ -16,7 +16,7 @@ use crate::{
 
 /// Axum request extractor for single required file uploads with type-level validation configuration `C`.
 ///
-/// Implements [`FromRequest`](axum::extract::FromRequest) — Axum calls it automatically when
+/// Implements [`FromRequest`] — Axum calls it automatically when
 /// used as a handler parameter. It parses the multipart boundary, locates the field matching
 /// [`FileConfig::field_name`], validates Content-Type and magic bytes, buffers the data with
 /// size enforcement, and generates a time-ordered UUIDv7 S3 key.

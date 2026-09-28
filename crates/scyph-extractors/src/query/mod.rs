@@ -2,7 +2,7 @@
 //!
 //! ## Components
 //!
-//! ### [`ValidatedQuery<T>`](extractor::ValidatedQuery)
+//! ### [`ValidatedQuery<T>`]
 //!
 //! Axum extractor that parses query parameters into `T` (via `serde`) and applies `garde`
 //! validation rules. Returns HTTP 422 with per-field error details on validation failure.
@@ -29,13 +29,13 @@
 //!
 //! | Type | Fields | Use With |
 //! |------|--------|----------|
-//! | [`PaginationParams`](models::PaginationParams) | `page`, `limit` | Offset pagination |
-//! | [`SortParams<S>`](models::SortParams) | `sort_by`, `sort_order` | Column sorting |
-//! | [`FilterParams<F>`](models::FilterParams) | `filter_by`, `filter_value` | Column filtering |
-//! | [`SearchParams`](models::SearchParams) | `q` | Full-text ILIKE search |
-//! | [`RequestParams<S,F>`](models::RequestParams) | All of the above (flattened) | Combined handler queries |
+//! | [`PaginationParams`] | `page`, `limit` | Offset pagination |
+//! | [`SortParams<S>`] | `sort_by`, `sort_order` | Column sorting |
+//! | [`FilterParams<F>`] | `filter_by`, `filter_value` | Column filtering |
+//! | [`SearchParams`] | `q` | Full-text ILIKE search |
+//! | [`RequestParams<S, F>`] | All of the above (flattened) | Combined handler queries |
 //!
-//! ### [`RequestParams<S, F>`](models::RequestParams) — Composite Model
+//! ### [`RequestParams<S, F>`] — Composite Model
 //!
 //! ```rust,ignore
 //! use scyph_extractors::query::{RequestParams, ValidatedQuery};

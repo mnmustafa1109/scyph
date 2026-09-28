@@ -156,7 +156,7 @@ pub trait Claims: serde::de::DeserializeOwned + Serialize + Send + Sync + Clone 
     /// - The default implementation uses **second-precision** Unix timestamps. If your JWT
     ///   library stores `exp` in milliseconds, override this method accordingly.
     /// - This method is intentionally a fallback. Scyph's JWT verification layer
-    ///   ([`scyph_auth::verify_token`]) performs expiry validation during decoding via the
+    ///   (`scyph_auth::verify_token`) performs expiry validation during decoding via the
     ///   `jsonwebtoken` crate. `is_expired` is provided for secondary in-process checks
     ///   (e.g. guarding cached claims that may have been stored before the token expired).
     /// - Clock skew between services is not compensated. Add a small leeway at the token
@@ -176,7 +176,7 @@ pub trait Claims: serde::de::DeserializeOwned + Serialize + Send + Sync + Clone 
 ///
 /// # ABAC Usage Context
 ///
-/// In `scyph-abac`, actions are passed to [`AbacPolicy::check`] to determine whether a
+/// In `scyph-abac`, actions are passed to `AbacPolicy::check` to determine whether a
 /// subject may perform a given operation:
 ///
 /// ```rust,ignore

@@ -41,7 +41,7 @@
 //!
 //! # Design Notes
 //!
-//! - `ApiResponse<T>` implements [`IntoResponse`](axum::response::IntoResponse) directly,
+//! - `ApiResponse<T>` implements [`IntoResponse`] directly,
 //!   so handlers can return `Result<ApiResponse<T>, AppError>` without explicit conversion.
 //! - The `created` and `no_content` constructors return `impl IntoResponse` rather than
 //!   `ApiResponse<T>` because they set non-200 status codes (201, 204) that don't match the

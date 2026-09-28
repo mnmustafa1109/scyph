@@ -22,7 +22,7 @@
 //! | URL path param struct with validation | [`ValidatedPath<T>`](path::ValidatedPath) |
 //! | Query params with `garde` validation | [`ValidatedQuery<T>`](query::ValidatedQuery) |
 //! | Combined pagination/sort/filter | [`RequestParams<S, F>`](query::RequestParams) |
-//! | Canonical URL builder | [`LinkGenerator`](link::LinkGenerator) |
+//! | Canonical URL builder | [`LinkGenerator`] |
 //!
 //! ## Quick Example
 //!

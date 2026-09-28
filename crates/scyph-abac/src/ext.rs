@@ -1,7 +1,7 @@
 //! Extension traits for inline ABAC policy enforcement.
 //!
 //! Provides [`AuthUserEnforceExt`], which adds a fluent `.enforce(...)` method directly
-//! onto [`AuthUser`], enabling ergonomic single-line policy checks inside handler functions.
+//! onto [`scyph_auth::AuthUser`], enabling ergonomic single-line policy checks inside handler functions.
 //!
 //! # Design
 //!

@@ -2,14 +2,14 @@
 //!
 //! This module provides [`DbHealthExt`], which adds `check_health` and `check_health_named`
 //! methods directly on `sqlx::PgPool`. Both methods execute a `SELECT 1` ping query against
-//! the pool and report the outcome to a [`HealthRegistry`].
+//! the pool and report the outcome to a [`scyph_health::HealthRegistry`].
 //!
 //! ## Error Classification
 //!
 //! Not all sqlx errors indicate the same severity. The private `classify_sqlx_error` function
-//! maps `sqlx::Error` variants to [`HealthFailure`] levels:
+//! maps `sqlx::Error` variants to [`scyph_health::HealthFailure`] levels:
 //!
-//! | `sqlx::Error` variant | → [`HealthFailure`] | Interpretation |
+//! | `sqlx::Error` variant | → [`scyph_health::HealthFailure`] | Interpretation |
 //! |----------------------|---------------------|----------------|
 //! | `Configuration` | `Fatal` | Connection string is invalid — cannot recover without restart |
 //! | `PoolClosed` | `Fatal` | Pool was explicitly closed — application is shutting down |

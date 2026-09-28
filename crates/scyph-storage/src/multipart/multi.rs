@@ -67,7 +67,7 @@ impl ExtractedFile {
 
 /// Axum request extractor for batch/multi-file uploads with type-level validation configuration `C`.
 ///
-/// Implements [`FromRequest`](axum::extract::FromRequest) and collects all matching file fields
+/// Implements [`FromRequest`] and collects all matching file fields
 /// from a multipart request into a `Vec<ExtractedFile>`. Each file is individually validated
 /// for MIME type, size, and magic bytes according to the [`FileConfig`] type parameter.
 ///

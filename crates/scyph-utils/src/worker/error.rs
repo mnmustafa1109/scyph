@@ -9,8 +9,8 @@ use scyph_core::AppError;
 ///
 /// ## When Does This Occur?
 ///
-/// [`WorkerError::TaskJoin`] is returned by [`WorkerHandle::shutdown_and_join`] when the
-/// underlying Tokio task panicked. In normal operation with [`MissedTickBehavior::Skip`] and
+/// [`WorkerError::TaskJoin`] is returned by [`super::WorkerHandle::shutdown_and_join`] when the
+/// underlying Tokio task panicked. In normal operation with [`tokio::time::MissedTickBehavior::Skip`] and
 /// proper error handling inside the task closure, this should never occur. If it does, the
 /// error message will contain the panic payload.
 ///

@@ -16,7 +16,7 @@
 //! ## Ordering Relative to Other Clauses
 //!
 //! `ORDER BY` must come after all `WHERE` conditions and before `LIMIT`/`OFFSET`. When using
-//! [`ApplyRequestParams::apply_request_params`], the call order is enforced automatically.
+//! [`crate::ApplyRequestParams::apply_request_params`], the call order is enforced automatically.
 //! When composing manually, always call `apply_sorting` before `apply_pagination`.
 //!
 //! ## Note on Injection Safety
