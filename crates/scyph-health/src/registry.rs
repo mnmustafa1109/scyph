@@ -73,6 +73,14 @@ impl HealthRegistry {
         Self::default()
     }
 
+    fn read_lock(&self) -> std::sync::RwLockReadGuard<'_, HashMap<String, ServiceStatus>> {
+        self.0.read().unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn write_lock(&self) -> std::sync::RwLockWriteGuard<'_, HashMap<String, ServiceStatus>> {
+        self.0.write().unwrap_or_else(|e| e.into_inner())
+    }
+
     /// Evaluates an async health check future, applying state machine transitions
     /// (`Sick` -> `Recovering` -> `Healthy`) and handling fatal errors (`Deceased`).
     ///
@@ -86,7 +94,7 @@ impl HealthRegistry {
         F: Future<Output = R>,
         R: IntoHealthResult,
     {
-        let prev_status = self.0.read().unwrap().get(name).map(|s| s.status);
+        let prev_status = self.read_lock().get(name).map(|s| s.status);
 
         match fut.await.into_health_result() {
             Ok(()) => {
@@ -102,7 +110,7 @@ impl HealthRegistry {
                     None
                 };
 
-                self.0.write().unwrap().insert(
+                self.write_lock().insert(
                     name.to_string(),
                     ServiceStatus {
                         status: next_status,
@@ -113,7 +121,7 @@ impl HealthRegistry {
             }
             Err(HealthFailure::Transient(e)) => {
                 warn!(service = name, error = %e, required, "Service health check failed (transient)");
-                self.0.write().unwrap().insert(
+                self.write_lock().insert(
                     name.to_string(),
                     ServiceStatus {
                         status: Status::Sick,
@@ -124,7 +132,7 @@ impl HealthRegistry {
             }
             Err(HealthFailure::Fatal(e)) => {
                 warn!(service = name, error = %e, required, "Service health check failed (fatal)");
-                self.0.write().unwrap().insert(
+                self.write_lock().insert(
                     name.to_string(),
                     ServiceStatus {
                         status: Status::Deceased,
@@ -145,7 +153,7 @@ impl HealthRegistry {
     /// * `details` - Optional error message or status explanation.
     /// * `required` - Whether this service is required for application readiness.
     pub async fn set(&self, name: &str, status: Status, details: Option<String>, required: bool) {
-        self.0.write().unwrap().insert(
+        self.write_lock().insert(
             name.to_string(),
             ServiceStatus {
                 status,
@@ -157,7 +165,7 @@ impl HealthRegistry {
 
     /// Returns a point-in-time snapshot map of all tracked service statuses.
     pub async fn snapshot(&self) -> HashMap<String, ServiceStatus> {
-        self.0.read().unwrap().clone()
+        self.read_lock().clone()
     }
 
     /// Checks if all required service components are currently [`Status::Healthy`].
