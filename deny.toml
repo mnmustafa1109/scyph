@@ -34,6 +34,7 @@ ignore = [
   # Transitive dependencies required by official AWS SDK (aws-sdk-s3 / aws-config)
   { id = "RUSTSEC-2026-0098", reason = "Transitive dependency rustls-webpki 0.101.7 in aws-sdk-s3 / aws-smithy-http-client" },
   { id = "RUSTSEC-2026-0099", reason = "Transitive dependency rustls-webpki 0.101.7 in aws-sdk-s3 / aws-smithy-http-client" },
+  { id = "RUSTSEC-2026-0104", reason = "Transitive dependency rustls-webpki 0.101.7 in aws-sdk-s3 / aws-smithy-http-client" },
   { id = "RUSTSEC-2026-0258", reason = "Transitive dependency h2 0.3.27 in aws-sdk-s3 / hyper 0.14" },
 ]
 
