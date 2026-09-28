@@ -43,7 +43,10 @@ pub use config::RateLimitConfig;
 pub use error::{RateLimitError, Result};
 
 #[doc(inline)]
-pub use layer::{PeerRateLimitLayer, per_ip_layer, relaxed_layer, strict_layer};
+pub use layer::{
+    PeerRateLimitLayer, SmartRateLimitLayer, per_ip_layer, relaxed_layer, smart_ip_layer,
+    smart_relaxed_layer, smart_strict_layer, strict_layer,
+};
 
 #[doc(inline)]
 pub use router_ext::RateLimitRouterExt;

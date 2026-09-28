@@ -121,4 +121,9 @@ impl RateLimitConfig {
     pub fn build_layer<B>(&self) -> Result<PeerRateLimitLayer<B>> {
         per_ip_layer(self.burst_size, self.period)
     }
+
+    /// Builds a reverse-proxy-aware [`SmartRateLimitLayer`] from this configuration.
+    pub fn build_smart_layer<B>(&self) -> Result<crate::layer::SmartRateLimitLayer<B>> {
+        crate::layer::smart_ip_layer(self.burst_size, self.period)
+    }
 }
