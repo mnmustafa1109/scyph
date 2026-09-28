@@ -1,7 +1,7 @@
 # crates/scyph-notify/Cargo.toml
 [package]
 name = "scyph-notify"
-version = "0.1.0"
+version = "0.1.1"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -16,7 +16,7 @@ health = ["dep:scyph-health"]
 
 [dependencies]
 scyph-core = { path = "../scyph-core", version = "0.1" }
-scyph-health = { path = "../scyph-health", version = "0.1.0", optional = true }
+scyph-health = { path = "../scyph-health", version = "0.1.1", optional = true }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
