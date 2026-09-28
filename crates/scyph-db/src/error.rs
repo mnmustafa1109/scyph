@@ -13,9 +13,13 @@ pub enum DbError {
     #[error("Configuration error: {0}")]
     Configuration(String),
 
-    /// Migration or seed runner failure.
+    /// Migration runner failure.
     #[error("Migration error: {0}")]
     Migration(#[from] sqlx::migrate::MigrateError),
+
+    /// Seed execution or script error.
+    #[error("Seed error: {0}")]
+    Seed(String),
 }
 
 impl From<DbError> for AppError {

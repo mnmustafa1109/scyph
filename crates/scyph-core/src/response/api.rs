@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 /// Wraps response payload `data` alongside a `success` flag, a status `message`,
 /// and optional response metadata [`ResponseMeta`].
 /// When serialized, `data` and `meta` are omitted if `None`.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ApiResponse<T: Serialize> {
     /// Indicates whether the API operation succeeded (always `true` for `ApiResponse`).
     pub success: bool,
@@ -25,6 +25,9 @@ pub struct ApiResponse<T: Serialize> {
     /// The response payload data, or `None` if no body data is returned.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<T>,
+    /// Optional HTTP status code when converting into an Axum response (defaults to 200 OK).
+    #[serde(skip)]
+    pub(crate) status: Option<StatusCode>,
 }
 
 impl<T: Serialize> ApiResponse<T> {
@@ -48,6 +51,7 @@ impl<T: Serialize> ApiResponse<T> {
             message: "OK".into(),
             meta: None,
             data: Some(data),
+            status: Some(StatusCode::OK),
         }
     }
 
@@ -72,10 +76,11 @@ impl<T: Serialize> ApiResponse<T> {
             message: msg.into(),
             meta: None,
             data: Some(data),
+            status: Some(StatusCode::OK),
         }
     }
 
-    /// Creates a 201 Created Axum response containing [`ApiResponse`] payload.
+    /// Creates a 201 Created [`ApiResponse`] envelope containing `data` with default message `"Created"`.
     ///
     /// # Arguments
     ///
@@ -84,21 +89,31 @@ impl<T: Serialize> ApiResponse<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use scyph_core::ApiResponse;
-    /// use axum::response::IntoResponse;
+    /// use scyph_core::{ApiResponse, ResponseMeta};
     ///
-    /// let res = ApiResponse::created("new_resource_id");
+    /// let meta = ResponseMeta::new("01923f81-5c8e-7e9b-b4a1-8d2f1e4067a9", 5, "0.1.0");
+    /// let res = ApiResponse::created("new_resource_id").with_meta(meta);
+    /// assert_eq!(res.status(), axum::http::StatusCode::CREATED);
     /// ```
-    pub fn created(data: T) -> impl IntoResponse {
-        (
-            StatusCode::CREATED,
-            Json(Self {
-                success: true,
-                message: "Created".into(),
-                meta: None,
-                data: Some(data),
-            }),
-        )
+    pub fn created(data: T) -> Self {
+        Self {
+            success: true,
+            message: "Created".into(),
+            meta: None,
+            data: Some(data),
+            status: Some(StatusCode::CREATED),
+        }
+    }
+
+    /// Sets a custom HTTP status code for this response envelope.
+    pub fn with_status(mut self, status: StatusCode) -> Self {
+        self.status = Some(status);
+        self
+    }
+
+    /// Returns the HTTP status code configured for this response envelope (defaults to 200 OK).
+    pub fn status(&self) -> StatusCode {
+        self.status.unwrap_or(StatusCode::OK)
     }
 
     /// Attaches standardized request metadata [`ResponseMeta`] to the response envelope.
@@ -139,6 +154,7 @@ impl ApiResponse<()> {
 
 impl<T: Serialize + Send> IntoResponse for ApiResponse<T> {
     fn into_response(self) -> Response {
-        (StatusCode::OK, Json(self)).into_response()
+        let status = self.status.unwrap_or(StatusCode::OK);
+        (status, Json(self)).into_response()
     }
 }

@@ -32,6 +32,29 @@ async fn test_push_template_send() {
     assert!(res.is_ok());
 }
 
+#[cfg(feature = "email")]
+#[test]
+fn test_smtp_config_builder() {
+    use scyph_notify::SmtpConfig;
+    use secrecy::ExposeSecret;
+
+    let config = SmtpConfig::new(
+        "smtp.mailgun.org",
+        "postmaster@example.com",
+        "secret_password",
+        "noreply@example.com",
+    )
+    .with_port(465)
+    .with_test_connection_on_init(false);
+
+    assert_eq!(config.host, "smtp.mailgun.org");
+    assert_eq!(config.port, 465);
+    assert_eq!(config.username, "postmaster@example.com");
+    assert_eq!(config.password.expose_secret(), "secret_password");
+    assert_eq!(config.from, "noreply@example.com");
+    assert!(!config.test_connection_on_init);
+}
+
 #[cfg(all(feature = "email", feature = "fcm"))]
 mod composite_tests {
     use super::*;

@@ -131,25 +131,35 @@ where
                 .map(|ct| ct.to_string())
                 .unwrap_or_else(|| "application/octet-stream".to_string());
 
-            if !C::allowed_mime_types().contains(&content_type.as_str()) {
+            let clean_mime = content_type
+                .split(';')
+                .next()
+                .unwrap_or(&content_type)
+                .trim()
+                .to_ascii_lowercase();
+
+            let allowed = C::allowed_mime_types();
+            let matches_mime = allowed.iter().any(|m| m.eq_ignore_ascii_case(&clean_mime));
+
+            if !matches_mime {
                 return Err(StorageError::UnsupportedMediaType(format!(
                     "Unsupported Content-Type '{content_type}' for field '{}'. Allowed MIME types: {:?}",
                     C::field_name(),
-                    C::allowed_mime_types()
+                    allowed
                 ))
                 .into());
             }
 
             let data = read_field_bytes(field, C::max_size(), &original_name).await?;
 
-            if C::enforce_magic_bytes() && !C::verify_magic_bytes(&data, &content_type) {
+            if C::enforce_magic_bytes() && !C::verify_magic_bytes(&data, &clean_mime) {
                 return Err(StorageError::UnsupportedMediaType(format!(
                     "File '{original_name}' content signature does not match declared MIME type '{content_type}'"
                 ))
                 .into());
             }
 
-            let extension = C::resolve_extension(&content_type);
+            let extension = C::resolve_extension(&clean_mime);
             let path = format!("{}/{}.{}", C::storage_path(), Uuid::now_v7(), extension);
 
             return Ok(FileExtractor::new(data, content_type, path, original_name));

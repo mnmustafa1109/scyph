@@ -60,7 +60,7 @@ pub use traits::{
 pub use traits::{CompositeNotification, NotificationBroadcaster};
 
 #[cfg(feature = "email")]
-pub use email::LettreSMTPService;
+pub use email::{LettreSMTPService, SmtpConfig};
 
 #[cfg(feature = "email")]
 pub use template::TemplateEngine;

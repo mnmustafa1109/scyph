@@ -14,6 +14,9 @@ use argon2::{
     password_hash::{PasswordHasher, PasswordVerifier, phc::PasswordHash},
 };
 use secrecy::{ExposeSecret, SecretString};
+use std::sync::LazyLock;
+
+static DEFAULT_SERVICE: LazyLock<PasswordService> = LazyLock::new(PasswordService::default);
 
 /// Hashes a plaintext password string using the Argon2id password hashing algorithm.
 ///
@@ -70,10 +73,7 @@ pub fn hash_password(pw: &SecretString) -> Result<String, PasswordError> {
 /// # }
 /// ```
 pub async fn hash_password_async(pw: &SecretString) -> Result<String, PasswordError> {
-    let password = pw.clone();
-    tokio::task::spawn_blocking(move || hash_password(&password))
-        .await
-        .map_err(|e| PasswordError::HashFailed(e.to_string()))?
+    DEFAULT_SERVICE.hash_password(pw).await
 }
 
 /// Verifies a plaintext password against an Argon2 PHC formatted hash string in constant time.
@@ -139,11 +139,7 @@ pub fn verify_password(pw: &SecretString, hash: &str) -> Result<(), PasswordErro
 /// ```
 pub async fn verify_password_async(
     pw: &SecretString,
-    hash: impl Into<String>,
+    hash: impl AsRef<str>,
 ) -> Result<(), PasswordError> {
-    let password = pw.clone();
-    let hash = hash.into();
-    tokio::task::spawn_blocking(move || verify_password(&password, &hash))
-        .await
-        .map_err(|e| PasswordError::HashFailed(e.to_string()))?
+    DEFAULT_SERVICE.verify_password(pw, hash.as_ref()).await
 }

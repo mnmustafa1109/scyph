@@ -30,8 +30,11 @@ pub fn health_routes(registry: HealthRegistry) -> Router {
 }
 
 async fn readyz(State(registry): State<HealthRegistry>) -> impl IntoResponse {
-    let snapshot = registry.snapshot().await;
-    let ready = registry.is_ready().await;
+    let snapshot = registry.snapshot();
+    let ready = snapshot
+        .values()
+        .filter(|s| s.required)
+        .all(|s| s.status == crate::registry::Status::Healthy);
     let status_code = if ready {
         StatusCode::OK
     } else {

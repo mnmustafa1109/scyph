@@ -51,7 +51,7 @@ pub use extractor::{AuthExtractorState, AuthUser, OptionalAuthUser};
 pub use jwt::{JwtError, create_token, verify_token};
 
 #[doc(inline)]
-pub use middleware::{AllowedRoles, require_roles_layer};
+pub use middleware::{AllowedRoles, RoleAuthState, require_roles_layer};
 
 #[doc(inline)]
 pub use password::{

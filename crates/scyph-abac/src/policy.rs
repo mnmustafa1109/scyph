@@ -126,10 +126,12 @@ pub trait AbacPolicy {
     ///
     /// * `_filter` - Mutable reference to the SQL [`FilterBuilder`].
     /// * `_subject` - Reference to the authenticated [`AuthUser`].
+    /// * `_alias` - Table alias identifier string (e.g., `"d"`).
     /// * `_action` - The database query action being attempted.
     fn apply_query_filter_with_alias(
         _filter: &mut FilterBuilder,
         _subject: &AuthUser<Self::Claims>,
+        _alias: &str,
         _action: Action,
     ) {
     }

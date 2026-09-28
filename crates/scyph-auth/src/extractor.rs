@@ -99,7 +99,7 @@ where
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, AppError> {
         // Fast-path: if already verified, ensure both user and role are available
         if let Some(user) = parts.extensions.get::<AuthUser<C>>() {
-            let role = *user.claims.role();
+            let role = user.claims.role().clone();
             let user = user.clone();
 
             if parts.extensions.get::<C::Role>().is_none() {
@@ -118,7 +118,17 @@ where
                 AuthError::Unauthorized("Missing Authorization header".into())
             })?;
 
-        let token = auth_header.strip_prefix("Bearer ").ok_or_else(|| {
+        let token = (|| {
+            let (scheme, rest) = auth_header.split_once(' ')?;
+            if scheme.eq_ignore_ascii_case("bearer") {
+                let trimmed = rest.trim_start();
+                if !trimmed.is_empty() {
+                    return Some(trimmed);
+                }
+            }
+            None
+        })()
+        .ok_or_else(|| {
             warn!("Authentication failed: Invalid Authorization scheme (expected Bearer)");
             AuthError::Unauthorized("Invalid Authorization scheme; expected Bearer".into())
         })?;
@@ -130,7 +140,7 @@ where
 
         let claims = data.claims;
         let jti = claims.jti();
-        let role = *claims.role();
+        let role = claims.role().clone();
 
         if jti.is_empty() {
             warn!("Authentication failed: Token jti claim is missing");

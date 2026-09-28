@@ -61,16 +61,19 @@ pub fn per_ip_layer<B>(
             "Burst size must be greater than 0".to_string(),
         ));
     }
-    let period_ms = period.as_millis() as u64;
-    if period_ms == 0 {
+    let period_nanos = period.as_nanos();
+    if period_nanos == 0 {
         return Err(RateLimitError::ConfigurationFailed(
-            "Replenishment period must be at least 1 millisecond".to_string(),
+            "Replenishment period must be at least 1 nanosecond".to_string(),
         ));
     }
+    // Calculate per-token replenishment interval (period / burst) so that `burst` tokens
+    // are replenished over `period` duration.
+    let per_token_nanos = (period_nanos / burst as u128).max(1) as u64;
 
     let config = GovernorConfigBuilder::default()
         .key_extractor(PeerIpKeyExtractor)
-        .per_millisecond(period_ms)
+        .per_nanosecond(per_token_nanos)
         .burst_size(burst)
         .finish()
         .ok_or_else(|| {
@@ -90,7 +93,7 @@ pub fn per_ip_layer<B>(
 /// # Arguments
 ///
 /// * `burst` - Maximum number of allowed requests in a single burst (must be > 0).
-/// * `period` - Replenishment duration interval (must be >= 1ms).
+/// * `period` - Replenishment duration interval for replenishing `burst` requests.
 ///
 /// # Errors
 ///
@@ -104,16 +107,18 @@ pub fn smart_ip_layer<B>(
             "Burst size must be greater than 0".to_string(),
         ));
     }
-    let period_ms = period.as_millis() as u64;
-    if period_ms == 0 {
+    let period_nanos = period.as_nanos();
+    if period_nanos == 0 {
         return Err(RateLimitError::ConfigurationFailed(
-            "Replenishment period must be at least 1 millisecond".to_string(),
+            "Replenishment period must be at least 1 nanosecond".to_string(),
         ));
     }
+    // Calculate per-token replenishment interval (period / burst)
+    let per_token_nanos = (period_nanos / burst as u128).max(1) as u64;
 
     let config = GovernorConfigBuilder::default()
         .key_extractor(SmartIpKeyExtractor)
-        .per_millisecond(period_ms)
+        .per_nanosecond(per_token_nanos)
         .burst_size(burst)
         .finish()
         .ok_or_else(|| {

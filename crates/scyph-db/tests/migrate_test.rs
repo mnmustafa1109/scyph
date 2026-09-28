@@ -60,3 +60,20 @@ async fn test_run_migrations_malformed_file() {
 
     let _ = std::fs::remove_dir_all(&temp_dir);
 }
+
+#[test]
+fn test_db_config_builder() {
+    use scyph_db::DbConfig;
+    use secrecy::ExposeSecret;
+    use std::time::Duration;
+
+    let config = DbConfig::new("postgres://user:pass@localhost/db")
+        .with_max_connections(25)
+        .with_min_connections(5)
+        .with_acquire_timeout(Duration::from_secs(15));
+
+    assert_eq!(config.database_url.expose_secret(), "postgres://user:pass@localhost/db");
+    assert_eq!(config.max_connections, 25);
+    assert_eq!(config.min_connections, 5);
+    assert_eq!(config.acquire_timeout, Duration::from_secs(15));
+}

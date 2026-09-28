@@ -11,9 +11,9 @@ use uuid::Uuid;
 
 /// Marker trait representing a role or permission identifier usable for authorization.
 ///
-/// Automatically implemented for any type that satisfies `Copy + Eq + Send + Sync + 'static`.
-pub trait Authorizable: Copy + Eq + Send + Sync + 'static {}
-impl<T> Authorizable for T where T: Copy + Eq + Send + Sync + 'static {}
+/// Automatically implemented for any type that satisfies `Clone + Eq + Send + Sync + 'static`.
+pub trait Authorizable: Clone + Eq + Send + Sync + 'static {}
+impl<T> Authorizable for T where T: Clone + Eq + Send + Sync + 'static {}
 
 /// Core trait to implement on your application's custom JWT claims struct.
 ///

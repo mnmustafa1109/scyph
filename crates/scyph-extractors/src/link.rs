@@ -49,10 +49,17 @@ pub struct LinkBuilder {
 }
 
 impl LinkBuilder {
-    /// Appends a URL path segment.
+    /// Appends one or more URL path segments.
+    ///
+    /// Slashes are treated as segment delimiters, appending each individual segment
+    /// rather than percent-encoding slashes (e.g. `path("/api/v1")` appends `"api"` then `"v1"`).
     pub fn path(mut self, path: &str) -> Self {
         if let Ok(mut segments) = self.url.path_segments_mut() {
-            segments.push(path.trim_start_matches('/'));
+            for segment in path.trim_matches('/').split('/') {
+                if !segment.is_empty() {
+                    segments.push(segment);
+                }
+            }
         }
         self
     }
@@ -136,5 +143,31 @@ where
             .map_err(|e| AppError::BadRequest(format!("Failed to parse base URL: {e}")))?;
 
         Ok(LinkGenerator { base_url })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_link_builder_path_slashes() {
+        let base = Url::parse("https://api.example.com").unwrap();
+        let builder = LinkGenerator::new(base).build();
+        let url = builder.path("/api/v1/users").finish();
+        assert_eq!(url, "https://api.example.com/api/v1/users");
+        assert!(!url.contains("%2F"));
+    }
+
+    #[test]
+    fn test_link_builder_version_and_query() {
+        let base = Url::parse("https://api.example.com").unwrap();
+        let url = LinkGenerator::new(base)
+            .build()
+            .version("v2")
+            .path("items")
+            .query_param("limit", "10")
+            .finish();
+        assert_eq!(url, "https://api.example.com/v2/items?limit=10");
     }
 }

@@ -1,6 +1,7 @@
 //! Multipart form data extractors and declarative file configuration traits.
 
 pub mod config;
+pub mod form;
 pub mod multi;
 pub mod optional;
 pub mod single;
@@ -8,6 +9,9 @@ pub(crate) mod util;
 
 #[doc(inline)]
 pub use config::FileConfig;
+
+#[doc(inline)]
+pub use form::{FormDataWithFile, FormDataWithFiles, FormDataWithOptionalFile};
 
 #[doc(inline)]
 pub use multi::{ExtractedFile, MultiFileExtractor};

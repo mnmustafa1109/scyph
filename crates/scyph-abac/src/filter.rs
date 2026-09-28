@@ -108,4 +108,66 @@ impl FilterBuilder {
         P::apply_query_filter(self, subject, action);
         self
     }
+
+    /// Appends an ABAC policy query filter with a table alias for a given subject and action.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `P` - Type implementing [`AbacPolicy`].
+    ///
+    /// # Arguments
+    ///
+    /// * `subject` - Reference to the authenticated user [`AuthUser`].
+    /// * `alias` - Table alias identifier string (e.g. `"d"`).
+    /// * `action` - The database query action being attempted.
+    pub fn filter_by_with_alias<P: AbacPolicy>(
+        &mut self,
+        subject: &AuthUser<P::Claims>,
+        alias: &str,
+        action: Action,
+    ) -> &mut Self {
+        P::apply_query_filter_with_alias(self, subject, alias, action);
+        self
+    }
+
+    /// Appends an ABAC policy query filter with a target domain resource for a given subject and action.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `P` - Type implementing [`AbacPolicy`].
+    ///
+    /// # Arguments
+    ///
+    /// * `subject` - Reference to the authenticated user [`AuthUser`].
+    /// * `resource` - Reference to the target domain resource.
+    /// * `action` - The database query action being attempted.
+    pub fn filter_by_with_resource<P: AbacPolicy>(
+        &mut self,
+        subject: &AuthUser<P::Claims>,
+        resource: &P::Resource,
+        action: Action,
+    ) -> &mut Self {
+        P::apply_query_filter_with_resource(self, subject, resource, action);
+        self
+    }
+}
+
+impl std::ops::Deref for FilterBuilder {
+    type Target = QueryBuilder<Postgres>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for FilterBuilder {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl From<QueryBuilder<Postgres>> for FilterBuilder {
+    fn from(qb: QueryBuilder<Postgres>) -> Self {
+        Self(qb)
+    }
 }

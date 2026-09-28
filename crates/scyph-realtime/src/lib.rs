@@ -55,10 +55,10 @@
 //! }
 //!
 //! async fn handle_ws(mut socket: WebSocket, user_id: Uuid, broadcaster: RealtimeBroadcaster) {
-//!     // Connects using bounded MPSC channel (capacity 256) and returns RAII session guard
-//!     let (_conn_id, mut rx, _session) = broadcaster.connect(user_id).await;
+//!     // Connects using bounded MPSC channel (capacity 256) and returns RAII session handle
+//!     let mut session = broadcaster.connect_session(user_id).await;
 //!
-//!     while let Some(msg) = rx.recv().await {
+//!     while let Some(msg) = session.recv().await {
 //!         if socket.send(axum::extract::ws::Message::Text(msg.into())).await.is_err() {
 //!             break;
 //!         }

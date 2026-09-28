@@ -93,7 +93,8 @@ pub use memory::InMemoryStorageService;
 
 #[doc(inline)]
 pub use multipart::{
-    ExtractedFile, FileConfig, FileExtractor, MultiFileExtractor, OptionalFileExtractor,
+    ExtractedFile, FileConfig, FileExtractor, FormDataWithFile, FormDataWithFiles,
+    FormDataWithOptionalFile, MultiFileExtractor, OptionalFileExtractor,
 };
 
 #[doc(inline)]

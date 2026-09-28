@@ -2,12 +2,12 @@
 //!
 //! Provides [`RoleRouterExt`], which adds `.require_roles(...)` to Axum [`Router`](axum::Router).
 
-use axum::{Router, extract::Extension, middleware::from_fn_with_state};
+use axum::{Router, middleware::from_fn_with_state};
 use scyph_core::traits::Claims;
 
 use crate::{
     extractor::AuthExtractorState,
-    middleware::{AllowedRoles, require_roles_layer},
+    middleware::{AllowedRoles, RoleAuthState, require_roles_layer},
 };
 
 /// Fluent extension trait adding role-based route protection methods to Axum [`Router`].
@@ -46,13 +46,16 @@ pub trait RoleRouterExt<S> {
         C: Claims;
 }
 
-impl<S> RoleRouterExt<S> for Router<S> {
+impl<S> RoleRouterExt<S> for Router<S>
+where
+    S: Clone + Send + Sync + 'static,
+{
     fn require_roles<C>(self, state: S, roles: &'static [C::Role]) -> Self
     where
         S: AuthExtractorState<C> + Clone + Send + Sync + 'static,
         C: Claims,
     {
-        self.layer(Extension(AllowedRoles(roles)))
-            .route_layer(from_fn_with_state(state, require_roles_layer::<S, C>))
+        let role_state = RoleAuthState::new(state, AllowedRoles::from_slice(roles));
+        self.route_layer(from_fn_with_state(role_state, require_roles_layer::<S, C>))
     }
 }

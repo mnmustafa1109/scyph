@@ -152,7 +152,7 @@ impl HealthRegistry {
     /// * `status` - Operational [`Status`] variant to set.
     /// * `details` - Optional error message or status explanation.
     /// * `required` - Whether this service is required for application readiness.
-    pub async fn set(&self, name: &str, status: Status, details: Option<String>, required: bool) {
+    pub fn set(&self, name: &str, status: Status, details: Option<String>, required: bool) {
         self.write_lock().insert(
             name.to_string(),
             ServiceStatus {
@@ -164,16 +164,15 @@ impl HealthRegistry {
     }
 
     /// Returns a point-in-time snapshot map of all tracked service statuses.
-    pub async fn snapshot(&self) -> HashMap<String, ServiceStatus> {
+    pub fn snapshot(&self) -> HashMap<String, ServiceStatus> {
         self.read_lock().clone()
     }
 
     /// Checks if all required service components are currently [`Status::Healthy`].
     ///
     /// Returns `true` if all required services are healthy, `false` otherwise.
-    pub async fn is_ready(&self) -> bool {
-        let snapshot = self.snapshot().await;
-        snapshot
+    pub fn is_ready(&self) -> bool {
+        self.read_lock()
             .values()
             .filter(|s| s.required)
             .all(|s| s.status == Status::Healthy)

@@ -42,7 +42,7 @@ pub(crate) mod util;
 
 pub use error::DbError;
 pub use migrate::{run_migrations, run_migrations_from, run_seeds, run_seeds_from};
-pub use pool::build_pool;
+pub use pool::{DbConfig, build_pool, build_pool_with_config};
 pub use transaction::{begin, commit, rollback};
 
 #[cfg(feature = "health")]
