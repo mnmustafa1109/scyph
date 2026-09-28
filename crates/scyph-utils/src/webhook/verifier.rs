@@ -73,20 +73,58 @@ pub fn verify_webhook(
         .or_else(|| signature.strip_prefix("sha256="))
         .unwrap_or(signature);
 
-    if !ct_eq(clean_sig.as_bytes(), expected.as_bytes()) {
+    if !ct_eq(clean_sig.to_ascii_lowercase().as_bytes(), expected.as_bytes()) {
         return Err(WebhookError::SignatureMismatch);
     }
     Ok(())
 }
 
-/// Helper function to parse standard `t=1234567,v1=hex_signature` webhook headers.
+/// Verifies an incoming HMAC-SHA256 webhook payload directly without timestamps (e.g. GitHub `X-Hub-Signature-256`, Shopify, etc.).
 ///
-/// Extracted from standard webhook providers (Stripe, GitHub, OpenWeave).
+/// Automatically strips standard signature prefixes like `sha256=` or `v1=`.
+///
+/// # Arguments
+///
+/// * `payload` - Raw binary body slice of the webhook request.
+/// * `signature` - Expected hex signature string.
+/// * `secret` - Shared webhook signing secret.
 ///
 /// # Errors
 ///
-/// Returns [`WebhookError::InvalidHeaderFormat`] if `header_val` is malformed,
-/// or errors from [`verify_webhook`].
+/// Returns [`WebhookError::SignatureMismatch`] if signature validation fails.
+pub fn verify_raw_webhook(
+    payload: &[u8],
+    signature: &str,
+    secret: &str,
+) -> Result<(), WebhookError> {
+    let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
+        .map_err(|e| WebhookError::HmacKey(e.to_string()))?;
+
+    mac.update(payload);
+    let expected = hex::encode(mac.finalize().into_bytes());
+
+    let clean_sig = signature
+        .strip_prefix("sha256=")
+        .or_else(|| signature.strip_prefix("v1="))
+        .or_else(|| signature.strip_prefix("v0="))
+        .unwrap_or(signature);
+
+    if !ct_eq(clean_sig.to_ascii_lowercase().as_bytes(), expected.as_bytes()) {
+        return Err(WebhookError::SignatureMismatch);
+    }
+    Ok(())
+}
+
+/// Helper function to parse standard webhook signature headers.
+///
+/// Supports:
+/// - Timestamped headers (e.g. Stripe `t=1234567,v1=hex_signature`)
+/// - Direct digest headers (e.g. GitHub `sha256=hex_signature` or raw hex)
+///
+/// # Errors
+///
+/// Returns [`WebhookError::InvalidHeaderFormat`] if the header is malformed,
+/// or verification errors from [`verify_webhook`] / [`verify_raw_webhook`].
 pub fn verify_webhook_header(
     payload: &[u8],
     header_val: &str,
@@ -96,31 +134,37 @@ pub fn verify_webhook_header(
     let mut timestamp: Option<i64> = None;
     let mut signature: Option<&str> = None;
 
-    for part in header_val.split(',') {
-        let mut kv = part.splitn(2, '=');
-        let k = kv.next().unwrap_or("").trim();
-        let v = kv.next().unwrap_or("").trim();
+    if header_val.contains(',') || header_val.contains("t=") {
+        for part in header_val.split(',') {
+            let mut kv = part.splitn(2, '=');
+            let k = kv.next().unwrap_or("").trim();
+            let v = kv.next().unwrap_or("").trim();
 
-        match k {
-            "t" => {
-                timestamp = v.parse::<i64>().ok();
+            match k {
+                "t" => {
+                    timestamp = v.parse::<i64>().ok();
+                }
+                "v1" | "v0" | "sig" => {
+                    signature = Some(v);
+                }
+                _ => {}
             }
-            "v1" | "v0" | "sig" => {
-                signature = Some(v);
-            }
-            _ => {}
         }
+    } else {
+        // Direct signature header (e.g. GitHub `sha256=...` or raw hex)
+        signature = Some(header_val.trim());
     }
 
-    let ts = timestamp.ok_or_else(|| {
-        WebhookError::InvalidHeaderFormat("Missing timestamp 't' component".to_string())
-    })?;
-
-    let sig = signature.ok_or_else(|| {
-        WebhookError::InvalidHeaderFormat("Missing signature 'v1' component".to_string())
-    })?;
-
-    verify_webhook(payload, sig, secret, ts, tolerance_secs)
+    if let (Some(ts), Some(sig)) = (timestamp, signature) {
+        verify_webhook(payload, sig, secret, ts, tolerance_secs)
+    } else if let Some(sig) = signature {
+        // Fall back to direct raw payload HMAC verification when no timestamp component is present
+        verify_raw_webhook(payload, sig, secret)
+    } else {
+        Err(WebhookError::InvalidHeaderFormat(
+            "Missing signature component in webhook header".to_string(),
+        ))
+    }
 }
 
 /// Constant-time byte slice comparison to prevent timing attacks.

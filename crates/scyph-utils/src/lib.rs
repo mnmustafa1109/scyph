@@ -38,7 +38,8 @@ pub use pagination::{Cursor, PageParams, PaginationError};
 
 #[doc(inline)]
 pub use webhook::{
-    VerifiedWebhook, WebhookConfig, WebhookError, verify_webhook, verify_webhook_header,
+    VerifiedWebhook, WebhookConfig, WebhookError, verify_raw_webhook, verify_webhook,
+    verify_webhook_header,
 };
 
 #[doc(inline)]

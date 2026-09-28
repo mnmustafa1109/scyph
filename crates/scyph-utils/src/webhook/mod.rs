@@ -6,4 +6,4 @@ pub mod verifier;
 
 pub use error::WebhookError;
 pub use extractor::{VerifiedWebhook, WebhookConfig};
-pub use verifier::{verify_webhook, verify_webhook_header};
+pub use verifier::{verify_raw_webhook, verify_webhook, verify_webhook_header};
