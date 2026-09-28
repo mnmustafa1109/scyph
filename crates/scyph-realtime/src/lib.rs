@@ -7,8 +7,8 @@
 //!
 //! In multi-replica or clustered deployments, WebSockets face a core challenge: a client connected to Replica 1 cannot receive events published by a client connected to Replica 2. `scyph-realtime` solves this using Redis Pub/Sub as a cross-replica messaging backplane:
 //!
-//! 1. **Cross-Replica Fanout ([`RealtimeBroadcaster`])**: Outgoing domain events are published to Redis Pub/Sub channels (`{channel_prefix}:events`). All API nodes subscribe to the channel and receive events.
-//! 2. **Encapsulated Connection Registry ([`ConnectionRegistry`])**: Thread-safe in-memory connection registry tracks active WebSocket client handles (`ConnectionTx`) per user UUID. It automatically purges empty user connection entries when clients disconnect to prevent memory leaks.
+//! 1. **Cross-Replica Fanout ([`RealtimeBroadcaster`])**: Outgoing domain events are published to Redis Pub/Sub channels (`{channel_prefix}:events`). Reuses an internal multiplexed Redis connection across publish operations with automatic invalidation and reconnection.
+//! 2. **Bounded Connection Registry ([`ConnectionRegistry`])**: Thread-safe in-memory connection registry tracks active client channels (`ConnectionTx`) per user UUID using bounded queues (default capacity 256 messages) with non-blocking `try_send` to prevent slow-client Out-Of-Memory (OOM) attacks. Automatically purges empty user entries on disconnect.
 //! 3. **Structured Wire Protocol ([`RealtimeEvent`])**: Standardized JSON envelopes timestamped with UUIDv7 identifiers for target user message routing and serialization.
 //! 4. **Graceful Task Shutdown**: Integrated [`tokio_util::sync::CancellationToken`] support in `start_subscriber` for clean shutdown on `SIGTERM`.
 //! 5. **Automated Health Probes ([`RealtimeHealthExt`])**: First-class integration with [`scyph_health::HealthRegistry`] for Kubernetes `/livez` and `/readyz` monitoring.
@@ -22,7 +22,6 @@
 //! ```rust,ignore
 //! use axum::{extract::{Path, State, WebSocketUpgrade, ws::WebSocket}, response::IntoResponse, routing::{get, post}, Json, Router};
 //! use scyph_realtime::{RealtimeBroadcaster, RealtimeConfig};
-//! use tokio::sync::mpsc;
 //! use tokio_util::sync::CancellationToken;
 //! use uuid::Uuid;
 //!
@@ -56,16 +55,14 @@
 //! }
 //!
 //! async fn handle_ws(mut socket: WebSocket, user_id: Uuid, broadcaster: RealtimeBroadcaster) {
-//!     let conn_id = Uuid::now_v7();
-//!     let (tx, mut rx) = mpsc::unbounded_channel();
-//!     broadcaster.register(user_id, conn_id, tx).await;
+//!     // Connects using bounded MPSC channel (capacity 256) and returns RAII session guard
+//!     let (_conn_id, mut rx, _session) = broadcaster.connect(user_id).await;
 //!
 //!     while let Some(msg) = rx.recv().await {
 //!         if socket.send(axum::extract::ws::Message::Text(msg.into())).await.is_err() {
 //!             break;
 //!         }
 //!     }
-//!     broadcaster.deregister(user_id, conn_id).await;
 //! }
 //! ```
 //!

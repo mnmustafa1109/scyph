@@ -11,11 +11,11 @@
 //! - **[`db`]**: PostgreSQL connection pooling via SQLx, transaction context management, database migration/seeding tools, and dynamic QueryBuilder search/filter/sort/pagination extensions.
 //! - **[`health`]**: Service health registries and Kubernetes liveness/readiness endpoint handlers.
 //! - **[`notify`]**: Email delivery via Lettre & Tera templates, Firebase Cloud Messaging push notifications, and in-app repository traits.
-//! - **[`realtime`]**: Redis Pub/Sub WebSocket broadcasting, multi-recipient fanout, and typed real-time payload framing.
-//! - **[`storage`]**: S3/MinIO and in-memory object storage abstractions with streaming multipart extractors and image thumbnail processing.
+//! - **[`realtime`]**: Redis Pub/Sub WebSocket broadcasting, multi-recipient fanout, multiplexed connection pooling, and bounded per-session message queues.
+//! - **[`storage`]**: AWS S3 / MinIO (path-style aware) and in-memory object storage abstractions with streaming multipart extractors and image thumbnail processing.
 //! - **[`telemetry`]**: Non-blocking tracing subscribers, time-ordered UUIDv7 request ID propagation, response metadata auto-injection, and dynamic compression.
-//! - **[`ratelimit`]**: IP-based rate limiting layers built on `tower-governor`.
-//! - **[`utils`]**: HMAC webhooks, background worker task loops, Base64 pagination cursors, and Redis API idempotency.
+//! - **[`ratelimit`]**: IP-based and reverse-proxy-aware smart rate limiting layers built on `tower-governor`.
+//! - **[`utils`]**: Constant-time HMAC webhooks (direct digests and timestamped), background worker task loops with graceful shutdown, Base64 pagination cursors, and Redis API idempotency.
 //!
 //! ## Feature Flags
 //!
@@ -176,15 +176,17 @@ pub mod prelude {
 
     #[cfg(feature = "ratelimit")]
     pub use scyph_ratelimit::{
-        PeerRateLimitLayer, RateLimitConfig, RateLimitError, RateLimitRouterExt, per_ip_layer,
-        relaxed_layer, strict_layer,
+        PeerRateLimitLayer, RateLimitConfig, RateLimitError, RateLimitRouterExt,
+        SmartRateLimitLayer, per_ip_layer, relaxed_layer, smart_ip_layer, smart_relaxed_layer,
+        smart_strict_layer, strict_layer,
     };
 
     #[cfg(feature = "utils")]
     pub use scyph_utils::{
         Cursor, IdempotencyCheck, IdempotencyConfig, IdempotencyError, IdempotencyStore,
         PageParams, PaginationError, VerifiedWebhook, WebhookConfig, WebhookError, WorkerError,
-        WorkerHandle, spawn_worker, spawn_worker_cancel, verify_webhook, verify_webhook_header,
+        WorkerHandle, spawn_worker, spawn_worker_cancel, verify_raw_webhook, verify_webhook,
+        verify_webhook_header,
     };
 
     #[cfg(feature = "extractors")]
@@ -255,14 +257,15 @@ pub use scyph_telemetry::{
 
 #[cfg(feature = "ratelimit")]
 pub use scyph_ratelimit::{
-    PeerRateLimitLayer, RateLimitConfig, RateLimitError, RateLimitRouterExt, per_ip_layer,
-    relaxed_layer, strict_layer,
+    PeerRateLimitLayer, RateLimitConfig, RateLimitError, RateLimitRouterExt, SmartRateLimitLayer,
+    per_ip_layer, relaxed_layer, smart_ip_layer, smart_relaxed_layer, smart_strict_layer,
+    strict_layer,
 };
 
 #[cfg(feature = "utils")]
 pub use scyph_utils::{
     IdempotencyError, PaginationError, VerifiedWebhook, WebhookConfig, WebhookError, WorkerError,
-    WorkerHandle,
+    WorkerHandle, verify_raw_webhook, verify_webhook, verify_webhook_header,
 };
 
 #[cfg(feature = "extractors")]

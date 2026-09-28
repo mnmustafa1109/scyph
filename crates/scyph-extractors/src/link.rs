@@ -7,6 +7,17 @@ use url::Url;
 /// Canonical URL link generator extracted from incoming request headers (`X-Forwarded-Host`, `Host`, `X-Forwarded-Proto`).
 ///
 /// Automatically handles proxy headers behind reverse proxies (Cloudflare, NGINX, AWS ALB).
+///
+/// ### Security Guarantees & Configuration
+///
+/// 1. **Canonical Override (`APP_BASE_URL`)**: If the `APP_BASE_URL` environment variable is defined
+///    (e.g., `https://api.example.com`), it takes absolute precedence as the trusted base URL,
+///    completely bypassing request headers and preventing Host header poisoning attacks.
+/// 2. **Header Sanitization**: Incoming `Host` and `X-Forwarded-Host` values are sanitized to reject
+///    any characters used in CRLF injection, path traversal, or authority smuggling (`/`, `\`, `\r`, `\n`, space, `@`).
+/// 3. **Allowed Hosts Whitelist (`ALLOWED_HOSTS`)**: If configured as a comma-separated list
+///    (e.g., `api.example.com,example.com,localhost:8080`), incoming host headers are strictly validated
+///    against the whitelist before acceptance.
 #[derive(Debug, Clone)]
 pub struct LinkGenerator {
     base_url: Url,

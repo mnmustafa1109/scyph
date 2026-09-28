@@ -5,6 +5,19 @@ use crate::s3::S3StorageService;
 use aws_config::{BehaviorVersion, Region};
 use aws_sdk_s3::{Client, config::Credentials};
 
+/// Sanitizes an endpoint URL by trimming trailing slashes and, for path-style endpoints (such as MinIO),
+/// stripping any trailing bucket path (e.g. `/{bucket}`) to prevent duplicate bucket paths in generated URLs.
+pub(crate) fn sanitize_endpoint(endpoint: &str, bucket: &str, is_path_style: bool) -> String {
+    let trimmed = endpoint.trim_end_matches('/');
+    if is_path_style {
+        let bucket_suffix = format!("/{bucket}");
+        if let Some(stripped) = trimmed.strip_suffix(&bucket_suffix) {
+            return stripped.to_string();
+        }
+    }
+    trimmed.to_string()
+}
+
 impl S3StorageService {
     /// Creates an [`S3StorageService`] instance with explicit credentials and endpoint configuration.
     ///
@@ -12,7 +25,9 @@ impl S3StorageService {
     ///
     /// * `bucket` - Target S3 bucket name.
     /// * `public_url_prefix` - Public browser-accessible URL prefix for generated presigned links.
-    /// * `endpoint` - Backend S3 API endpoint URL.
+    ///   For MinIO/LocalStack (path-style), this should be the server endpoint (e.g. `http://localhost:9000`),
+    ///   without the bucket name appended. If a trailing `/{bucket}` is present, it will be automatically stripped.
+    /// * `endpoint` - Backend S3 API endpoint URL (e.g. `http://localhost:9000` or `https://s3.us-east-1.amazonaws.com`).
     /// * `region` - AWS Region string (e.g. `"us-east-1"`).
     /// * `access_key` - AWS Access Key ID.
     /// * `secret_key` - AWS Secret Access Key.
@@ -34,15 +49,19 @@ impl S3StorageService {
 
         let is_custom_endpoint = !endpoint.contains("amazonaws.com");
 
+        let clean_endpoint = sanitize_endpoint(&endpoint, &bucket, is_custom_endpoint);
+        let clean_presign_endpoint =
+            sanitize_endpoint(&public_url_prefix, &bucket, is_custom_endpoint);
+
         let mut s3_builder =
-            aws_sdk_s3::config::Builder::from(&shared_config).endpoint_url(&endpoint);
+            aws_sdk_s3::config::Builder::from(&shared_config).endpoint_url(&clean_endpoint);
         if is_custom_endpoint {
             s3_builder = s3_builder.force_path_style(true);
         }
         let s3_config = s3_builder.build();
 
         let mut presign_builder =
-            aws_sdk_s3::config::Builder::from(&shared_config).endpoint_url(&public_url_prefix);
+            aws_sdk_s3::config::Builder::from(&shared_config).endpoint_url(&clean_presign_endpoint);
         if is_custom_endpoint {
             presign_builder = presign_builder.force_path_style(true);
         }
@@ -52,18 +71,23 @@ impl S3StorageService {
             client: Client::from_conf(s3_config),
             presign_client: Client::from_conf(presign_config),
             bucket,
-            public_url_prefix,
+            public_url_prefix: public_url_prefix.trim_end_matches('/').to_string(),
         }
     }
 
     /// Constructs an [`S3StorageService`] instance from environment variables:
     ///
     /// - `S3_BUCKET` *(Required)*: Target S3 bucket name.
-    /// - `S3_PUBLIC_URL_PREFIX` *(Optional)*: Browser-accessible public endpoint/CDN prefix.
-    /// - `S3_ENDPOINT_URL` *(Optional)*: Custom internal S3 endpoint for MinIO/LocalStack.
+    /// - `S3_PUBLIC_URL_PREFIX` *(Optional)*: Browser-accessible public endpoint/CDN prefix
+    ///   (e.g. `http://localhost:9000` for MinIO or `https://cdn.example.com`).
+    /// - `S3_ENDPOINT_URL` *(Optional)*: Custom internal S3 endpoint for MinIO/LocalStack (e.g. `http://localhost:9000`).
     /// - `S3_REGION` / `AWS_REGION` *(Optional)*: AWS region, defaults to `"us-east-1"`.
     /// - `AWS_ACCESS_KEY_ID` *(Optional)*: Static AWS access key.
     /// - `AWS_SECRET_ACCESS_KEY` *(Optional)*: Static AWS secret key.
+    ///
+    /// When using custom endpoints (MinIO/LocalStack), path-style addressing (`force_path_style(true)`)
+    /// is automatically enabled, and any trailing `/{bucket}` in `S3_PUBLIC_URL_PREFIX` is defensively
+    /// stripped to prevent duplicate bucket path segments in presigned URLs.
     ///
     /// # Errors
     ///
@@ -104,35 +128,54 @@ impl S3StorageService {
             let endpoint = endpoint_url
                 .clone()
                 .unwrap_or_else(|| format!("https://s3.{region_str}.amazonaws.com"));
+            let is_custom = endpoint_url.is_some() || !endpoint.contains("amazonaws.com");
             let pub_prefix = public_url_prefix.unwrap_or_else(|| {
-                if endpoint_url.is_some() {
-                    format!("{endpoint}/{bucket}")
+                if is_custom {
+                    endpoint.clone()
                 } else {
                     format!("https://{bucket}.s3.{region_str}.amazonaws.com")
                 }
             });
             Ok(Self::new(bucket, pub_prefix, endpoint, region_str, ak, sk).await)
         } else {
-            let mut loader =
-                aws_config::defaults(BehaviorVersion::latest()).region(Region::new(region_str));
+            let mut loader = aws_config::defaults(BehaviorVersion::latest())
+                .region(Region::new(region_str.clone()));
             if let Some(ref url) = endpoint_url {
                 loader = loader.endpoint_url(url);
             }
             let cfg = loader.load().await;
 
-            let s3_builder = aws_sdk_s3::config::Builder::from(&cfg);
-            let s3_config = if let Some(ref url) = endpoint_url {
-                s3_builder.endpoint_url(url).force_path_style(true).build()
-            } else {
-                s3_builder.build()
-            };
+            let is_custom_endpoint = endpoint_url
+                .as_ref()
+                .map(|url| !url.contains("amazonaws.com"))
+                .unwrap_or(false);
+
+            let clean_endpoint = endpoint_url
+                .as_ref()
+                .map(|url| sanitize_endpoint(url, &bucket, is_custom_endpoint));
+
+            let mut s3_builder = aws_sdk_s3::config::Builder::from(&cfg);
+            if let Some(ref url) = clean_endpoint {
+                s3_builder = s3_builder.endpoint_url(url);
+            }
+            if is_custom_endpoint {
+                s3_builder = s3_builder.force_path_style(true);
+            }
+            let s3_config = s3_builder.build();
 
             let client = Client::from_conf(s3_config);
 
             let presign_client = if let Some(ref pub_url) = public_url_prefix {
+                let clean_pub_url = sanitize_endpoint(pub_url, &bucket, is_custom_endpoint);
                 let mut presign_builder =
-                    aws_sdk_s3::config::Builder::from(&cfg).endpoint_url(pub_url);
-                if endpoint_url.is_some() {
+                    aws_sdk_s3::config::Builder::from(&cfg).endpoint_url(clean_pub_url);
+                if is_custom_endpoint {
+                    presign_builder = presign_builder.force_path_style(true);
+                }
+                Client::from_conf(presign_builder.build())
+            } else if let Some(ref ep) = clean_endpoint {
+                let mut presign_builder = aws_sdk_s3::config::Builder::from(&cfg).endpoint_url(ep);
+                if is_custom_endpoint {
                     presign_builder = presign_builder.force_path_style(true);
                 }
                 Client::from_conf(presign_builder.build())
@@ -140,14 +183,58 @@ impl S3StorageService {
                 client.clone()
             };
 
-            let pub_prefix = public_url_prefix.unwrap_or_else(|| bucket.clone());
+            let pub_prefix = public_url_prefix.unwrap_or_else(|| {
+                if let Some(ref ep) = clean_endpoint {
+                    ep.clone()
+                } else {
+                    format!("https://{bucket}.s3.{region_str}.amazonaws.com")
+                }
+            });
 
             Ok(Self {
                 client,
                 presign_client,
                 bucket,
-                public_url_prefix: pub_prefix,
+                public_url_prefix: pub_prefix.trim_end_matches('/').to_string(),
             })
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sanitize_endpoint() {
+        let bucket = "my-bucket";
+
+        // Path-style (e.g. MinIO): strips trailing bucket and trailing slashes
+        assert_eq!(
+            sanitize_endpoint("http://localhost:9000", bucket, true),
+            "http://localhost:9000"
+        );
+        assert_eq!(
+            sanitize_endpoint("http://localhost:9000/", bucket, true),
+            "http://localhost:9000"
+        );
+        assert_eq!(
+            sanitize_endpoint("http://localhost:9000/my-bucket", bucket, true),
+            "http://localhost:9000"
+        );
+        assert_eq!(
+            sanitize_endpoint("http://localhost:9000/my-bucket/", bucket, true),
+            "http://localhost:9000"
+        );
+
+        // Virtual-hosted AWS endpoint: preserved
+        assert_eq!(
+            sanitize_endpoint("https://s3.us-east-1.amazonaws.com", bucket, false),
+            "https://s3.us-east-1.amazonaws.com"
+        );
+        assert_eq!(
+            sanitize_endpoint("https://cdn.example.com/", bucket, false),
+            "https://cdn.example.com"
+        );
     }
 }

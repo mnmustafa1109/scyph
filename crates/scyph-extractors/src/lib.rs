@@ -7,7 +7,7 @@
 //!
 //! This crate aggregates request extraction concerns into modular components:
 //! - **[`body`]**: Validated JSON body extractor ([`ValidatedJson`]) combining automatic string sanitization (`sanitizer`) and domain validation (`garde`). Also includes [`SanitizedJson`].
-//! - **[`link`]**: Header-aware canonical link generator ([`LinkGenerator`]) and URL builder ([`LinkBuilder`]) supporting reverse proxy headers (`X-Forwarded-Host`, `X-Forwarded-Proto`).
+//! - **[`link`]**: Header-aware canonical link generator ([`LinkGenerator`]) and fluent URL builder ([`LinkBuilder`]) supporting reverse proxy headers (`X-Forwarded-Host`, `X-Forwarded-Proto`), host sanitization against CRLF/injection attacks, `ALLOWED_HOSTS` whitelist validation, and `APP_BASE_URL` canonical override.
 //! - **[`path`]**: Strongly-typed path parameter extractors ([`TypedPath`]) and validated path parameters ([`ValidatedPath`]).
 //! - **[`query`]**: Validated query parameter extractor ([`ValidatedQuery`]), request query parameter models ([`RequestParams`], [`PaginationParams`], [`SortParams`], [`FilterParams`], [`SearchParams`]), and string-to-number deserializer ([`deserialize_number_from_string`]).
 //! - **[`error`]**: Granular extraction and validation errors ([`ExtractorError`]) converted automatically to RFC 7807 problem details ([`AppError`](scyph_core::AppError)).

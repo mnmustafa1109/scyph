@@ -1,7 +1,7 @@
 //! Rate limit configuration builder.
 
 use crate::error::{RateLimitError, Result};
-use crate::layer::{PeerRateLimitLayer, per_ip_layer};
+use crate::layer::{PeerRateLimitLayer, SmartRateLimitLayer, per_ip_layer, smart_ip_layer};
 use std::env;
 use std::time::Duration;
 
@@ -123,7 +123,7 @@ impl RateLimitConfig {
     }
 
     /// Builds a reverse-proxy-aware [`SmartRateLimitLayer`] from this configuration.
-    pub fn build_smart_layer<B>(&self) -> Result<crate::layer::SmartRateLimitLayer<B>> {
-        crate::layer::smart_ip_layer(self.burst_size, self.period)
+    pub fn build_smart_layer<B>(&self) -> Result<SmartRateLimitLayer<B>> {
+        smart_ip_layer(self.burst_size, self.period)
     }
 }
