@@ -1,7 +1,7 @@
 # crates/scyph-core/Cargo.toml
 [package]
 name = "scyph-core"
-version = "0.1.1"
+version = "0.1.2"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
