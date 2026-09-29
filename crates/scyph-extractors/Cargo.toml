@@ -1,7 +1,7 @@
 # crates/scyph-extractors/Cargo.toml
 [package]
 name = "scyph-extractors"
-version = "0.1.2"
+version = "0.1.3"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

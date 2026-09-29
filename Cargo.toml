@@ -61,18 +61,18 @@ full = [
 ]
 
 [dependencies]
-scyph-core = { path = "crates/scyph-core", version = "0.1.2" }
-scyph-auth = { path = "crates/scyph-auth", version = "0.1.2", optional = true }
-scyph-abac = { path = "crates/scyph-abac", version = "0.1.2", optional = true }
-scyph-db = { path = "crates/scyph-db", version = "0.1.2", optional = true }
-scyph-health = { path = "crates/scyph-health", version = "0.1.2", optional = true }
-scyph-notify = { path = "crates/scyph-notify", version = "0.1.2", optional = true }
-scyph-realtime = { path = "crates/scyph-realtime", version = "0.1.2", optional = true }
-scyph-storage = { path = "crates/scyph-storage", version = "0.1.2", optional = true }
-scyph-telemetry = { path = "crates/scyph-telemetry", version = "0.1.2", optional = true }
-scyph-ratelimit = { path = "crates/scyph-ratelimit", version = "0.1.2", optional = true }
-scyph-utils = { path = "crates/scyph-utils", version = "0.1.2", optional = true }
-scyph-extractors = { path = "crates/scyph-extractors", version = "0.1.2", optional = true }
+scyph-core = { path = "crates/scyph-core", version = "0.1.3" }
+scyph-auth = { path = "crates/scyph-auth", version = "0.1.3", optional = true }
+scyph-abac = { path = "crates/scyph-abac", version = "0.1.3", optional = true }
+scyph-db = { path = "crates/scyph-db", version = "0.1.3", optional = true }
+scyph-health = { path = "crates/scyph-health", version = "0.1.3", optional = true }
+scyph-notify = { path = "crates/scyph-notify", version = "0.1.3", optional = true }
+scyph-realtime = { path = "crates/scyph-realtime", version = "0.1.3", optional = true }
+scyph-storage = { path = "crates/scyph-storage", version = "0.1.3", optional = true }
+scyph-telemetry = { path = "crates/scyph-telemetry", version = "0.1.3", optional = true }
+scyph-ratelimit = { path = "crates/scyph-ratelimit", version = "0.1.3", optional = true }
+scyph-utils = { path = "crates/scyph-utils", version = "0.1.3", optional = true }
+scyph-extractors = { path = "crates/scyph-extractors", version = "0.1.3", optional = true }
 
 [workspace]
 resolver = "3"
@@ -93,7 +93,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/mnmustafa1109/scyph"

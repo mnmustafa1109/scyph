@@ -9,7 +9,7 @@ repository.workspace = true
 description = "HMAC webhooks, background worker task loops, cursor pagination, and Redis API idempotency for Axum"
 
 [dependencies]
-scyph-core = { path = "../scyph-core", version = "0.1.2" }
+scyph-core = { path = "../scyph-core", version = "0.1.3" }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
 uuid = { workspace = true }
