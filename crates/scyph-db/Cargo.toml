@@ -8,6 +8,10 @@ license.workspace = true
 repository.workspace = true
 description = "PgPool builder, migration runner, seed runner, transaction helpers, and dynamic query extensions"
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [features]
 default = []
 health = ["dep:scyph-health"]

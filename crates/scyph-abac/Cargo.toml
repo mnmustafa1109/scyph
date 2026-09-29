@@ -8,6 +8,10 @@ license.workspace = true
 repository.workspace = true
 description = "AbacPolicy trait and SQLx filter injection for scyph backends"
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [features]
 cedar = ["dep:cedar-policy"]
 

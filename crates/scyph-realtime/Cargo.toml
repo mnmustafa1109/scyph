@@ -8,6 +8,10 @@ license.workspace = true
 repository.workspace = true
 description = "Redis pub/sub broadcaster for cross-replica WebSocket fanout"
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [features]
 default = []
 health = ["dep:scyph-health"]

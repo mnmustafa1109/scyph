@@ -5,7 +5,11 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-description = "A collection of modular, independently usable Rust crates providing cross-cutting concerns for production Axum backends (auth, RFC 7807 errors, DB, health, telemetry, and more)."
+description = "An opinionated, batteries-included modular backend library for Axum backends (auth, RFC 7807 errors, DB, health, telemetry, storage, and more)."
+readme = "README.md"
+documentation = "https://docs.rs/scyph"
+keywords = ["axum", "backend", "web", "jwt", "telemetry"]
+categories = ["web-programming::http-server", "authentication", "asynchronous"]
 
 [package.metadata.docs.rs]
 all-features = true
@@ -93,7 +97,11 @@ version = "0.1.2"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/mnmustafa1109/scyph"
+documentation = "https://docs.rs/scyph"
+readme = "README.md"
 rust-version = "1.98.1"
+keywords = ["axum", "backend", "web", "jwt", "telemetry"]
+categories = ["web-programming::http-server", "authentication", "asynchronous"]
 
 [workspace.dependencies]
 axum = { version = "0.8.9", features = ["http2", "json", "tokio", "multipart"] }

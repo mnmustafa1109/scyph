@@ -8,6 +8,10 @@ license.workspace = true
 repository.workspace = true
 description = "StorageService trait, multipart file extractor, S3 implementation, and image thumbnail processing"
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [features]
 default = []
 s3 = ["dep:aws-config", "dep:aws-sdk-s3"]

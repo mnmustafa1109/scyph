@@ -8,6 +8,10 @@ license.workspace = true
 repository.workspace = true
 description = "Email (lettre/Tera), FCM push, and in-app notification traits for scyph"
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [features]
 default = ["email"]
 email = ["dep:lettre", "dep:tera", "dep:secrecy"]
