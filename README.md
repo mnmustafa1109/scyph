@@ -160,6 +160,16 @@ async fn hello_handler(RequestId(req_id): RequestId) -> ApiResponse<String> {
 
 ---
 
+## 🤝 Contributing & AI Policy
+
+Contributions, issues, and feature proposals are welcome! Before submitting a pull request, please keep our standards in mind:
+
+> **A Note on AI Usage:** While we heavily use AI as a tool for boilerplate scaffolding, documentation, and repetitive plumbing, **we are very strict against AI slop**.
+>
+> Every submission must be thoughtful, intentional, and strictly verified. If a pull request looks or feels like unreviewed, low-effort AI-generated slop—hallucinated implementations, shallow abstractions, or untested code—**it will be rejected immediately**. Take pride in your code, benchmark and test your changes, and make sure you truly understand everything you submit.
+
+---
+
 ## 🛡️ License
 
 Dual-licensed under either:
