@@ -7,7 +7,7 @@
 //! `scyph` aggregates cross-cutting application concerns into decoupled, independently usable crates:
 //! - **[`core`]**: Foundational RFC 7807 problem details ([`AppError`]), standard JSON response envelopes ([`ApiResponse`], [`PagedResponse`], [`ResponseMeta`]), and identity traits ([`Claims`]).
 //! - **[`auth`]**: JWT token creation/verification, Argon2id password hashing, Moka claims caching, and role-based route guards.
-//! - **[`abac`]**: Attribute-Based Access Control policies, SQL query [`scyph_abac::FilterBuilder`], and Cedar policy evaluation.
+//! - **[`abac`]**: Attribute-Based Access Control policies, SQL query [`abac::FilterBuilder`], and Cedar policy evaluation.
 //! - **[`db`]**: PostgreSQL connection pooling via SQLx, transaction context management, database migration/seeding tools, and dynamic QueryBuilder search/filter/sort/pagination extensions.
 //! - **[`health`]**: Service health registries and Kubernetes liveness/readiness endpoint handlers.
 //! - **[`notify`]**: Email delivery via Lettre & Tera templates, Firebase Cloud Messaging push notifications, and in-app repository traits.

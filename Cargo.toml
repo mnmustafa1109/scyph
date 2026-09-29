@@ -7,6 +7,10 @@ repository.workspace = true
 rust-version.workspace = true
 description = "A collection of modular, independently usable Rust crates providing cross-cutting concerns for production Axum backends (auth, RFC 7807 errors, DB, health, telemetry, and more)."
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [features]
 default = ["auth", "db", "health", "telemetry", "extractors", "utils"]
 auth = ["dep:scyph-auth"]
