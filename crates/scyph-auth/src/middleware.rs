@@ -33,8 +33,9 @@
 //!
 //! // let router = Router::new()
 //! //     .route("/admin", get(admin_handler))
-//! //     .layer(Extension(AllowedRoles(&[UserRole::Admin])))
-//! //     .route_layer(from_fn_with_state(state, require_roles_layer::<AppState, AppClaims>));
+//! //     // role-check first (innermost), the Extension AFTER it (outermost):
+//! //     .route_layer(from_fn_with_state(state, require_roles_layer::<AppState, AppClaims>))
+//! //     .layer(Extension(AllowedRoles(&[UserRole::Admin])));
 //! ```
 
 use crate::{AuthExtractorState, AuthUser, error::AuthError};

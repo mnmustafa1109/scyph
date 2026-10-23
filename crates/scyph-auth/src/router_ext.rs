@@ -75,7 +75,7 @@ impl<S> RoleRouterExt<S> for Router<S> {
         S: AuthExtractorState<C> + Clone + Send + Sync + 'static,
         C: Claims,
     {
-        self.layer(Extension(AllowedRoles(roles)))
-            .route_layer(from_fn_with_state(state, require_roles_layer::<S, C>))
+        self.route_layer(from_fn_with_state(state, require_roles_layer::<S, C>))
+            .layer(Extension(AllowedRoles(roles)))
     }
 }

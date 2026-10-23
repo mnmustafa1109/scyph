@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **`scyph-auth`**: `RoleRouterExt::require_roles` added its layers in the wrong order, so the role-check middleware could never see the `AllowedRoles` extension it depends on — every protected route failed with HTTP 500 (`MissingExtension` failure), instead of returning 200 / 403 / 401 as documented. The `Extension` layer is now applied last (outermost) and regression tests pin the behavior for shipped-consuming apps on 0.1.4.
+
 ### Added
 - `ResponseMeta::library_version` and the `x-library-version` response header now report the Scyph library version alongside the application's version.
 - `TelemetryConfig::library_version` exposes the reported library version (defaults to the Scyph version).
