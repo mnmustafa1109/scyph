@@ -212,21 +212,7 @@ impl CedarAuthorizer {
         action: Action,
         resource: &R,
     ) -> Result<(), AppError> {
-        let action_name = match &action {
-            Action::Create => "Create",
-            Action::Read => "Read",
-            Action::Update => "Update",
-            Action::Delete => "Delete",
-            Action::List => "List",
-            Action::Custom(name) => name.as_ref(),
-            &_ => {
-                return Err(AppError::BadRequest(format!(
-                    "Unsupported action: {:?}",
-                    action
-                )));
-            }
-        };
-
+        let action_name = action_label(&action)?;
         self.authorize(principal, action_name, resource)
     }
 
@@ -239,21 +225,25 @@ impl CedarAuthorizer {
         action: Action,
         resource: &R,
     ) -> Result<(), AppError> {
-        let action_name = match &action {
-            Action::Create => "Create",
-            Action::Read => "Read",
-            Action::Update => "Update",
-            Action::Delete => "Delete",
-            Action::List => "List",
-            Action::Custom(name) => name.as_ref(),
-            &_ => {
-                return Err(AppError::BadRequest(format!(
-                    "Unsupported action: {:?}",
-                    action
-                )));
-            }
-        };
-
+        let action_name = action_label(&action)?;
         self.authorize_uids("User", &user.id.to_string(), action_name, resource)
+    }
+}
+
+/// Maps an [`Action`] to its Cedar action name (kept as one table for `check`/`check_user`).
+///
+/// `Action` is `#[non_exhaustive]`, so downstream additions hit this single arm instead of
+/// two duplicated matches going out of sync.
+fn action_label(action: &Action) -> Result<&str, AppError> {
+    match action {
+        Action::Create => Ok("Create"),
+        Action::Read => Ok("Read"),
+        Action::Update => Ok("Update"),
+        Action::Delete => Ok("Delete"),
+        Action::List => Ok("List"),
+        Action::Custom(name) => Ok(name.as_ref()),
+        _ => Err(AppError::BadRequest(format!(
+            "Unsupported action: {action:?}"
+        ))),
     }
 }

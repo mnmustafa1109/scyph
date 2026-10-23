@@ -34,8 +34,12 @@
 //! The `Content-Type` is always `application/json`. The top-level keys are the component
 //! names passed to [`HealthRegistry::check`] or [`HealthRegistry::set`]. Status values
 //! are serialized as their variant names: `"Healthy"`, `"Sick"`, `"Recovering"`, `"Deceased"`.
+//!
+//! On [`health_routes`] (the default), unhealthy components carry a generic masking marker
+//! instead of their real `details` string; [`health_routes_verbose`] reveals them and is meant
+//! for internal-only ports.
 
-use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::get};
+use axum::{Json, Router, http::StatusCode, response::IntoResponse, routing::get};
 
 use crate::registry::HealthRegistry;
 
@@ -77,17 +81,38 @@ use crate::registry::HealthRegistry;
 pub fn health_routes(registry: HealthRegistry) -> Router {
     Router::new()
         .route("/healthz", get(|| async { StatusCode::OK }))
-        .route("/readyz", get(readyz))
-        .with_state(registry)
+        .route("/readyz", get(move || readyz(registry, false)))
 }
 
-async fn readyz(State(registry): State<HealthRegistry>) -> impl IntoResponse {
-    let snapshot = registry.snapshot().await;
+/// Like `health_routes`, but `/readyz` reveals the full `details` field of every component
+/// (error messages, probe context). Use it **only** on unexposed/infra-facing ports; the
+/// masked [`health_routes`] is the safe default for public exposure, where component details
+/// would leak infrastructure knowledge (internal hostnames, error strings) to unauthenticated
+/// callers.
+pub fn health_routes_verbose(registry: HealthRegistry) -> Router {
+    Router::new()
+        .route("/healthz", get(|| async { StatusCode::OK }))
+        .route("/readyz", get(move || readyz(registry, true)))
+}
+
+async fn readyz(registry: HealthRegistry, verbose: bool) -> impl IntoResponse {
+    let mut snapshot = registry.snapshot().await;
     let ready = registry.is_ready().await;
     let status_code = if ready {
         StatusCode::OK
     } else {
         StatusCode::SERVICE_UNAVAILABLE
     };
+
+    if !verbose {
+        for status in snapshot.values_mut() {
+            if status.details.is_some() {
+                status.details = Some(
+                    "Details hidden; mount health_routes_verbose on an internal port".to_string(),
+                );
+            }
+        }
+    }
+
     (status_code, Json(snapshot))
 }

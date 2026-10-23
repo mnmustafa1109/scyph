@@ -134,11 +134,11 @@ impl<C: FileConfig> FileExtractor<C> {
     ///
     /// Returns [`StorageError::ValidationError`] if decoding fails, or [`StorageError::Internal`] if re-encoding fails.
     #[cfg(feature = "image")]
-    pub fn thumbnail(
+    pub async fn thumbnail(
         &self,
         config: crate::thumbnail::ThumbnailConfig,
     ) -> Result<(String, Bytes), StorageError> {
-        let thumb_bytes = config.generate(&self.data)?;
+        let thumb_bytes = config.generate(self.data.clone()).await?;
         let thumb_key =
             config.derive_key(&self.path, crate::thumbnail::DEFAULT_THUMBNAIL_SUBFOLDER);
         Ok((thumb_key, Bytes::from(thumb_bytes)))

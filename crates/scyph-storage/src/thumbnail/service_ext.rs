@@ -53,7 +53,7 @@ impl<T: StorageService + ?Sized> StorageThumbnailExt for T {
         data: Bytes,
         config: ThumbnailConfig,
     ) -> Result<ThumbnailStoreResult, StorageError> {
-        let thumb_bytes = config.generate(&data)?;
+        let thumb_bytes = config.generate(data.clone()).await?;
         let thumb_key = config.derive_key(original_key, DEFAULT_THUMBNAIL_SUBFOLDER);
         let thumb_content_type = config.content_type();
 

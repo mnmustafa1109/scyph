@@ -12,7 +12,11 @@ use crate::password::PasswordError;
 
 /// Production-grade password hashing service with configurable concurrency and Argon2 parameters.
 ///
-/// Encapsulates a shared [`Semaphore`] concurrency limiter and Argon2 cost parameters.
+/// Encapsulates a shared [`Semaphore`] concurrency limiter, Argon2 cost parameters, and an
+/// optional **Argon2 pepper** (`ARGON2_SECRET`): a server-side secret mixed into every hash
+/// computation but never stored in the database, which neutralizes hashes exposed by a
+/// database leak (verification fails without the same pepper configured).
+///
 /// Designed for dependency injection in Axum application state (`State<AppState>`).
 ///
 /// # Examples
@@ -33,6 +37,8 @@ use crate::password::PasswordError;
 pub struct PasswordService {
     semaphore: Arc<Semaphore>,
     params: Params,
+    /// Optional pepper applied inside the Argon2 computation ("secret key" per the PHC spec).
+    secret: Option<Arc<SecretString>>,
 }
 
 impl PasswordService {
@@ -60,7 +66,49 @@ impl PasswordService {
         Ok(Self {
             semaphore: Arc::new(Semaphore::new(max_concurrent.max(1))),
             params,
+            secret: None,
         })
+    }
+
+    /// Creates a `PasswordService` with the default parameters and reads the optional
+    /// Argon2 pepper from the `ARGON2_SECRET` environment variable.
+    ///
+    /// The pepper must be identical on every replica of the service for verification of a
+    /// single stored hash to succeed anywhere. Rotating it instantly invalidates every
+    /// stored password hash — hashes and verifications both require the same pepper.
+    pub fn from_env() -> Self {
+        // Pepper is read once at startup; runtime env mutation is intentionally not supported.
+        match std::env::var("ARGON2_SECRET") {
+            Ok(secret) => Self::default().with_secret(SecretString::from(secret)),
+            Err(_) => Self::default(),
+        }
+    }
+
+    /// Sets the Argon2 pepper explicitly, as an alternative to the
+    /// `ARGON2_SECRET` environment variable.
+    pub fn with_secret(mut self, secret: SecretString) -> Self {
+        self.secret = Some(Arc::new(secret));
+        self
+    }
+    /// Builds an Argon2id instance, applying the configured pepper (PHC "secret key") when present.
+    fn build_argon2<'k>(
+        params: &Params,
+        secret: Option<&'k SecretString>,
+    ) -> Result<Argon2<'k>, PasswordError> {
+        match secret {
+            Some(secret) => Argon2::new_with_secret(
+                secret.expose_secret().as_bytes(),
+                argon2::Algorithm::Argon2id,
+                argon2::Version::V0x13,
+                params.clone(),
+            )
+            .map_err(|e| PasswordError::HashFailed(e.to_string())),
+            None => Ok(Argon2::new(
+                argon2::Algorithm::Argon2id,
+                argon2::Version::V0x13,
+                params.clone(),
+            )),
+        }
     }
 
     /// Hashes a plaintext password asynchronously respecting configured concurrency limits and Argon2 parameters.
@@ -81,9 +129,10 @@ impl PasswordService {
 
         let password = pw.clone();
         let params = self.params.clone();
+        let pepper = self.secret.clone();
 
         tokio::task::spawn_blocking(move || {
-            let argon2 = Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params);
+            let argon2 = Self::build_argon2(&params, pepper.as_deref())?;
             argon2
                 .hash_password(password.expose_secret().as_bytes())
                 .map(|h| h.to_string())
@@ -117,11 +166,16 @@ impl PasswordService {
 
         let password = pw.clone();
         let hash = hash.to_string();
+        let params = self.params.clone();
+        let pepper = self.secret.clone();
 
         tokio::task::spawn_blocking(move || {
             let parsed =
                 PasswordHash::new(&hash).map_err(|e| PasswordError::InvalidHash(e.to_string()))?;
-            Argon2::default()
+            // The active pepper (if any) must match the one that produced the stored hash;
+            // cost parameters come from the PHC string, so `self.params` is not used here.
+            let argon2 = Self::build_argon2(&params, pepper.as_deref())?;
+            argon2
                 .verify_password(password.expose_secret().as_bytes(), &parsed)
                 .map_err(|_| PasswordError::VerificationFailed)
         })

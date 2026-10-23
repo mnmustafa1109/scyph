@@ -14,6 +14,7 @@ use std::{env, time::Duration};
 /// |----------|----------|---------|-------------|
 /// | `IDEMPOTENCY_REDIS_URL` or `REDIS_URL` | No | `redis://127.0.0.1:6379` | Redis connection URL |
 /// | `IDEMPOTENCY_TTL_SECS` | No | `86400` (24h) | Key expiry in seconds |
+/// | `IDEMPOTENCY_IN_PROGRESS_TTL_SECS` | No | `60` | Expiry of the `IN_PROGRESS` reservation |
 /// | `IDEMPOTENCY_PREFIX` | No | `"idem"` | Redis key namespace prefix |
 ///
 /// ## Key Naming
@@ -44,6 +45,12 @@ pub struct IdempotencyConfig {
     pub redis_url: String,
     /// Time-to-live duration for stored idempotency keys and cached response payloads.
     pub ttl: Duration,
+    /// Expiry of the short-lived `IN_PROGRESS` reservation.
+    ///
+    /// Much shorter than [`ttl`](Self::ttl): it must outlive only the handler's own execution
+    /// window, so a crashed request self-heals in seconds instead of wedging the key as
+    /// `409 Conflict` for the whole result TTL.
+    pub in_progress_ttl: Duration,
     /// Redis key namespace prefix (default: `"idem"`).
     pub prefix: String,
 }
@@ -51,6 +58,8 @@ pub struct IdempotencyConfig {
 impl IdempotencyConfig {
     /// Default time-to-live duration for stored idempotency keys (24 hours).
     pub const DEFAULT_TTL: Duration = Duration::from_secs(86400);
+    /// Default expiry of the `IN_PROGRESS` reservation (60 seconds).
+    pub const DEFAULT_IN_PROGRESS_TTL: Duration = Duration::from_secs(60);
     /// Default Redis key namespace prefix.
     pub const DEFAULT_PREFIX: &'static str = "idem";
     /// Default fallback Redis connection URL.
@@ -60,6 +69,8 @@ impl IdempotencyConfig {
     ///
     /// - `IDEMPOTENCY_REDIS_URL` / `REDIS_URL` *(Optional)*: Redis connection string (defaults to `DEFAULT_REDIS_URL`).
     /// - `IDEMPOTENCY_TTL_SECS` *(Optional)*: Key expiration in seconds (defaults to `DEFAULT_TTL`).
+    /// - `IDEMPOTENCY_IN_PROGRESS_TTL_SECS` *(Optional)*: Expiry of the in-progress reservation
+    ///   in seconds (defaults to `DEFAULT_IN_PROGRESS_TTL`).
     /// - `IDEMPOTENCY_PREFIX` *(Optional)*: Redis namespace key prefix (defaults to `DEFAULT_PREFIX`).
     pub fn from_env() -> Self {
         let redis_url = env::var("IDEMPOTENCY_REDIS_URL")
@@ -72,12 +83,19 @@ impl IdempotencyConfig {
             .map(Duration::from_secs)
             .unwrap_or(Self::DEFAULT_TTL);
 
+        let in_progress_ttl = env::var("IDEMPOTENCY_IN_PROGRESS_TTL_SECS")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            .map(Duration::from_secs)
+            .unwrap_or(Self::DEFAULT_IN_PROGRESS_TTL);
+
         let prefix =
             env::var("IDEMPOTENCY_PREFIX").unwrap_or_else(|_| Self::DEFAULT_PREFIX.to_string());
 
         Self {
             redis_url,
             ttl: ttl_secs,
+            in_progress_ttl,
             prefix,
         }
     }
@@ -94,6 +112,12 @@ impl IdempotencyConfig {
         self
     }
 
+    /// Builder method to override the in-progress reservation expiry.
+    pub fn with_in_progress_ttl(mut self, ttl: Duration) -> Self {
+        self.in_progress_ttl = ttl;
+        self
+    }
+
     /// Builder method to override the key namespace prefix.
     pub fn with_prefix(mut self, prefix: impl Into<String>) -> Self {
         self.prefix = prefix.into();
@@ -106,6 +130,7 @@ impl Default for IdempotencyConfig {
         Self {
             redis_url: Self::DEFAULT_REDIS_URL.to_string(),
             ttl: Self::DEFAULT_TTL,
+            in_progress_ttl: Self::DEFAULT_IN_PROGRESS_TTL,
             prefix: Self::DEFAULT_PREFIX.to_string(),
         }
     }

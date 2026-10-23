@@ -81,14 +81,14 @@ impl ThumbnailConfig {
     ///
     /// # Arguments
     ///
-    /// * `data` - Raw bytes of the source image.
+    /// * `data` - Raw bytes of the source image (cheaply shared if `Bytes`).
     ///
     /// # Errors
     ///
     /// Returns [`StorageError::ValidationError`] if image format is unsupported or bytes are corrupt,
     /// or [`StorageError::Internal`] if re-encoding fails.
-    pub fn generate(&self, data: &[u8]) -> Result<Vec<u8>, StorageError> {
-        generate_thumbnail_with_format(data, self.max_width, self.max_height, self.format)
+    pub async fn generate(&self, data: impl Into<bytes::Bytes>) -> Result<Vec<u8>, StorageError> {
+        generate_thumbnail_with_format(data, self.max_width, self.max_height, self.format).await
     }
 
     /// Returns the canonical MIME content-type string for this configuration's target output format.

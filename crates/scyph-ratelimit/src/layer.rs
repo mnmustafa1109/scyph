@@ -39,19 +39,26 @@ pub type PeerRateLimitLayer<B = Body> = GovernorLayer<
 
 /// Type alias for the smart IP rate limiting layer for reverse-proxy deployments.
 ///
-/// Uses `SmartIpKeyExtractor` which inspects the following headers in priority order,
-/// falling back to the socket peer address when none are present:
+/// Uses `SmartIpKeyExtractor` which **trusts client-supplied** headers, checking them in
+/// priority order and falling back to the socket peer address when none are present:
 ///
 /// 1. `CF-Connecting-IP` (Cloudflare)
 /// 2. `X-Real-IP` (Nginx)
 /// 3. `X-Forwarded-For` (first entry in the list)
 /// 4. Socket peer address (direct connections)
 ///
+/// Because those headers are client-controlled, this layer is safe **only** when your
+/// reverse proxy unconditionally overwrites all of them (Cloudflare Tunnel, an internal
+/// ALB that always sets `CF-Connecting-IP`/`X-Forwarded-For`, etc.). If any request can
+/// reach the service directly, a client can spoof an arbitrary IP and sidestep the limit.
+/// Behind proxies, prefer chains that sanitize the headers (e.g. deny traffic not coming
+/// through the proxy via network policy) before enabling this.
+///
 /// This type alias does **not** require `ConnectInfo<SocketAddr>` to be configured on the
 /// Axum server, making it suitable for deployments behind any reverse proxy.
 ///
-/// Prefer this over [`PeerRateLimitLayer`] whenever running behind Nginx, Cloudflare, AWS ALB,
-/// or any other load balancer that injects IP forwarding headers.
+/// Prefer this over [`PeerRateLimitLayer`] when running behind a proxy that guarantees the
+/// forwarding headers above.
 pub type SmartRateLimitLayer<B = Body> = GovernorLayer<
     SmartIpKeyExtractor,
     NoOpMiddleware<<DefaultClock as governor::clock::Clock>::Instant>,
@@ -117,6 +124,9 @@ pub fn per_ip_layer<B>(
 /// Extracts the real client IP from standard proxy headers (`Forwarded`, `X-Forwarded-For`),
 /// falling back to the peer socket IP if headers are absent.
 ///
+/// These headers are client-controlled — safe only when your reverse proxy unconditionally
+/// overwrites them (see [`SmartRateLimitLayer`] for the full trust requirements).
+///
 /// # Arguments
 ///
 /// * `burst` - Maximum number of allowed requests in a single burst (must be > 0).
@@ -168,8 +178,9 @@ pub fn strict_layer<B>() -> Result<PeerRateLimitLayer<B>, RateLimitError> {
 
 /// Creates a strict smart rate limiting layer for proxy environments (5 requests per 2 seconds).
 ///
-/// Identical policy to [`strict_layer`] but uses [`SmartIpKeyExtractor`] to correctly extract
-/// the real client IP behind reverse proxies. Does not require `ConnectInfo<SocketAddr>`.
+/// Identical policy to [`strict_layer`] but uses [`SmartIpKeyExtractor`] to extract the real
+/// client IP behind reverse proxies. Does not require `ConnectInfo<SocketAddr>`. Safe only
+/// when the proxy unconditionally overwrites the IP headers (see [`SmartRateLimitLayer`]).
 ///
 /// # Errors
 ///
@@ -191,8 +202,9 @@ pub fn relaxed_layer<B>() -> Result<PeerRateLimitLayer<B>, RateLimitError> {
 
 /// Creates a relaxed smart rate limiting layer for proxy environments (500 requests per 100 milliseconds).
 ///
-/// Identical policy to [`relaxed_layer`] but uses [`SmartIpKeyExtractor`] to correctly extract
-/// the real client IP behind reverse proxies. Does not require `ConnectInfo<SocketAddr>`.
+/// Identical policy to [`relaxed_layer`] but uses [`SmartIpKeyExtractor`] to extract the real
+/// client IP behind reverse proxies. Does not require `ConnectInfo<SocketAddr>`. Safe only
+/// when the proxy unconditionally overwrites the IP headers (see [`SmartRateLimitLayer`]).
 ///
 /// # Errors
 ///

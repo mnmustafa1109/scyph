@@ -53,7 +53,12 @@ use axum::{
 };
 use scyph_core::AppError;
 use serde::de::DeserializeOwned;
-use std::{env, marker::PhantomData};
+use std::{
+    collections::HashMap,
+    env,
+    marker::PhantomData,
+    sync::{Mutex, OnceLock},
+};
 
 /// Declarative configuration template for webhook verification.
 ///
@@ -192,12 +197,7 @@ where
             })?
             .to_string();
 
-        let secret = env::var(C::secret_env_var()).map_err(|_| {
-            AppError::internal(format!(
-                "Environment variable '{}' must be set for webhook verification",
-                C::secret_env_var()
-            ))
-        })?;
+        let secret = read_secret(C::secret_env_var())?;
 
         let bytes = Bytes::from_request(req, state)
             .await
@@ -209,6 +209,39 @@ where
         let payload: T = serde_json::from_slice(&bytes)
             .map_err(|e| AppError::BadRequest(format!("Invalid webhook JSON payload: {e}")))?;
 
+        // 6. Deserializes the raw bytes as JSON into `T`.
         Ok(Self(payload, PhantomData))
     }
+}
+
+/// Process-wide cache of webhook signing secrets, keyed by the provider's env var name.
+///
+/// The first webhook request for a provider reads its env var once; later requests reuse
+/// the cached value instead of touching `std::env` per request. Startup-configured secrets
+/// are static in practice, so hot-reloading env vars is intentionally not supported here.
+static SECRETS: OnceLock<Mutex<HashMap<&'static str, String>>> = OnceLock::new();
+
+/// Reads and caches the signing secret for a webhook provider env var.
+///
+/// Only found secrets are cached: a missing env var is re-checked on every request, so a
+/// secret injected after boot recovers without a process restart.
+fn read_secret(env_var: &'static str) -> Result<String, AppError> {
+    let cache = SECRETS.get_or_init(Default::default);
+    let mut secrets = cache
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+
+    if let Some(cached) = secrets.get(env_var) {
+        return Ok(cached.clone());
+    }
+
+    let value = env::var(env_var).ok();
+    if let Some(v) = value.clone() {
+        secrets.insert(env_var, v);
+    }
+    value.ok_or_else(|| {
+        AppError::internal(format!(
+            "Environment variable '{env_var}' must be set for webhook verification"
+        ))
+    })
 }

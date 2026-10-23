@@ -213,9 +213,10 @@ impl RateLimitConfig {
 
     /// Builds a reverse-proxy-aware [`SmartRateLimitLayer`] from this configuration.
     ///
-    /// The smart layer inspects `CF-Connecting-IP`, `X-Real-IP`, and `X-Forwarded-For` headers
-    /// in priority order, falling back to the socket peer address when no proxy header is present.
-    /// This is the recommended layer for any deployment behind Nginx, Cloudflare, or AWS ALB.
+    /// The smart layer reads `CF-Connecting-IP`, `X-Real-IP`, and `X-Forwarded-For` headers
+    /// in priority order, falling back to the socket peer address when no proxy header is
+    /// present. These are client-controlled headers: the layer is safe **only** when the
+    /// reverse proxy unconditionally overwrites all of them (see [`SmartRateLimitLayer`]).
     ///
     /// # Errors
     ///

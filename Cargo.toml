@@ -152,6 +152,7 @@ tower-http = { version = "0.7.1", features = [
   "compression-full",
   "request-id",
 ] }
+tower = "0.5.2"
 tracing-subscriber = { version = "0.3.23", features = [
   "env-filter",
   "fmt",

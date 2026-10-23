@@ -11,11 +11,22 @@
 //!    `409 Conflict` response.
 //! 2. **Business logic execution**: The handler runs normally.
 //! 3. **Cache result** (`SETEX`): On success, the response is serialized to JSON and stored in
-//!    Redis under the same key with the configured TTL.
+//!    Redis under the same key with the configured (long) TTL.
 //! 4. **Serve from cache** on retry: Subsequent requests with the same key get the cached response
 //!    without re-executing business logic.
 //! 5. **Cancel on failure**: If the handler returns an error, the key is deleted so the client
 //!    can retry immediately.
+//!
+//! The `IN_PROGRESS` reservation uses a **short** expiry (`IdempotencyConfig::in_progress_ttl`,
+//! default 60s) rather than the full result TTL. If the process crashes (or the task is dropped)
+//! without reaching `complete`/`cancel`, the reservation self-heals within that window instead of
+//! wedging the key as `409 Conflict` for the entire result TTL.
+//!
+//! Trade-off of that short window: if the handler itself runs **longer** than
+//! `in_progress_ttl`, a client retry can pass `begin` and execute the closure a second time
+//! concurrently. Completion is atomic (see [`IdempotencyStore::complete`]), so the *cached*
+//! response is always the first completer's — but keep handlers shorter than the reservation
+//! TTL to guarantee at-most-once execution.
 //!
 //! ```text
 //! Client Request ──► begin(key)
@@ -143,11 +154,40 @@ pub enum IdempotencyCheck {
 pub struct IdempotencyStore {
     redis: Client,
     config: IdempotencyConfig,
+    /// Lazily initialized, reused multiplexed connection. Multiplexed connections are
+    /// cloneable and safe to use concurrently, so this amortizes one TCP connection.
+    conn: std::sync::Arc<tokio::sync::Mutex<Option<redis::aio::MultiplexedConnection>>>,
 }
 
 impl IdempotencyStore {
     /// Internal marker payload written to Redis to denote an in-flight, incomplete request.
     pub const IN_PROGRESS_MARKER: &'static str = "IN_PROGRESS";
+
+    /// Completes only when the key still holds the in-progress marker (or expired).
+    ///
+    /// Redis Lua script kept inline — a plain `SET` would let a late-retry execution
+    /// overwrite the first completer's cached response.
+    const COMPLETE_SCRIPT_SRC: &'static str = r#"
+        local v = redis.call('GET', KEYS[1])
+        if v == false or v == ARGV[1] then
+            redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3])
+            return 1
+        end
+        return 0
+    "#;
+
+    /// Deletes only while the key still holds the in-progress marker (or expired).
+    ///
+    /// A plain `DEL` would let a *failed* late-retry execution wipe the first completer's
+    /// cached response, re-exposing the key to yet another execution.
+    const CANCEL_SCRIPT_SRC: &'static str = r#"
+        local v = redis.call('GET', KEYS[1])
+        if v == false or v == ARGV[1] then
+            redis.call('DEL', KEYS[1])
+            return 1
+        end
+        return 0
+    "#;
 
     /// Constructs a new `IdempotencyStore` with explicit [`IdempotencyConfig`].
     ///
@@ -156,7 +196,25 @@ impl IdempotencyStore {
     /// Returns [`IdempotencyError::Redis`] if the Redis connection URL fails to parse.
     pub fn new(config: IdempotencyConfig) -> Result<Self, IdempotencyError> {
         let redis = Client::open(config.redis_url.as_str())?;
-        Ok(Self { redis, config })
+        Ok(Self {
+            redis,
+            config,
+            conn: std::sync::Arc::new(tokio::sync::Mutex::new(None)),
+        })
+    }
+
+    /// Returns the cached multiplexed connection, opening it on first use.
+    ///
+    /// A single multiplexed connection supports concurrent commands; it is invalidated
+    /// (recreated on demand) whenever a command fails.
+    async fn get_connection(&self) -> Result<redis::aio::MultiplexedConnection, IdempotencyError> {
+        let mut guard = self.conn.lock().await;
+        if let Some(conn) = guard.as_ref() {
+            return Ok(conn.clone());
+        }
+        let conn = self.redis.get_multiplexed_async_connection().await?;
+        *guard = Some(conn.clone());
+        Ok(conn)
     }
 
     /// Constructs an `IdempotencyStore` from environment variables using [`IdempotencyConfig::from_env`].
@@ -171,7 +229,8 @@ impl IdempotencyStore {
 
     /// Begins an idempotency check for the given unique key.
     ///
-    /// Uses Redis atomic `SET key IN_PROGRESS NX EX ttl` to reserve the key.
+    /// Uses Redis atomic `SET key IN_PROGRESS NX EX ttl` to reserve the key with the short
+    /// [`in_progress_ttl`](IdempotencyConfig::in_progress_ttl).
     /// Returns:
     /// - [`IdempotencyCheck::New`] if the key is new.
     /// - [`IdempotencyCheck::InProgress`] if a concurrent request is currently processing this key.
@@ -181,7 +240,13 @@ impl IdempotencyStore {
     ///
     /// Returns [`IdempotencyError::Redis`] if Redis query fails.
     pub async fn begin(&self, key: &str) -> Result<IdempotencyCheck, IdempotencyError> {
-        let mut conn = self.redis.get_multiplexed_async_connection().await?;
+        let mut conn = match self.get_connection().await {
+            Ok(conn) => conn,
+            Err(e) => {
+                *self.conn.lock().await = None;
+                return Err(e);
+            }
+        };
         let redis_key = format!("{}:{}", self.config.prefix, key);
 
         let res: RedisResult<Option<String>> = redis::cmd("SET")
@@ -189,39 +254,69 @@ impl IdempotencyStore {
             .arg(Self::IN_PROGRESS_MARKER)
             .arg("NX")
             .arg("EX")
-            .arg(self.config.ttl.as_secs())
+            .arg(self.config.in_progress_ttl.as_secs())
             .query_async(&mut conn)
             .await;
 
         match res {
             Ok(Some(_)) => Ok(IdempotencyCheck::New),
             Ok(None) => {
-                let cached: Option<String> = conn.get(&redis_key).await?;
+                let cached: Option<String> = match conn.get(&redis_key).await {
+                    Ok(cached) => cached,
+                    Err(e) => {
+                        *self.conn.lock().await = None;
+                        return Err(IdempotencyError::Redis(e));
+                    }
+                };
                 match cached.as_deref() {
                     Some(Self::IN_PROGRESS_MARKER) => Ok(IdempotencyCheck::InProgress),
                     Some(val) => Ok(IdempotencyCheck::Seen(val.to_string())),
                     None => Ok(IdempotencyCheck::New),
                 }
             }
-            Err(e) => Err(IdempotencyError::Redis(e)),
+            Err(e) => {
+                *self.conn.lock().await = None;
+                Err(IdempotencyError::Redis(e))
+            }
         }
     }
 
     /// Completes an idempotency check by caching the final response string.
     ///
-    /// Sets key value to `response_body` with expiration matching configured TTL (`SETEX`).
+    /// Atomically replaces the `IN_PROGRESS` marker with `response_body` through a Redis Lua
+    /// script: the write only lands if the key is *still* the in-progress marker (or the
+    /// reservation expired). If another execution already cached its result, this call returns
+    /// [`IdempotencyError::Conflict`] and leaves the stored response untouched — the retry
+    /// execution can never overwrite the first completer's answer.
     ///
     /// # Errors
     ///
-    /// Returns [`IdempotencyError::Redis`] if Redis query fails.
+    /// Returns [`IdempotencyError::Conflict`] if the key was already completed by another
+    /// execution, or [`IdempotencyError::Redis`] if the Redis query fails.
     pub async fn complete(&self, key: &str, response_body: &str) -> Result<(), IdempotencyError> {
-        let mut conn = self.redis.get_multiplexed_async_connection().await?;
+        let mut conn = self.get_connection().await?;
         let redis_key = format!("{}:{}", self.config.prefix, key);
 
-        let _: () = conn
-            .set_ex(&redis_key, response_body, self.config.ttl.as_secs())
-            .await?;
-        Ok(())
+        let script = redis::Script::new(Self::COMPLETE_SCRIPT_SRC);
+        let res: RedisResult<i64> = script
+            .key(&redis_key)
+            .arg(Self::IN_PROGRESS_MARKER)
+            .arg(response_body)
+            .arg(self.config.ttl.as_secs())
+            .invoke_async(&mut conn)
+            .await;
+
+        match res {
+            Ok(0) => Err(IdempotencyError::Conflict(format!(
+                "Key '{key}' was already completed by another request"
+            ))),
+            // Conflict is normal control flow, not a connection error — keep the connection.
+            Ok(_) => Ok(()),
+            Err(e) => {
+                *self.conn.lock().await = None;
+                Err(IdempotencyError::Redis(e))
+            }
+        }
     }
 
     /// Completes an idempotency check by serializing a Rust data structure to JSON.
@@ -238,19 +333,42 @@ impl IdempotencyStore {
         self.complete(key, &json).await
     }
 
-    /// Cancels or removes an in-progress idempotency key reservation (e.g. if handler business logic fails).
+    /// Cancels an in-progress idempotency key reservation (e.g. if handler business logic fails).
     ///
-    /// Allows subsequent client retries to attempt request execution immediately without waiting for TTL expiration.
+    /// Atomically removes the key **only while it still holds the `IN_PROGRESS` marker** (or is
+    /// already gone) through a Redis Lua script. A completed response is never deleted — so a
+    /// failed late-retry execution cannot wipe the first completer's cached result. Subsequent
+    /// client retries can then attempt request execution immediately without waiting for TTL
+    /// expiration.
     ///
     /// # Errors
     ///
     /// Returns [`IdempotencyError::Redis`] if Redis query fails.
     pub async fn cancel(&self, key: &str) -> Result<(), IdempotencyError> {
-        let mut conn = self.redis.get_multiplexed_async_connection().await?;
+        let mut conn = self.get_connection().await?;
         let redis_key = format!("{}:{}", self.config.prefix, key);
 
-        let _: () = conn.del(&redis_key).await?;
-        Ok(())
+        let script = redis::Script::new(Self::CANCEL_SCRIPT_SRC);
+        let res: RedisResult<i64> = script
+            .key(&redis_key)
+            .arg(Self::IN_PROGRESS_MARKER)
+            .invoke_async(&mut conn)
+            .await;
+
+        match res {
+            Ok(0) => {
+                tracing::debug!(
+                    key = key,
+                    "Idempotency cancel skipped: response already completed and cached"
+                );
+                Ok(())
+            }
+            Ok(_) => Ok(()),
+            Err(e) => {
+                *self.conn.lock().await = None;
+                Err(IdempotencyError::Redis(e))
+            }
+        }
     }
 
     /// Executes an async operation with automated idempotency management.
@@ -259,6 +377,9 @@ impl IdempotencyStore {
     /// 1. Reserves `key` in Redis (`begin`).
     /// 2. If `key` is new, executes closure `f()`.
     /// 3. If `f()` succeeds (`Ok(val)`), serializes and caches `val` in Redis (`complete_json`).
+    ///    Completion is atomic — if a later overlap (see the module-level duplicate-window note)
+    ///    already cached its result, the computed value is still returned to the caller, just not
+    ///    stored twice.
     /// 4. If `f()` fails (`Err(err)`), automatically cancels the key reservation (`cancel`).
     /// 5. If `key` was previously seen, returns the cached response deserialized from JSON.
     /// 6. If a concurrent request is in-flight, returns [`IdempotencyError::Conflict`].
@@ -279,7 +400,19 @@ impl IdempotencyStore {
             Ok(IdempotencyCheck::New) => match f().await {
                 Ok(val) => {
                     if let Err(e) = self.complete_json(key, &val).await {
-                        tracing::error!(key = key, error = %e, "Failed to cache idempotency response");
+                        match &e {
+                            IdempotencyError::Conflict(_) => {
+                                // A late retry that passed `begin` completed first; its cached
+                                // response stays, ours is discarded. Not an error.
+                                tracing::warn!(
+                                    key = key,
+                                    "Idempotency key completed by a concurrent retry; keeping its cached response"
+                                );
+                            }
+                            _ => {
+                                tracing::error!(key = key, error = %e, "Failed to cache idempotency response");
+                            }
+                        }
                     }
                     Ok(val)
                 }

@@ -16,6 +16,11 @@
 //!
 //! - **`SecretString` wrapping**: Passwords are passed as [`secrecy::SecretString`] to prevent
 //!   accidental exposure in `Debug` output, panic messages, or log lines.
+//! - **Optional pepper**: [`PasswordService::from_env`] picks up the `ARGON2_SECRET` environment
+//!   variable and mixes it into hash **and** verify as the PHC "secret key". A database leak
+//!   then yields useless hashes until the pepper is also compromised. The module-level free
+//!   functions [`hash_password`]/[`verify_password`] are **pepper-less** — use `PasswordService`
+//!   when a pepper is configured.
 //! - **Constant-time comparison**: [`verify_password`] delegates to `argon2`'s `verify_password`,
 //!   which is implemented to resist timing side-channel attacks.
 //! - **Blocking offload**: CPU-intensive Argon2 computation is moved off the async executor via
@@ -87,6 +92,7 @@ use secrecy::{ExposeSecret, SecretString};
 /// let phc_hash = hash_password(&password).unwrap();
 /// assert!(phc_hash.starts_with("$argon2id$"));
 /// ```
+/// For peppered hashing prefer [`PasswordService::from_env`].
 pub fn hash_password(pw: &SecretString) -> Result<String, PasswordError> {
     Argon2::default()
         .hash_password(pw.expose_secret().as_bytes())

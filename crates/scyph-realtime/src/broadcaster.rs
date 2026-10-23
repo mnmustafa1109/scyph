@@ -252,23 +252,53 @@ impl RealtimeBroadcaster {
 
     /// Publishes a domain event to multiple recipient users across all cluster replicas.
     ///
-    /// Reuses a single multiplexed Redis connection across all recipient dispatches.
+    /// Reuses a single multiplexed Redis connection and publishes to each target
+    /// **concurrently** in chunks of [`PUBLISH_CHUNK`], so one slow/oversized publish no
+    /// longer delays the rest of the fan-out while memory stays bounded for very large
+    /// recipient lists.
     ///
     /// # Errors
     ///
-    /// Returns [`RealtimeError`] if serialization or Redis PUBLISH fails.
+    /// Returns [`RealtimeError`] if serialization or any Redis PUBLISH fails; the cached
+    /// connection is invalidated so the next call reconnects. Earlier chunks may already
+    /// have been delivered before the failure.
     pub async fn publish_to_many<T: Serialize>(
         &self,
         event_name: &str,
         user_ids: &[Uuid],
         payload: &T,
     ) -> Result<(), RealtimeError> {
-        let mut conn = self.get_connection().await?;
+        const PUBLISH_CHUNK: usize = 256;
+
+        if user_ids.is_empty() {
+            return Ok(());
+        }
+
+        let conn = self.get_connection().await?;
         let channel = format!("{}:events", self.config.channel_prefix);
-        for &user_id in user_ids {
-            let event = RealtimeEvent::new(event_name, user_id, payload);
-            let raw = serde_json::to_string(&event)?;
-            if let Err(e) = conn.publish::<_, _, ()>(&channel, raw).await {
+
+        // Serialize the (potentially large) payload exactly once; a payload the envelope
+        // cannot represent fails here, before anything is published.
+        let payload = serde_json::to_value(payload)?;
+
+        let channel = &channel;
+        for chunk in user_ids.chunks(PUBLISH_CHUNK) {
+            // Envelopes are built per chunk so n × payload never exists all at once.
+            let mut raw_events = Vec::with_capacity(chunk.len());
+            for &user_id in chunk {
+                raw_events.push(serde_json::to_string(&RealtimeEvent::new(
+                    event_name, user_id, &payload,
+                ))?);
+            }
+
+            // MultiplexedConnection is cheap to clone and safe to issue concurrent commands on.
+            // Chunked so a huge fan-out cannot queue an unbounded number of commands at once.
+            let publishes = raw_events.iter().map(|raw| {
+                let mut conn = conn.clone();
+                async move { conn.publish::<_, _, ()>(channel, raw).await }
+            });
+            let results = futures_util::future::join_all(publishes).await;
+            if let Err(e) = results.into_iter().find(|r| r.is_err()).unwrap_or(Ok(())) {
                 *self.publisher.lock().await = None;
                 return Err(RealtimeError::from(e));
             }

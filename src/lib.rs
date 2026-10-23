@@ -208,6 +208,7 @@ pub mod prelude {
     #[cfg(feature = "health")]
     pub use scyph_health::{
         HealthFailure, HealthRegistry, IntoHealthResult, ServiceStatus, Status, health_routes,
+        health_routes_verbose,
     };
 }
 

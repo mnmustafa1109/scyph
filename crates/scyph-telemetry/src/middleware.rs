@@ -4,6 +4,7 @@ use std::fmt::{Display, Formatter};
 
 use axum::{
     Router,
+    body::HttpBody,
     extract::FromRequestParts,
     http::{HeaderName, HeaderValue, Request, request::Parts},
     response::Response,
@@ -174,6 +175,23 @@ impl TelemetryConfig {
 /// Measures request latency, retrieves or generates the request trace ID, attaches HTTP telemetry
 /// headers to every outgoing response, and safely injects `"meta"` into discrete `application/json` payloads
 /// without breaking streaming (SSE, ndjson) or dropping bodies.
+///
+/// # Meta injection details
+///
+/// Meta injection only re-writes a body when *all* of the following hold; otherwise the response
+/// passes through with its body untouched. Byte cap: 256 KiB.
+///
+/// 1. `Content-Type` is exactly `application/json` or `application/problem+json` (no SSE/ndjson/streams).
+/// 2. No `Transfer-Encoding` header.
+/// 3. The body size is known via a declared `Content-Length` header or the body's exact size
+///    hint, and is ≤ the 256 KiB cap. Unknown-size bodies (chunked streams) or above the cap
+///    are deliberately left byte-identical — never buffered past this limit, never replaced
+///    with an empty body.
+/// 4. After buffering, the root is a JSON *object*. An existing non-null `"meta"` key set by the
+///    handler is preserved; only `"meta" == null` (or absent) is filled in.
+///
+/// The re-scan allocates the buffered body (`Content-Length` ≤ cap) plus a parse tree transiently;
+/// hot large-payload handlers should prefer returning `ApiResponse<T>` with meta already populated.
 pub async fn auto_meta_middleware(
     request: axum::extract::Request,
     next: axum::middleware::Next,
@@ -243,21 +261,27 @@ pub async fn auto_meta_middleware(
         return response;
     }
 
-    // Solution A - Guard 3: Skip large payloads (> 2MB) to prevent latency spikes and memory churn.
-    // Large responses pass through untouched — the body is NEVER dropped!
-    const MAX_META_BODY_BYTES: usize = 2 * 1024 * 1024;
-    if let Some(content_length) = response
-        .headers()
+    // Solution A - Guard 3: only re-scan bodies whose size is known and bounded. The size
+    // comes from the declared `Content-Length` header or, when hyper hasn't stamped one yet
+    // (e.g. tower oneshot), the body's exact size hint. Unknown-size bodies (streams/chunked)
+    // or anything above the cap passes through untouched — the body is NEVER dropped.
+    const MAX_META_BODY_BYTES: usize = 256 * 1024;
+    let (parts, body) = response.into_parts();
+    let known_len = parts
+        .headers
         .get(axum::http::header::CONTENT_LENGTH)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.parse::<usize>().ok())
-        && content_length > MAX_META_BODY_BYTES
-    {
-        return response;
+        .or_else(|| {
+            body.size_hint()
+                .exact()
+                .and_then(|n| usize::try_from(n).ok())
+        });
+    if !matches!(known_len, Some(len) if len <= MAX_META_BODY_BYTES) {
+        return Response::from_parts(parts, body);
     }
-
-    // Solution A - Guard 4 & Zero-Loss fallback:
-    let (parts, body) = response.into_parts();
+    // Sentry clamp: `known_len` ≤ the cap is proven above; reaching failure here can only
+    // mean the declared size lied. Nothing sensible can be returned, so the body is released.
     let bytes = match axum::body::to_bytes(body, MAX_META_BODY_BYTES).await {
         Ok(b) => b,
         Err(_) => {
@@ -265,23 +289,11 @@ pub async fn auto_meta_middleware(
         }
     };
 
-    // Fast path: if "meta" key is already present in the JSON body, do not re-serialize!
-    let already_has_meta = {
-        let pattern = b"\"meta\"";
-        bytes.windows(pattern.len()).any(|w| w == pattern)
-    };
-
-    if already_has_meta
-        && let Ok(json_val) = serde_json::from_slice::<serde_json::Value>(&bytes)
-        && let Some(obj) = json_val.as_object()
-        && obj.get("meta").is_some_and(|v| !v.is_null())
-    {
-        return Response::from_parts(parts, axum::body::Body::from(bytes));
-    }
-
-    // Safely inject "meta" if the root is a JSON object
+    // Safely inject "meta" if the root is a JSON object; existing non-null "meta" values
+    // set by the handler are left untouched.
     if let Ok(mut json_val) = serde_json::from_slice::<serde_json::Value>(&bytes)
         && let Some(obj) = json_val.as_object_mut()
+        && obj.get("meta").is_none_or(|v| v.is_null())
     {
         let mut meta = ResponseMeta::new(trace_id, processing_time_ms, &config.api_version);
         meta.library_version = config.library_version.clone();

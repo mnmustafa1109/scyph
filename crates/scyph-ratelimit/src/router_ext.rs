@@ -16,8 +16,10 @@ use axum::Router;
 /// `.into_make_service_with_connect_info::<SocketAddr>()`.
 ///
 /// Methods with the `_smart` suffix use [`SmartIpKeyExtractor`](tower_governor::key_extractor::SmartIpKeyExtractor)
-/// which reads from proxy headers (`CF-Connecting-IP`, `X-Real-IP`, `X-Forwarded-For`). These
-/// are the recommended default for any deployment behind a reverse proxy.
+/// which reads from client-supplied proxy headers (`CF-Connecting-IP`, `X-Real-IP`,
+/// `X-Forwarded-For`). They are safe **only** when the reverse proxy unconditionally
+/// overwrites those headers — otherwise a directly reachable client can spoof IPs and
+/// bypass the limiter.
 ///
 /// ## Rate Limits for Auth vs API Endpoints
 ///
@@ -113,9 +115,10 @@ pub trait RateLimitRouterExt<S = ()> {
 
     /// Applies proxy-aware smart IP rate limiting (5 requests per 2 seconds) to the router.
     ///
-    /// Suitable for applications behind reverse proxies (Nginx, Cloudflare, AWS ALB).
-    /// Inspects `CF-Connecting-IP`, `X-Real-IP`, and `X-Forwarded-For` headers before
-    /// falling back to the socket peer address.
+    /// Suitable for applications behind reverse proxies (Nginx, Cloudflare, AWS ALB) that
+    /// unconditionally overwrite `CF-Connecting-IP`, `X-Real-IP`, and `X-Forwarded-For`.
+    /// For direct traffic exposure use [`rate_limit_strict`](Self::rate_limit_strict) instead — the smart
+    /// extractor trusts client-supplied headers, which is unsafe without such a proxy.
     ///
     /// # Panics
     ///

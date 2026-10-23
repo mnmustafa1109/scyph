@@ -15,9 +15,9 @@
 //!
 //! ## Decompression Bomb Protection
 //!
-//! Thumbnail generation enforces a maximum decoded pixel count (default: 25 megapixels via
-//! `ThumbnailConfig::MAX_PIXELS`). Images exceeding this limit are rejected before any
-//! pixel data is processed, preventing memory exhaustion from maliciously crafted inputs.
+//! Thumbnail decoding runs on `tokio::task::spawn_blocking` and enforces hard limits via
+//! `image::Limits` — a maximum decoded buffer allocation of 64 MiB (`MAX_DECODE_BYTES`).
+//! Oversized or maliciously crafted images are rejected before pixel data can exhaust memory.
 //!
 //! ## Usage
 //!

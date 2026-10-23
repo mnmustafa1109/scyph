@@ -60,17 +60,17 @@ fn test_thumbnail_config_builder() {
     assert_eq!(config.format, ImageFormat::Png);
 }
 
-#[test]
-fn test_generate_thumbnail_invalid_data() {
-    let invalid_bytes = b"not a real image payload";
-    let res = generate_thumbnail(invalid_bytes, 100, 100);
+#[tokio::test]
+async fn test_generate_thumbnail_invalid_data() {
+    let invalid_bytes = bytes::Bytes::from_static(b"not a real image payload");
+    let res = generate_thumbnail(invalid_bytes, 100, 100).await;
     assert!(res.is_err());
 }
 
-#[test]
-fn test_generate_thumbnail_with_format_invalid_data() {
-    let invalid_bytes = b"corrupted bytes";
-    let res = generate_thumbnail_with_format(invalid_bytes, 200, 200, ImageFormat::Png);
+#[tokio::test]
+async fn test_generate_thumbnail_with_format_invalid_data() {
+    let invalid_bytes = bytes::Bytes::from_static(b"corrupted bytes");
+    let res = generate_thumbnail_with_format(invalid_bytes, 200, 200, ImageFormat::Png).await;
     assert!(res.is_err());
 }
 
@@ -134,8 +134,8 @@ async fn test_storage_thumbnail_ext() {
     assert_eq!(storage.count(), 2);
 }
 
-#[test]
-fn test_extracted_file_thumbnail_helper() {
+#[tokio::test]
+async fn test_extracted_file_thumbnail_helper() {
     use image::{ImageBuffer, Rgb};
     use scyph_storage::ExtractedFile;
 
@@ -152,7 +152,7 @@ fn test_extracted_file_thumbnail_helper() {
     };
 
     let config = ThumbnailConfig::new(10, 10).with_format(ImageFormat::WebP);
-    let (thumb_key, thumb_data) = file.thumbnail(config).unwrap();
+    let (thumb_key, thumb_data) = file.thumbnail(config).await.unwrap();
 
     assert_eq!(thumb_key, "avatars/thumbnails/01923-user.webp");
     assert!(!thumb_data.is_empty());

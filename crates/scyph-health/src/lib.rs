@@ -58,6 +58,15 @@
 //! The `Recovering` intermediate state prevents flapping: a component that was `Sick` needs
 //! **two** consecutive successful probes to return to `Healthy`.
 //!
+//! ## Public vs Internal Endpoints
+//!
+//! [`health_routes`] (the default) masks the `details` field of every component in the
+//! `/readyz` response body — statuses and readiness are visible, but error strings are not.
+//! This keeps probe behavior intact on publicly exposed ports without leaking infrastructure
+//! internals (hostnames, connection errors) to unauthenticated callers.
+//! [`health_routes_verbose`] reveals full details; mount it only on an unexposed,
+//! infrastructure-facing port (e.g. a sidecar admin port).
+//!
 //! ## Quickstart
 //!
 //! ```rust,ignore
@@ -101,4 +110,4 @@ pub mod registry;
 pub mod routes;
 
 pub use registry::{HealthFailure, HealthRegistry, IntoHealthResult, ServiceStatus, Status};
-pub use routes::health_routes;
+pub use routes::{health_routes, health_routes_verbose};

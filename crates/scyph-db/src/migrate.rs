@@ -85,36 +85,7 @@ pub async fn run_migrations_from(pool: &PgPool, dir: impl AsRef<Path>) -> Result
         return Ok(());
     }
 
-    let raw_env = env::var("APP_ENV").unwrap_or_else(|_| "development".to_string());
-
-    // 1. Run root migrations directory if it contains SQL files
-    if has_sql_files(path) {
-        info!(migrations_dir = ?path, "Running root database migrations");
-        let migrator = sqlx::migrate::Migrator::new(path).await?;
-        migrator.run(pool).await?;
-        info!("Root database migrations completed");
-    }
-
-    // 2. Run common subfolder (<dir>/common) if it exists and contains SQL files
-    let common_path = path.join("common");
-    if common_path.exists() && has_sql_files(&common_path) {
-        info!(path = ?common_path, "Running common database migrations");
-        let migrator = sqlx::migrate::Migrator::new(common_path.as_path()).await?;
-        migrator.run(pool).await?;
-        info!("Common database migrations completed");
-    }
-
-    // 3. Run environment-specific subfolder (<dir>/beta or <dir>/prod) if it exists and contains SQL files
-    if let Some(env_path) = resolve_target_env_path(path, &raw_env)
-        && has_sql_files(&env_path)
-    {
-        info!(app_env = %raw_env, path = ?env_path, "Running environment database migrations");
-        let migrator = sqlx::migrate::Migrator::new(env_path.as_path()).await?;
-        migrator.run(pool).await?;
-        info!(app_env = %raw_env, "Environment database migrations completed");
-    }
-
-    Ok(())
+    run_cascade(pool, path, "migrations").await
 }
 
 /// Runs SQL migrations against the database pool using default environment variables.
@@ -208,34 +179,39 @@ pub async fn run_seeds_from(pool: &PgPool, dir: impl AsRef<Path>) -> Result<(), 
         return Ok(());
     }
 
-    let raw_env = env::var("APP_ENV").unwrap_or_else(|_| "development".to_string());
-    info!(app_env = %raw_env, seeds_dir = ?path, "Running seed data insertion");
+    run_cascade(pool, path, "seeds").await
+}
 
-    // 1. Run root seeds directory if it contains SQL files
+/// Executes the three-stage cascade (root → `common/` → environment subdirectory) shared by
+/// [`run_migrations_from`] and [`run_seeds_from`]. `label` drives the log message wording.
+async fn run_cascade(pool: &PgPool, path: &Path, label: &str) -> Result<(), DbError> {
+    let raw_env = env::var("APP_ENV").unwrap_or_else(|_| "development".to_string());
+
+    // 1. Run root directory if it contains SQL files
     if has_sql_files(path) {
-        info!(path = ?path, "Running root seed data insertion");
+        info!(path = ?path, "Running root {label}");
         let migrator = sqlx::migrate::Migrator::new(path).await?;
         migrator.run(pool).await?;
-        info!("Root seed data insertion completed");
+        info!("Root {label} completed");
     }
 
-    // 2. Run common seeds (<dir>/common) if it exists and contains SQL files
+    // 2. Run common subfolder (<dir>/common) if it exists and contains SQL files
     let common_path = path.join("common");
     if common_path.exists() && has_sql_files(&common_path) {
-        info!(path = ?common_path, "Running common seed data insertion");
+        info!(path = ?common_path, "Running common {label}");
         let migrator = sqlx::migrate::Migrator::new(common_path.as_path()).await?;
         migrator.run(pool).await?;
-        info!("Common seed data insertion completed");
+        info!("Common {label} completed");
     }
 
-    // 3. Run environment seeds (<dir>/beta or <dir>/prod) if it exists and contains SQL files
+    // 3. Run environment-specific subfolder (<dir>/beta or <dir>/prod) if it exists and contains SQL files
     if let Some(env_path) = resolve_target_env_path(path, &raw_env)
         && has_sql_files(&env_path)
     {
-        info!(app_env = %raw_env, path = ?env_path, "Running environment seed data insertion");
+        info!(app_env = %raw_env, path = ?env_path, "Running environment {label}");
         let migrator = sqlx::migrate::Migrator::new(env_path.as_path()).await?;
         migrator.run(pool).await?;
-        info!(app_env = %raw_env, "Environment seed data insertion completed");
+        info!(app_env = %raw_env, "Environment {label} completed");
     }
 
     Ok(())

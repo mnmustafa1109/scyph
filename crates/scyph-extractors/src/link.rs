@@ -1,8 +1,27 @@
 //! Header-aware canonical link generator for Axum requests.
 
+use std::sync::OnceLock;
+
 use axum::{extract::FromRequestParts, http::request::Parts};
 use scyph_core::AppError;
 use url::Url;
+
+/// Process-wide cache of startup env vars (`APP_BASE_URL`, `ALLOWED_HOSTS`) so requests do not
+/// touch `std::env` per invocation. Hot-reloading env vars is not supported.
+struct LinkEnv {
+    base_url: Option<String>,
+    allowed_hosts: Option<Vec<String>>,
+}
+
+fn link_env() -> &'static LinkEnv {
+    static LINK_ENV: OnceLock<LinkEnv> = OnceLock::new();
+    LINK_ENV.get_or_init(|| LinkEnv {
+        base_url: std::env::var("APP_BASE_URL").ok(),
+        allowed_hosts: std::env::var("ALLOWED_HOSTS")
+            .ok()
+            .map(|raw| raw.split(',').map(|h| h.trim().to_string()).collect()),
+    })
+}
 
 /// Canonical URL link generator extracted from incoming request headers (`X-Forwarded-Host`, `Host`, `X-Forwarded-Proto`).
 ///
@@ -82,8 +101,8 @@ where
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         // 1. If canonical APP_BASE_URL is configured, use it as trusted base URL
-        if let Ok(app_base) = std::env::var("APP_BASE_URL") {
-            let base_url = Url::parse(&app_base).map_err(|e| {
+        if let Some(app_base) = &link_env().base_url {
+            let base_url = Url::parse(app_base).map_err(|e| {
                 AppError::internal(format!("Invalid APP_BASE_URL configuration: {e}"))
             })?;
             return Ok(LinkGenerator { base_url });
@@ -105,12 +124,11 @@ where
         }
 
         // 3. If ALLOWED_HOSTS is defined, validate host against whitelist
-        if let Ok(allowed) = std::env::var("ALLOWED_HOSTS") {
+        if let Some(allowed_hosts) = &link_env().allowed_hosts {
             let host_without_port = host.split(':').next().unwrap_or(host);
-            let is_allowed = allowed.split(',').any(|a| {
-                let a = a.trim();
-                a.eq_ignore_ascii_case(host) || a.eq_ignore_ascii_case(host_without_port)
-            });
+            let is_allowed = allowed_hosts
+                .iter()
+                .any(|a| a.eq_ignore_ascii_case(host) || a.eq_ignore_ascii_case(host_without_port));
             if !is_allowed {
                 return Err(AppError::BadRequest(
                     "Untrusted Host header rejected".to_string(),

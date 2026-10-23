@@ -76,7 +76,7 @@ pub trait RealtimePayload: Serialize {
 /// #[derive(Serialize)]
 /// struct Ping { message: String }
 ///
-/// let user_id = Uuid::new_v4();
+/// let user_id = Uuid::now_v7();
 /// let event = RealtimeEvent::new("ping", user_id, Ping { message: "hello".to_string() });
 /// assert_eq!(event.event_name, "ping");
 /// assert_eq!(event.user_id, Some(user_id));

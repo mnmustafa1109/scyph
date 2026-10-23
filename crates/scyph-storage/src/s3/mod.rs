@@ -34,9 +34,11 @@ impl S3StorageService {
             path
         };
 
-        // Strip bucket name if path-style addressing prefix is included
-        let key = if let Some(stripped) = key.strip_prefix(&self.bucket) {
-            stripped.strip_prefix('/').unwrap_or(stripped)
+        // Strip "{bucket}/" segment for path-style addressing. Must include the slash,
+        // otherwise a bucket named "data" would corrupt a key like "database/x.png".
+        let bucket_prefix = format!("{}/", self.bucket);
+        let key = if let Some(stripped) = key.strip_prefix(&bucket_prefix) {
+            stripped
         } else {
             key
         };
@@ -85,6 +87,16 @@ mod tests {
                 "http://localhost:9000/my-bucket/uploads/photo.png?X-Amz-Signature=123"
             ),
             "uploads/photo.png"
+        );
+
+        // Bucket-prefix collision: key segment that starts with the bucket name must survive
+        assert_eq!(
+            service.normalize_key("http://localhost:9000/my-bucket/database/photo.png"),
+            "database/photo.png"
+        );
+        assert_eq!(
+            service.normalize_key("database/photo.png"),
+            "database/photo.png"
         );
     }
 }
