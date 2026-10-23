@@ -9,7 +9,7 @@
 //!
 //! ## `garde::Validate` Context Type
 //!
-//! Both [`ValidatedJson`] and [`ValidatedPath`](crate::path::ValidatedPath) call
+//! Both [`ValidatedJson`] and [`ValidatedPath`] call
 //! `validate_with(&Default::default())`. The context type is inferred from the
 //! `<T as Validate>::Context` associated type, which defaults to `()` for most structs.
 //!

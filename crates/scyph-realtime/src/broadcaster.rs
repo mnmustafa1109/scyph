@@ -253,7 +253,7 @@ impl RealtimeBroadcaster {
     /// Publishes a domain event to multiple recipient users across all cluster replicas.
     ///
     /// Reuses a single multiplexed Redis connection and publishes to each target
-    /// **concurrently** in chunks of [`PUBLISH_CHUNK`], so one slow/oversized publish no
+    /// **concurrently** in chunks of 256, so one slow/oversized publish no
     /// longer delays the rest of the fan-out while memory stays bounded for very large
     /// recipient lists.
     ///

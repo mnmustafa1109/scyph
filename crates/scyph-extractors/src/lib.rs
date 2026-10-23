@@ -16,12 +16,12 @@
 //!
 //! | Scenario | Extractor |
 //! |----------|-----------|
-//! | JSON body with sanitize + validate | [`ValidatedJson<T>`](body::ValidatedJson) |
-//! | JSON body with sanitize only | [`SanitizedJson<T>`](body::SanitizedJson) |
-//! | URL path param (UUID, i32, etc.) | [`TypedPath<T>`](path::TypedPath) |
-//! | URL path param struct with validation | [`ValidatedPath<T>`](path::ValidatedPath) |
-//! | Query params with `garde` validation | [`ValidatedQuery<T>`](query::ValidatedQuery) |
-//! | Combined pagination/sort/filter | [`RequestParams<S, F>`](query::RequestParams) |
+//! | JSON body with sanitize + validate | [`ValidatedJson<T>`] |
+//! | JSON body with sanitize only | [`SanitizedJson<T>`] |
+//! | URL path param (UUID, i32, etc.) | [`TypedPath<T>`] |
+//! | URL path param struct with validation | [`ValidatedPath<T>`] |
+//! | Query params with `garde` validation | [`ValidatedQuery<T>`] |
+//! | Combined pagination/sort/filter | [`RequestParams<S, F>`] |
 //! | Canonical URL builder | [`LinkGenerator`] |
 //!
 //! ## Quick Example
