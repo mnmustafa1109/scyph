@@ -74,6 +74,7 @@ fn test_api_response_with_meta() {
     let parsed: serde_json::Value = serde_json::from_str(&json_str).expect("valid JSON");
     assert_eq!(parsed["meta"]["trace_id"], "trace-1234");
     assert_eq!(parsed["meta"]["processing_time_ms"], 12);
+    assert_eq!(parsed["meta"]["library_version"], env!("CARGO_PKG_VERSION"));
 }
 
 #[test]

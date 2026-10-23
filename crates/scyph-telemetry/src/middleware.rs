@@ -108,8 +108,14 @@ pub struct TelemetryConfig {
     pub enable_tracing: bool,
     /// Enables automatic injection of standard `ResponseMeta` into JSON response envelopes (default: `true`).
     pub enable_auto_meta: bool,
-    /// Application API version string injected into `ResponseMeta` (default: `"0.1.0"`).
+    /// Application API version injected into `ResponseMeta` and the `x-api-version` header.
+    ///
+    /// Defaults to the Scyph version; set this to your own service version.
     pub api_version: String,
+    /// Scyph library version injected into `ResponseMeta` and the `x-library-version` header.
+    ///
+    /// Defaults to this crate's version and normally should not be set by applications.
+    pub library_version: String,
 }
 
 impl Default for TelemetryConfig {
@@ -120,6 +126,7 @@ impl Default for TelemetryConfig {
             enable_tracing: true,
             enable_auto_meta: true,
             api_version: env!("CARGO_PKG_VERSION").to_string(),
+            library_version: env!("CARGO_PKG_VERSION").to_string(),
         }
     }
 }
@@ -154,14 +161,14 @@ impl TelemetryConfig {
         self
     }
 
-    /// Sets the application API version string for `ResponseMeta`.
+    /// Sets the application (backend) API version string for `ResponseMeta` and `x-api-version`.
     pub fn with_api_version(mut self, version: impl Into<String>) -> Self {
         self.api_version = version.into();
         self
     }
 }
 
-/// Axum middleware for injecting telemetry headers (`x-response-time-ms`, `x-api-version`, `x-trace-id`)
+/// Axum middleware for injecting telemetry headers (`x-response-time-ms`, `x-api-version`, `x-library-version`, `x-trace-id`)
 /// on all responses, and automatically injecting standard [`ResponseMeta`] into JSON response bodies.
 ///
 /// Measures request latency, retrieves or generates the request trace ID, attaches HTTP telemetry
@@ -193,6 +200,9 @@ pub async fn auto_meta_middleware(
     }
     if let Ok(val) = HeaderValue::from_str(&config.api_version) {
         headers.insert(HeaderName::from_static("x-api-version"), val);
+    }
+    if let Ok(val) = HeaderValue::from_str(&config.library_version) {
+        headers.insert(HeaderName::from_static("x-library-version"), val);
     }
     if let Ok(val) = HeaderValue::from_str(&trace_id) {
         headers
@@ -273,7 +283,8 @@ pub async fn auto_meta_middleware(
     if let Ok(mut json_val) = serde_json::from_slice::<serde_json::Value>(&bytes)
         && let Some(obj) = json_val.as_object_mut()
     {
-        let meta = ResponseMeta::new(trace_id, processing_time_ms, &config.api_version);
+        let mut meta = ResponseMeta::new(trace_id, processing_time_ms, &config.api_version);
+        meta.library_version = config.library_version.clone();
         if let Ok(meta_val) = serde_json::to_value(meta) {
             obj.insert("meta".to_string(), meta_val);
         }

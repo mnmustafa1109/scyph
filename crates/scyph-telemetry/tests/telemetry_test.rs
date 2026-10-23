@@ -77,6 +77,7 @@ async fn test_auto_meta_injection() {
     assert!(meta.is_object());
     assert_eq!(meta["trace_id"], req_id);
     assert_eq!(meta["version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(meta["library_version"], env!("CARGO_PKG_VERSION"));
     assert!(meta["processing_time_ms"].is_number());
     assert!(meta["timestamp"].is_string());
 }
@@ -98,12 +99,28 @@ async fn test_telemetry_config_builder() {
         .unwrap();
 
     let response = app.oneshot(request).await.unwrap();
+    assert_eq!(
+        response
+            .headers()
+            .get("x-api-version")
+            .and_then(|v| v.to_str().ok()),
+        Some("2.5.0")
+    );
+    assert_eq!(
+        response
+            .headers()
+            .get("x-library-version")
+            .and_then(|v| v.to_str().ok()),
+        Some(env!("CARGO_PKG_VERSION"))
+    );
+
     let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
 
     assert_eq!(json["meta"]["version"], "2.5.0");
+    assert_eq!(json["meta"]["library_version"], env!("CARGO_PKG_VERSION"));
 }
 
 #[tokio::test]
@@ -118,6 +135,7 @@ async fn test_telemetry_headers_on_non_json() {
     // Solution B: Telemetry headers must be present on non-JSON responses
     assert!(response.headers().contains_key("x-response-time-ms"));
     assert!(response.headers().contains_key("x-api-version"));
+    assert!(response.headers().contains_key("x-library-version"));
     assert!(response.headers().contains_key("x-trace-id"));
 
     let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)

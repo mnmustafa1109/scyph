@@ -21,7 +21,8 @@
 //!     "processing_time_ms": 8,
 //!     "timestamp": "2026-09-28T12:00:00.000000000+00:00",
 //!     "trace_id": "01923f81-5c8e-7e9b-b4a1-8d2f1e4067a9",
-//!     "version": "0.1.0"
+//!     "version": "0.1.0",
+//!     "library_version": "0.1.3"
 //!   }
 //! }
 //! ```
@@ -49,7 +50,8 @@ use serde::{Deserialize, Serialize};
 
 /// Standardized metadata header attached to API response envelopes.
 ///
-/// Contains execution timing, request trace ID, timestamp, and application API version.
+/// Contains execution timing, request trace ID, timestamp, application API version,
+/// and the Scyph library version that produced the response.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResponseMeta {
     /// Request processing latency in milliseconds.
@@ -60,6 +62,9 @@ pub struct ResponseMeta {
     pub trace_id: String,
     /// API application version string.
     pub version: String,
+    /// Scyph library version that produced the response.
+    #[serde(default)]
+    pub library_version: String,
 }
 
 impl ResponseMeta {
@@ -69,7 +74,9 @@ impl ResponseMeta {
     ///
     /// * `trace_id` - Unique trace or request identifier.
     /// * `processing_time_ms` - Elapsed duration in milliseconds for handling the request.
-    /// * `version` - API version string.
+    /// * `version` - API application version string.
+    ///
+    /// The Scyph library version is filled in automatically.
     ///
     /// # Examples
     ///
@@ -79,6 +86,7 @@ impl ResponseMeta {
     /// let meta = ResponseMeta::new("01923f81-5c8e-7e9b-b4a1-8d2f1e4067a9", 12, "0.1.0");
     /// assert_eq!(meta.processing_time_ms, 12);
     /// assert_eq!(meta.version, "0.1.0");
+    /// assert_eq!(meta.library_version, env!("CARGO_PKG_VERSION"));
     /// assert_eq!(meta.trace_id, "01923f81-5c8e-7e9b-b4a1-8d2f1e4067a9");
     /// ```
     pub fn new(
@@ -91,6 +99,7 @@ impl ResponseMeta {
             timestamp: chrono::Utc::now().to_rfc3339(),
             trace_id: trace_id.into(),
             version: version.into(),
+            library_version: env!("CARGO_PKG_VERSION").to_string(),
         }
     }
 }

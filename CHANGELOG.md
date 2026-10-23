@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Added
+- `ResponseMeta::library_version` and the `x-library-version` response header now report the Scyph library version alongside the application's version.
+- `TelemetryConfig::library_version` exposes the reported library version (defaults to the Scyph version).
+
+### Changed
+- `TelemetryConfig::api_version` is documented as the application (backend) version; applications should set it with `with_api_version` instead of inheriting the Scyph version.
+
+---
+
 ## [0.1.3] - 2026-09-29
 
 ### Added
