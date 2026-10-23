@@ -1,11 +1,10 @@
-//! Programmatic Cedar JSON schema builder and type definitions.
+//! Programmatic Cedar schema builder and type definitions.
 
-use serde_json::json;
 use std::collections::HashMap;
 
 use super::entity::IntoCedarEntity;
 
-/// Represents supported data types for entity attributes when building Cedar JSON schemas.
+/// Represents supported data types for entity attributes when building Cedar schemas.
 pub enum CedarType {
     /// Boolean primitive type (`true` / `false`).
     Boolean,
@@ -15,12 +14,14 @@ pub enum CedarType {
     EntityRef(&'static str),
 }
 
-/// Builder for constructing Cedar JSON schemas programmatically from application entities.
+/// Builder for constructing Cedar schemas programmatically from application entities.
 ///
-/// Enables defining entity types and their attributes to generate JSON schema definitions
-/// compatible with the AWS Cedar policy engine schema parser.
+/// Registers entity types (and their attributes) from [`IntoCedarEntity`] impls
+/// and emits the schema in the human-readable Cedar schema format, compatible
+/// with [`cedar_policy::Schema`].
 pub struct CedarSchemaBuilder {
     entity_types: HashMap<String, HashMap<String, CedarType>>,
+    actions: Vec<String>,
 }
 
 impl Default for CedarSchemaBuilder {
@@ -34,7 +35,10 @@ impl CedarSchemaBuilder {
     pub fn new() -> Self {
         let mut entity_types = HashMap::new();
         entity_types.insert("User".into(), HashMap::new());
-        Self { entity_types }
+        Self {
+            entity_types,
+            actions: Vec::new(),
+        }
     }
 
     /// Registers entity attribute definitions from a type implementing [`IntoCedarEntity`].
@@ -69,45 +73,71 @@ impl CedarSchemaBuilder {
         self
     }
 
-    /// Builds and exports the Cedar schema as a formatted JSON string.
+    /// Adds a custom action (e.g. `"Deactivate"`) to the schema.
     ///
-    /// Returns a JSON string suitable for parsing into [`cedar_policy::Schema`].
-    pub fn build_json_schema(&self) -> String {
-        let mut entity_json_map = serde_json::Map::new();
-        for (entity_name, attrs) in &self.entity_types {
-            let mut shape_attrs = serde_json::Map::new();
-            for (attr_name, attr_type) in attrs {
-                let type_def = match attr_type {
-                    CedarType::Boolean => json!({ "type": "Boolean" }),
-                    CedarType::String => json!({ "type": "String" }),
-                    CedarType::EntityRef(target) => json!({
-                                "type": "Entity",
-                                "name": target
-                    }),
-                };
-                shape_attrs.insert(attr_name.clone(), type_def);
-            }
-            let entity_json = json!({
-                "memberOfTypes": [],
-                "shape": {
-                    "type": "Record",
-                    "attributes": shape_attrs
-                } });
-
-            entity_json_map.insert(entity_name.clone(), entity_json);
+    /// Applies to any `User` principal and any resource type, matching the
+    /// shape of the built-in CRUD actions (`Read`/`Create`/`Update`/`Delete`).
+    /// Names already covered by the built-ins or added before are ignored, so
+    /// the emitted schema never declares an action twice (duplicate `action`
+    /// declarations make [`cedar_policy::Schema`] parsing fail at startup).
+    pub fn add_action(mut self, name: &str) -> Self {
+        let builtin = matches!(name, "Read" | "Create" | "Update" | "Delete");
+        if !builtin && !self.actions.iter().any(|a| a == name) {
+            self.actions.push(name.to_string());
         }
+        self
+    }
 
-        json!({
-            "": {
-                "entityTypes": entity_json_map,
-                "actions": {
-                    "Read": { "appliesTo": { "principalTypes": ["User"], "resourceTypes": null } },
-                    "Create": { "appliesTo": { "principalTypes": ["User"], "resourceTypes": null } },
-                    "Update": { "appliesTo": { "principalTypes": ["User"], "resourceTypes": null } },
-                    "Delete": { "appliesTo": { "principalTypes": ["User"], "resourceTypes": null }    }
-                }
+    /// Builds the schema in the human-readable Cedar schema format.
+    ///
+    /// Returns a string suitable for parsing into [`cedar_policy::Schema`].
+    /// Entity types come from the registered structs; actions are the CRUD
+    /// four plus any added via [`add_action`](Self::add_action), all applying
+    /// to any `User` principal and any resource type (omitting `resource`
+    /// leaves it unconstrained in Cedar).
+    pub fn build(&self) -> String {
+        let mut out = String::new();
+        let mut entity_names: Vec<&String> = self.entity_types.keys().collect();
+        entity_names.sort();
+        for name in &entity_names {
+            let attrs = &self.entity_types[name.as_str()];
+            out.push_str(&format!("entity {name} {{\n"));
+            let mut attr_names: Vec<&String> = attrs.keys().collect();
+            attr_names.sort();
+            for attr in attr_names {
+                let ty = match attrs[attr] {
+                    // `Bool`, not `Boolean` — cedar-policy 4.x schema DSL resolves `Boolean`
+                    // as an entity type (the one written `CedarType::Boolean` semantically is a
+                    // cedar `boolean`, the primitive spelled `Bool`), so an attribute emitted
+                    // as `Boolean` makes the whole schema unparseable at startup.
+                    CedarType::Boolean => "Bool".to_owned(),
+                    CedarType::String => "String".to_owned(),
+                    CedarType::EntityRef(target) => target.to_owned(),
+                };
+                out.push_str(&format!("  {attr}: {ty},\n"));
             }
-        })
-        .to_string()
+            out.push_str("};\n\n");
+        }
+        for action in ["Read", "Create", "Update", "Delete"]
+            .into_iter()
+            .chain(self.actions.iter().map(String::as_str))
+        {
+            // `User` is the principal type; every other registered entity type
+            // is a resource. `appliesTo` requires both declarations in cedar 4.x.
+            let resources: Vec<&str> = entity_names
+                .iter()
+                .filter(|n| n.as_str() != "User")
+                .map(|n| n.as_str())
+                .collect();
+            if resources.is_empty() {
+                out.push_str(&format!("action {action};\n\n"));
+            } else {
+                out.push_str(&format!(
+                    "action {action} appliesTo {{\n  principal: User,\n  resource: [{}]\n}};\n\n",
+                    resources.join(", ")
+                ));
+            }
+        }
+        out
     }
 }

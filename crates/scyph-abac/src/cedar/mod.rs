@@ -2,7 +2,7 @@
 //!
 //! Provides [`CedarAuthorizer`] to evaluate authorization rules written in Cedar policy language (`.cedar`),
 //! [`IntoCedarEntity`] for converting database models into Cedar entities, [`CedarEntityBuilder`],
-//! and [`CedarSchemaBuilder`] for programmatic Cedar JSON schema construction.
+//! and [`CedarSchemaBuilder`] for programmatic Cedar schema construction.
 //!
 //! # Examples
 //!

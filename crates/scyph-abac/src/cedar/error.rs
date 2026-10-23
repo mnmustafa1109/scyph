@@ -32,6 +32,11 @@ pub enum CedarError {
     #[error("Schema parse error: {0}")]
     SchemaParse(String),
 
+    /// Policies failed static validation against the schema (typos, type
+    /// errors, actions or attributes that do not exist). A startup error.
+    #[error("Policy validation error: {0}")]
+    PolicyValidation(String),
+
     /// Failed to construct Cedar request or entity container.
     #[error("Request build error: {0}")]
     RequestBuild(String),

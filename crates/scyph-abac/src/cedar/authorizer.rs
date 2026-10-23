@@ -1,7 +1,8 @@
 //! Cedar policy evaluator implementation.
 
 use cedar_policy::{
-    Authorizer, Context, Decision, Entities, EntityUid, PolicySet, Request, Schema,
+    Authorizer, Context, Decision, Entities, EntityUid, PolicySet, Request, Schema, ValidationMode,
+    Validator,
 };
 use scyph_auth::AuthUser;
 use scyph_core::{Action, AppError, Claims};
@@ -28,12 +29,34 @@ impl CedarAuthorizer {
     /// # Errors
     ///
     /// Returns [`CedarError::PolicyParse`] or [`CedarError::SchemaParse`] if syntax validation fails.
+    /// When a schema is provided, the policy set is statically validated against it
+    /// ([`CedarError::PolicyValidation`] on failure) and warnings are logged.
     pub fn from_str(policy_src: &str, schema_src: Option<&str>) -> Result<Self, CedarError> {
         let policies =
             PolicySet::from_str(policy_src).map_err(|e| CedarError::PolicyParse(e.to_string()))?;
         let schema = schema_src
-            .map(|s| Schema::from_str(s).map_err(|e| CedarError::SchemaParse(e.to_string())))
+            .map(|s| {
+                // Accept both formats: hand-written Cedar schema DSL
+                // (`from_str`) and JSON (`from_json_str`).
+                Schema::from_str(s).or_else(|dsl_err| {
+                    Schema::from_json_str(s).map_err(|json_err| {
+                        CedarError::SchemaParse(format!(
+                            "as Cedar schema DSL: {dsl_err}; as JSON: {json_err}"
+                        ))
+                    })
+                })
+            })
             .transpose()?;
+        if let Some(schema) = &schema {
+            let result = Validator::new(schema.clone()).validate(&policies, ValidationMode::Strict);
+            for warning in result.validation_warnings() {
+                warn!("Cedar policy validation warning: {warning}");
+            }
+            let errors: Vec<String> = result.validation_errors().map(|e| e.to_string()).collect();
+            if !errors.is_empty() {
+                return Err(CedarError::PolicyValidation(errors.join("; ")));
+            }
+        }
         let authorizer = Authorizer::new();
         Ok(Self {
             authorizer,
