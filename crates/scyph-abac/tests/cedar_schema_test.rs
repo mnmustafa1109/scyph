@@ -51,7 +51,10 @@ fn custom_principal_round_trips_and_validates() {
         .add_attribute("Document", "title", CedarType::String)
         .add_attribute("Document", "owner", CedarType::EntityRef("Actor"));
     let schema = builder.add_action("Deactivate").build();
-    assert!(schema.contains("principal: Actor"), "wrong principal: {schema}");
+    assert!(
+        schema.contains("principal: Actor"),
+        "wrong principal: {schema}"
+    );
     assert!(!schema.contains("principal: User"), "stray User: {schema}");
     cedar_policy::Schema::from_str(&schema).expect("custom-principal schema should parse");
     assert!(
