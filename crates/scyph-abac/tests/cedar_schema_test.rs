@@ -22,7 +22,7 @@ fn schema_all_types() -> String {
     let mut builder = CedarSchemaBuilder::new();
     builder
         .add_attribute("Document", "title", CedarType::String)
-        .add_attribute("Document", "active", CedarType::Boolean)
+        .add_attribute("Document", "active", CedarType::Bool)
         .add_attribute("Document", "owner", CedarType::EntityRef("User"));
     builder
         .add_action("Deactivate")
@@ -39,6 +39,25 @@ fn built_schema_round_trips_and_validates() {
     cedar_policy::Schema::from_str(&schema_all_types()).expect("schema DSL should parse");
     let result = CedarAuthorizer::from_str(POLICY_WITH_BOOL, Some(&schema_all_types()));
     assert!(result.is_ok(), "policy+schema should validate");
+}
+
+/// `for_principal("Actor")` must emit `principal: Actor` (never `principal: User`,
+/// which would break every request for an Actor principal) and the schema — with
+/// no `User` entity present — must still parse and statically validate a policy.
+#[test]
+fn custom_principal_round_trips_and_validates() {
+    let mut builder = CedarSchemaBuilder::for_principal("Actor");
+    builder
+        .add_attribute("Document", "title", CedarType::String)
+        .add_attribute("Document", "owner", CedarType::EntityRef("Actor"));
+    let schema = builder.add_action("Deactivate").build();
+    assert!(schema.contains("principal: Actor"), "wrong principal: {schema}");
+    assert!(!schema.contains("principal: User"), "stray User: {schema}");
+    cedar_policy::Schema::from_str(&schema).expect("custom-principal schema should parse");
+    assert!(
+        CedarAuthorizer::from_str("permit(principal, action, resource);", Some(&schema)).is_ok(),
+        "policy with Actor principal should validate"
+    );
 }
 
 /// A policy referencing an attribute that does not exist in the schema fails

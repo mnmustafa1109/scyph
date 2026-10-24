@@ -39,7 +39,7 @@
 //!     }
 //!     fn attribute_types() -> HashMap<String, CedarType> {
 //!         let mut m = HashMap::new();
-//!         m.insert("is_public".to_string(), CedarType::Boolean);
+//!         m.insert("is_public".to_string(), CedarType::Bool);
 //!         m
 //!     }
 //! }
