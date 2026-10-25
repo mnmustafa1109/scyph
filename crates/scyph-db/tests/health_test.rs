@@ -6,8 +6,6 @@ use std::time::Duration;
 use scyph_db::DbHealthExt;
 use sqlx::postgres::PgPoolOptions;
 
-mod common;
-
 #[tokio::test]
 async fn test_db_health_ext_mock() {
     let registry = HealthRegistry::new();
@@ -30,7 +28,7 @@ async fn test_db_health_ext_mock() {
 /// every dependency behind it) for the whole stall.
 #[tokio::test]
 async fn probe_is_bounded_when_postgres_stalls() {
-    let addr = common::spawn_hung_server().await;
+    let addr = scyph_test_support::spawn_hung_server().await;
 
     let pool = PgPoolOptions::new()
         .connect_lazy(&format!("postgres://postgres@{addr}/postgres"))

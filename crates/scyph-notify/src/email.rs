@@ -187,29 +187,11 @@ mod tests {
     #[cfg(feature = "health")]
     use scyph_health::{HealthRegistry, Status};
 
-    // shortcut: this helper is duplicated in scyph-storage/tests/common and scyph-db/tests/common;
-    // merging needs a shared test crate (a layer), so it stays inlined here until that exists.
-    /// Binds a loopback port and accepts connections forever without ever reading or
-    /// writing, so the client's handshake hangs — what a stalled relay looks like. The
-    /// sockets are held open on purpose: dropping them would close the connection and
-    /// produce a fast error instead of a hang.
-    async fn spawn_hung_server() -> std::net::SocketAddr {
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let addr = listener.local_addr().unwrap();
-        tokio::spawn(async move {
-            let mut held = Vec::new();
-            while let Ok((sock, _)) = listener.accept().await {
-                held.push(sock);
-            }
-        });
-        addr
-    }
-
     /// The boot handshake must fail fast: lettre's only timeout is 60s per command, so
     /// without a bound a stalled relay holds startup open for a minute.
     #[tokio::test]
     async fn from_env_handshake_is_bounded_when_relay_stalls() {
-        let addr = spawn_hung_server().await;
+        let addr = scyph_test_support::spawn_hung_server().await;
 
         // Safe: this test binary never reads or writes SMTP_* anywhere else.
         unsafe {
@@ -237,7 +219,7 @@ mod tests {
     #[cfg(feature = "health")]
     #[tokio::test]
     async fn health_probe_is_bounded_when_relay_stalls() {
-        let addr = spawn_hung_server().await;
+        let addr = scyph_test_support::spawn_hung_server().await;
 
         let service = LettreSMTPService {
             transport: AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous("127.0.0.1")

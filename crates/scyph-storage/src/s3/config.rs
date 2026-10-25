@@ -61,12 +61,13 @@ use aws_sdk_s3::{Client, config::Credentials};
 /// Bounds every S3 request. The SDK defaults to a connect timeout only, so an endpoint
 /// that accepts TCP and then stops answering (paused MinIO, broken proxy, LB misroute)
 /// would hang health probes and uploads forever. `read_timeout` is per socket read, so
-/// slow-but-flowing transfers still complete.
-/// shortcut: no overall operation timeout, so an endpoint trickling bytes can still hold a request open; set `operation_timeout` once uploads are size-bounded.
+/// slow-but-flowing transfers still complete. `operation_timeout` caps the whole request
+/// so a trickling endpoint cannot hold it open indefinitely.
 fn request_timeouts() -> aws_sdk_s3::config::timeout::TimeoutConfig {
     aws_sdk_s3::config::timeout::TimeoutConfig::builder()
         .connect_timeout(Duration::from_secs(3))
         .read_timeout(Duration::from_secs(30))
+        .operation_timeout(Duration::from_secs(300))
         .build()
 }
 
@@ -344,5 +345,6 @@ mod tests {
             .expect("timeout config must be wired into the S3 client");
         assert_eq!(timeouts.connect_timeout(), Some(Duration::from_secs(3)));
         assert_eq!(timeouts.read_timeout(), Some(Duration::from_secs(30)));
+        assert_eq!(timeouts.operation_timeout(), Some(Duration::from_secs(300)));
     }
 }

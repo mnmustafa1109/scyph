@@ -1,0 +1,12 @@
+[package]
+name = "scyph-test-support"
+version = "0.1.4"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Shared test helpers for the scyph crates (loopback hung server, etc.). Dev-dependency only."
+publish = false
+
+[dependencies]
+tokio = { workspace = true }

@@ -25,6 +25,7 @@ pub struct FcmPushService {
     project_id: String,
     auth: CustomServiceAccount,
     client: Client,
+    base_url: String,
 }
 
 impl FcmPushService {
@@ -63,12 +64,20 @@ impl FcmPushService {
             }
         });
 
-        send_fcm_request(&client, &project_id, token.as_str(), &test_payload).await?;
+        send_fcm_request(
+            &client,
+            "https://fcm.googleapis.com",
+            &project_id,
+            token.as_str(),
+            &test_payload,
+        )
+        .await?;
 
         Ok(Self {
             project_id,
             auth,
             client,
+            base_url: "https://fcm.googleapis.com".to_string(),
         })
     }
 
@@ -85,6 +94,11 @@ impl FcmPushService {
     /// Exposes a reference to the inner persistent [`Client`].
     pub fn client(&self) -> &Client {
         &self.client
+    }
+
+    /// Exposes the FCM API base URL this service posts to.
+    pub fn base_url(&self) -> &str {
+        &self.base_url
     }
 }
 
@@ -140,7 +154,14 @@ impl PushService for FcmPushService {
 
         let payload = json!({ "message": message_map });
 
-        send_fcm_request(&self.client, &self.project_id, token.as_str(), &payload).await?;
+        send_fcm_request(
+            &self.client,
+            &self.base_url,
+            &self.project_id,
+            token.as_str(),
+            &payload,
+        )
+        .await?;
 
         Ok(())
     }

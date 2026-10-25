@@ -35,3 +35,6 @@ required-features = ["query"]
 [[test]]
 name = "health_test"
 required-features = ["health"]
+
+[dev-dependencies]
+scyph-test-support = { path = "../scyph-test-support" }

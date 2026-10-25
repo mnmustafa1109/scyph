@@ -4,11 +4,8 @@
 //! variables, so they serialize on `ENV_LOCK`. All endpoints point at loopback, so
 //! no network access is required.
 
-// Only the health-probe tests below need the hung-server helper; without the `health`
-// feature this binary compiles nothing that uses it (and `clippy -D warnings` rejects
-// an unused helper).
-#[cfg(feature = "health")]
-mod common;
+// Only the health-probe tests below use the hung-server helper; without the `health`
+// feature this binary compiles nothing that calls it.
 
 use scyph_storage::{S3StorageService, sanitize_endpoint};
 
@@ -307,7 +304,7 @@ mod health_classification {
     /// the 5s bound turns the hang into a `Sick` result.
     #[tokio::test]
     async fn probe_hung_endpoint_is_transient_not_hung() {
-        let addr = common::spawn_hung_server().await;
+        let addr = scyph_test_support::spawn_hung_server().await;
 
         let registry = HealthRegistry::new();
         tokio::time::timeout(

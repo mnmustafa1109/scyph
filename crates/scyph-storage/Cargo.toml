@@ -46,3 +46,6 @@ required-features = ["s3"]
 [[test]]
 name = "s3_timeout_test"
 required-features = ["s3"]
+
+[dev-dependencies]
+scyph-test-support = { path = "../scyph-test-support" }

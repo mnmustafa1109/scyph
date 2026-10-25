@@ -33,3 +33,6 @@ lettre = { workspace = true, optional = true }
 tera = { workspace = true, optional = true }
 gcp_auth = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
+
+[dev-dependencies]
+scyph-test-support = { path = "../scyph-test-support" }

@@ -82,9 +82,11 @@ impl FcmPushService {
         self.check_health_named(registry, "fcm_push", false).await;
     }
 
-    // shortcut: the two 5s bounds below have no test — `send_fcm_request` hardcodes
-    // fcm.googleapis.com and the service needs real GCP credentials, so no fake
-    // endpoint can be injected; upgrade when the FCM base URL becomes configurable.
+    // shortcut: the 5s bounds below still have no test — `gcp_auth` needs real
+    // credentials and exposes no mock token provider, so the token fetch cannot be
+    // pointed at a fake endpoint; the send path's base URL is now configurable via
+    // `FcmPushService::base_url`, so only the OAuth token step remains untestable.
+    // Upgrade when `FcmPushService` accepts an injectable token provider.
     /// Checks FCM push notification service health with a custom component identifier name and readiness requirement.
     ///
     /// Tests OAuth2 bearer token acquisition and performs a `"validate_only": true` dry-run request against Google FCM API.
@@ -117,6 +119,7 @@ impl FcmPushService {
         match token_res {
             Ok(token) => {
                 let client = self.client().clone();
+                let base_url = self.base_url().to_string();
                 let project_id = self.project_id().to_string();
                 let test_payload = serde_json::json!({
                     "validate_only": true,
@@ -129,6 +132,7 @@ impl FcmPushService {
                             Duration::from_secs(5),
                             crate::util::send_fcm_request(
                                 &client,
+                                &base_url,
                                 &project_id,
                                 token.as_str(),
                                 &test_payload,

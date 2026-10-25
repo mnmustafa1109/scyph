@@ -46,11 +46,14 @@
 //! - All constructors (`ok`, `created`, `accepted`, `no_content`) return a concrete `ApiResponse<T>`,
 //!   preserving consistent handler return types while correctly propagating the corresponding
 //!   HTTP status code (200, 201, 202, 204) when converting to an Axum response.
+//! - Extra HTTP headers (e.g. `Location` on a `201 Created`) can be attached via
+//!   [`ApiResponse::with_header`] or [`ApiResponse::with_location`] and are applied to the
+//!   Axum response on conversion, never to the JSON body.
 
 use super::meta::ResponseMeta;
 use axum::{
     Json,
-    http::StatusCode,
+    http::{HeaderMap, HeaderName, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
 };
 use serde::{Deserialize, Serialize};
@@ -65,6 +68,8 @@ fn default_status_code() -> StatusCode {
 /// an HTTP status code, and optional response metadata [`ResponseMeta`].
 /// When serialized, `data` and `meta` are omitted if `None`.
 /// The `status` field is omitted from JSON serialization as it is communicated via the HTTP response status.
+/// Extra HTTP headers (e.g. `Location`) can be attached with [`ApiResponse::with_header`] or
+/// [`ApiResponse::with_location`] and are applied to the Axum response but never serialized.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ApiResponse<T: Serialize> {
     /// Indicates whether the API operation succeeded (always `true` for `ApiResponse`).
@@ -80,6 +85,11 @@ pub struct ApiResponse<T: Serialize> {
     /// HTTP status code used when converted to an Axum response (default: `200 OK`).
     #[serde(skip, default = "default_status_code")]
     pub status: StatusCode,
+
+    /// Extra HTTP headers applied when this response is converted into an Axum
+    /// response (e.g. `Location` on a `201 Created`). Skipped in the JSON body.
+    #[serde(skip, default)]
+    pub headers: HeaderMap,
 }
 
 impl<T: Serialize> ApiResponse<T> {
@@ -104,6 +114,7 @@ impl<T: Serialize> ApiResponse<T> {
             meta: None,
             data: Some(data),
             status: StatusCode::OK,
+            headers: HeaderMap::default(),
         }
     }
 
@@ -129,6 +140,7 @@ impl<T: Serialize> ApiResponse<T> {
             meta: None,
             data: Some(data),
             status: StatusCode::OK,
+            headers: HeaderMap::default(),
         }
     }
 
@@ -153,6 +165,7 @@ impl<T: Serialize> ApiResponse<T> {
             meta: None,
             data: Some(data),
             status: StatusCode::CREATED,
+            headers: HeaderMap::default(),
         }
     }
 
@@ -169,6 +182,7 @@ impl<T: Serialize> ApiResponse<T> {
             meta: None,
             data: Some(data),
             status: StatusCode::CREATED,
+            headers: HeaderMap::default(),
         }
     }
 
@@ -184,6 +198,7 @@ impl<T: Serialize> ApiResponse<T> {
             meta: None,
             data: Some(data),
             status: StatusCode::ACCEPTED,
+            headers: HeaderMap::default(),
         }
     }
 
@@ -221,6 +236,50 @@ impl<T: Serialize> ApiResponse<T> {
         self.meta = Some(meta);
         self
     }
+
+    /// Attaches an extra HTTP header to the response (e.g. `Location` on a
+    /// `201 Created`). The header is applied when the response is converted
+    /// into an Axum response; it is never part of the JSON body.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use axum::http::{HeaderName, HeaderValue};
+    /// use axum::response::IntoResponse;
+    /// use scyph_core::ApiResponse;
+    ///
+    /// let res = ApiResponse::ok("data")
+    ///     .with_header(HeaderName::from_static("x-request-id"), HeaderValue::from_static("abc"));
+    /// let response = res.into_response();
+    /// assert_eq!(response.headers().get("x-request-id").unwrap(), "abc");
+    /// ```
+    pub fn with_header(mut self, name: HeaderName, value: HeaderValue) -> Self {
+        self.headers.insert(name, value);
+        self
+    }
+
+    /// Sets the `Location` header of a `201 Created` response to `location`.
+    ///
+    /// Convenience over [`with_header`](Self::with_header) for the common case
+    /// of pointing at the newly created resource. Parse failures are ignored
+    /// (a `Location` value must be a valid header value).
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use axum::response::IntoResponse;
+    /// use scyph_core::ApiResponse;
+    ///
+    /// let res = ApiResponse::created("new_id").with_location("/api/items/42");
+    /// let response = res.into_response();
+    /// assert_eq!(response.headers().get("location").unwrap(), "/api/items/42");
+    /// ```
+    pub fn with_location(mut self, location: impl Into<String>) -> Self {
+        if let Ok(value) = location.into().parse() {
+            self.headers.insert(axum::http::header::LOCATION, value);
+        }
+        self
+    }
 }
 
 impl ApiResponse<()> {
@@ -244,16 +303,27 @@ impl ApiResponse<()> {
             meta: None,
             data: None,
             status: StatusCode::NO_CONTENT,
+            headers: HeaderMap::default(),
         }
     }
 }
 
 impl<T: Serialize + Send> IntoResponse for ApiResponse<T> {
     fn into_response(self) -> Response {
-        if self.status == StatusCode::NO_CONTENT {
-            StatusCode::NO_CONTENT.into_response()
+        let status = self.status;
+        let headers = self.headers.clone();
+        if status == StatusCode::NO_CONTENT {
+            let mut response = StatusCode::NO_CONTENT.into_response();
+            for (name, value) in headers.iter() {
+                response.headers_mut().append(name.clone(), value.clone());
+            }
+            response
         } else {
-            (self.status, Json(self)).into_response()
+            let mut response = (status, Json(self)).into_response();
+            for (name, value) in headers.iter() {
+                response.headers_mut().append(name.clone(), value.clone());
+            }
+            response
         }
     }
 }

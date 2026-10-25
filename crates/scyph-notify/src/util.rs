@@ -24,11 +24,16 @@ use serde_json::Value;
 /// or [`NotifyError::Internal`] / [`NotifyError::FcmHttp`] for transport and server errors.
 pub async fn send_fcm_request(
     client: &Client,
+    base_url: &str,
     project_id: &str,
     access_token: &str,
     payload: &Value,
 ) -> Result<Response, NotifyError> {
-    let url = format!("https://fcm.googleapis.com/v1/projects/{project_id}/messages:send");
+    let url = format!(
+        "{}/v1/projects/{}/messages:send",
+        base_url.trim_end_matches('/'),
+        project_id
+    );
 
     let response = client
         .post(&url)

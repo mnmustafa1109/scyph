@@ -86,6 +86,7 @@ members = [
   "crates/scyph-notify",
   "crates/scyph-realtime",
   "crates/scyph-storage",
+  "crates/scyph-test-support",
   "crates/scyph-telemetry",
   "crates/scyph-ratelimit",
   "crates/scyph-utils",

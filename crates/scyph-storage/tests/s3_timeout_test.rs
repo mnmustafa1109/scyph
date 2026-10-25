@@ -4,15 +4,13 @@
 //! which the tests in `s3_config_test.rs` also use — separate binaries cannot
 //! share them. All endpoints point at loopback.
 
-mod common;
-
 use scyph_storage::S3StorageService;
 
 /// The endpoint accepts the TCP connection but never answers, so the request
 /// hangs until `from_env`'s 5s timeout fires.
 #[tokio::test]
 async fn from_env_times_out_when_bucket_never_answers() {
-    let addr = common::spawn_hung_server().await;
+    let addr = scyph_test_support::spawn_hung_server().await;
 
     // Safe: no other test in this binary reads or writes these variables.
     unsafe {

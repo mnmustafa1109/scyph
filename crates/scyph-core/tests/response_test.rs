@@ -65,6 +65,50 @@ fn test_api_response_serialization_excludes_status_field() {
 }
 
 #[test]
+fn test_api_response_with_location_header() {
+    let res = ApiResponse::created("new_id").with_location("/api/items/42");
+    let response = res.into_response();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    assert_eq!(
+        response
+            .headers()
+            .get("location")
+            .unwrap()
+            .to_str()
+            .unwrap(),
+        "/api/items/42"
+    );
+}
+
+#[test]
+fn test_api_response_with_custom_header() {
+    use axum::http::{HeaderName, HeaderValue};
+    let res = ApiResponse::ok("data").with_header(
+        HeaderName::from_static("x-request-id"),
+        HeaderValue::from_static("abc-123"),
+    );
+    let response = res.into_response();
+    assert_eq!(
+        response
+            .headers()
+            .get("x-request-id")
+            .unwrap()
+            .to_str()
+            .unwrap(),
+        "abc-123"
+    );
+}
+
+#[test]
+fn test_api_response_headers_not_in_json_body() {
+    let res = ApiResponse::created("test_data").with_location("/api/items/42");
+    let json_str = serde_json::to_string(&res).expect("serialization succeeds");
+    let parsed: serde_json::Value = serde_json::from_str(&json_str).expect("valid JSON");
+    assert!(parsed.get("headers").is_none());
+    assert!(parsed.get("location").is_none());
+}
+
+#[test]
 fn test_api_response_with_meta() {
     let meta = ResponseMeta::new("trace-1234", 12, "0.1.0");
     let res = ApiResponse::ok("data").with_meta(meta.clone());
