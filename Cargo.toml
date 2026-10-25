@@ -156,7 +156,6 @@ aws-sdk-s3 = { version = "1.149.0", default-features = false, features = [
   "default-https-client",
   "http-1x",
   "rt-tokio",
-  "sigv4a",
 ] }
 redis = { version = "1.7.1", features = ["tokio-comp", "connection-manager"] }
 futures-util = "0.3.34"
