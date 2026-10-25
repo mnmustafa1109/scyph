@@ -117,3 +117,19 @@ mod composite_tests {
         let _ = std::fs::remove_file(test_file);
     }
 }
+
+#[cfg(feature = "email")]
+mod template_tests {
+    use scyph_notify::TemplateEngine;
+
+    /// A glob that matches nothing (missing `templates/` directory, wrong working
+    /// directory) must fail at construction instead of booting an engine whose every
+    /// render fails later, at request time.
+    #[test]
+    fn from_glob_rejects_a_glob_that_matches_nothing() {
+        let err = TemplateEngine::from_glob("/nonexistent-scyph-templates/**/*.html")
+            .err()
+            .expect("an empty glob must not produce an engine");
+        assert!(err.to_string().contains("matched no templates"), "{err}");
+    }
+}

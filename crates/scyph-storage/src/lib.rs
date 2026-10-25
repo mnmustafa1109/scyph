@@ -101,7 +101,7 @@ pub use traits::StorageService;
 
 #[cfg(feature = "s3")]
 #[doc(inline)]
-pub use s3::S3StorageService;
+pub use s3::{S3StorageService, sanitize_endpoint};
 
 #[cfg(feature = "image")]
 #[doc(inline)]

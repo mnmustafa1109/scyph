@@ -3,6 +3,8 @@
 mod config;
 mod service;
 
+pub use config::sanitize_endpoint;
+
 use aws_sdk_s3::Client;
 
 /// Production-grade S3 storage client implementing [`StorageService`](crate::StorageService).
@@ -23,7 +25,12 @@ pub struct S3StorageService {
 }
 
 impl S3StorageService {
-    pub(crate) fn normalize_key<'a>(&'a self, file_url: &'a str) -> &'a str {
+    /// Resolves the storage key for a raw key or a (possibly presigned) file URL.
+    ///
+    /// Strips query parameters, the public URL prefix, and the `{bucket}/`
+    /// path-style segment, so handlers can pass user-supplied URLs straight to
+    /// [`delete`](crate::StorageService::delete) or other key-based operations.
+    pub fn normalize_key<'a>(&'a self, file_url: &'a str) -> &'a str {
         // Strip query parameters if present (e.g. from previously signed URLs)
         let path = file_url.split('?').next().unwrap_or(file_url);
 
@@ -44,59 +51,5 @@ impl S3StorageService {
         };
 
         key.strip_prefix('/').unwrap_or(key)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_normalize_key_variations() {
-        let dummy_client = Client::from_conf(
-            aws_sdk_s3::Config::builder()
-                .behavior_version(aws_sdk_s3::config::BehaviorVersion::latest())
-                .build(),
-        );
-        let service = S3StorageService {
-            client: dummy_client.clone(),
-            presign_client: dummy_client,
-            bucket: "my-bucket".to_string(),
-            public_url_prefix: "http://localhost:9000".to_string(),
-        };
-
-        // Raw key
-        assert_eq!(
-            service.normalize_key("uploads/photo.png"),
-            "uploads/photo.png"
-        );
-        assert_eq!(
-            service.normalize_key("/uploads/photo.png"),
-            "uploads/photo.png"
-        );
-
-        // MinIO path-style URL with bucket
-        assert_eq!(
-            service.normalize_key("http://localhost:9000/my-bucket/uploads/photo.png"),
-            "uploads/photo.png"
-        );
-
-        // MinIO path-style URL with query parameters
-        assert_eq!(
-            service.normalize_key(
-                "http://localhost:9000/my-bucket/uploads/photo.png?X-Amz-Signature=123"
-            ),
-            "uploads/photo.png"
-        );
-
-        // Bucket-prefix collision: key segment that starts with the bucket name must survive
-        assert_eq!(
-            service.normalize_key("http://localhost:9000/my-bucket/database/photo.png"),
-            "database/photo.png"
-        );
-        assert_eq!(
-            service.normalize_key("database/photo.png"),
-            "database/photo.png"
-        );
     }
 }

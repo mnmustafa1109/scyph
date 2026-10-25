@@ -11,6 +11,9 @@
 //!
 //! # Security Considerations
 //!
+//! - Read the signing secret with [`jwt_secret_from_env()`]: it refuses `JWT_SECRET` values
+//!   shorter than 32 bytes (256 bits), so a brute-forceable key is rejected at boot instead
+//!   of silently signing forgeable tokens.
 //! - The `secret` parameter is wrapped in [`secrecy::SecretString`] to prevent it from
 //!   accidentally appearing in log output, debug formatting, or error messages.
 //! - Tokens include a `jti` (JWT ID) claim. Use [`AuthCacheService::blacklist_token`] to
@@ -89,6 +92,40 @@ pub enum JwtError {
     /// The token is malformed, invalid, or has an invalid signature.
     #[error("Invalid token: {0}")]
     Invalid(String),
+
+    /// The signing secret is missing from the environment or fails the minimum-length rule.
+    #[error("Configuration error: {0}")]
+    Config(String),
+}
+
+/// Minimum length of an HS256 signing secret — 256 bits of entropy.
+const MIN_JWT_SECRET_LEN: usize = 32;
+
+/// Reads the HS256 signing secret from the `JWT_SECRET` environment variable.
+///
+/// Refuses weak configuration at boot: a secret shorter than 256 bits is
+/// brute-forceable, which would let an attacker forge tokens. Both a missing
+/// variable and a too-short secret return [`JwtError::Config`] so applications
+/// can fail fast instead of signing forgeable tokens.
+///
+/// # Errors
+///
+/// Returns [`JwtError::Config`] if `JWT_SECRET` is unset or shorter than 32 bytes.
+pub fn jwt_secret_from_env() -> Result<SecretString, JwtError> {
+    let secret = std::env::var("JWT_SECRET")
+        .map_err(|_| JwtError::Config("JWT_SECRET environment variable must be set".into()))?;
+    validate_jwt_secret(&secret)?;
+    Ok(SecretString::from(secret))
+}
+
+/// Enforces the minimum HS256 secret length (bytes, not characters).
+fn validate_jwt_secret(secret: &str) -> Result<(), JwtError> {
+    if secret.len() < MIN_JWT_SECRET_LEN {
+        return Err(JwtError::Config(format!(
+            "JWT_SECRET must be at least {MIN_JWT_SECRET_LEN} bytes (256 bits of entropy)"
+        )));
+    }
+    Ok(())
 }
 
 /// Encodes and signs a claims struct into a compact JWT string.

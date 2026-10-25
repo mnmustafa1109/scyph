@@ -29,6 +29,8 @@
 //! scyph-db = { version = "0.1", features = ["health"] }
 //! ```
 
+use std::time::Duration;
+
 use scyph_health::{HealthFailure, HealthRegistry};
 use sqlx::PgPool;
 
@@ -140,11 +142,22 @@ impl DbHealthExt for PgPool {
     async fn check_health_named(&self, registry: &HealthRegistry, name: &str, required: bool) {
         registry
             .check(name, required, async {
-                sqlx::query("SELECT 1")
-                    .execute(self)
-                    .await
-                    .map(|_| ())
-                    .map_err(|e| classify_sqlx_error(&e))
+                // Bounded at 5s like the SMTP and S3 probes: a connection that
+                // accepts packets and never answers would otherwise stall a caller
+                // running its probes one after another, leaving /readyz frozen at
+                // the previous result for the whole TCP retry window (minutes).
+                match tokio::time::timeout(
+                    Duration::from_secs(5),
+                    sqlx::query("SELECT 1").execute(self),
+                )
+                .await
+                {
+                    Err(_) => Err(HealthFailure::Transient(
+                        "postgres health probe timed out after 5s".to_string(),
+                    )),
+                    Ok(Ok(_)) => Ok(()),
+                    Ok(Err(e)) => Err(classify_sqlx_error(&e)),
+                }
             })
             .await;
     }

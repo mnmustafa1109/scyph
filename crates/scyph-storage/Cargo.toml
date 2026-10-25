@@ -38,3 +38,11 @@ image = { workspace = true, optional = true }
 [[test]]
 name = "thumbnail_test"
 required-features = ["image"]
+
+[[test]]
+name = "s3_config_test"
+required-features = ["s3"]
+
+[[test]]
+name = "s3_timeout_test"
+required-features = ["s3"]

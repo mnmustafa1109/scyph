@@ -50,14 +50,29 @@
 //! # AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY omitted — uses EC2 instance profile / ECS task role
 //! ```
 
+use std::time::Duration;
+
 use crate::error::StorageError;
 use crate::s3::S3StorageService;
+use crate::traits::StorageService;
 use aws_config::{BehaviorVersion, Region};
 use aws_sdk_s3::{Client, config::Credentials};
 
+/// Bounds every S3 request. The SDK defaults to a connect timeout only, so an endpoint
+/// that accepts TCP and then stops answering (paused MinIO, broken proxy, LB misroute)
+/// would hang health probes and uploads forever. `read_timeout` is per socket read, so
+/// slow-but-flowing transfers still complete.
+/// shortcut: no overall operation timeout, so an endpoint trickling bytes can still hold a request open; set `operation_timeout` once uploads are size-bounded.
+fn request_timeouts() -> aws_sdk_s3::config::timeout::TimeoutConfig {
+    aws_sdk_s3::config::timeout::TimeoutConfig::builder()
+        .connect_timeout(Duration::from_secs(3))
+        .read_timeout(Duration::from_secs(30))
+        .build()
+}
+
 /// Sanitizes an endpoint URL by trimming trailing slashes and, for path-style endpoints (such as MinIO),
 /// stripping any trailing bucket path (e.g. `/{bucket}`) to prevent duplicate bucket paths in generated URLs.
-pub(crate) fn sanitize_endpoint(endpoint: &str, bucket: &str, is_path_style: bool) -> String {
+pub fn sanitize_endpoint(endpoint: &str, bucket: &str, is_path_style: bool) -> String {
     let trimmed = endpoint.trim_end_matches('/');
     if is_path_style {
         let bucket_suffix = format!("/{bucket}");
@@ -94,6 +109,7 @@ impl S3StorageService {
         let shared_config = aws_config::defaults(BehaviorVersion::latest())
             .credentials_provider(creds)
             .region(Region::new(region))
+            .timeout_config(request_timeouts())
             .load()
             .await;
 
@@ -141,7 +157,17 @@ impl S3StorageService {
     ///
     /// # Errors
     ///
-    /// Returns [`StorageError::Configuration`] if `S3_BUCKET` is not set.
+    /// Returns [`StorageError::Configuration`] if `S3_BUCKET` is not set, if the bucket
+    /// does not answer within a 5s connection ping, or if the ping fails (dead endpoint,
+    /// wrong or missing credentials, or a missing bucket) — so broken S3 configuration
+    /// fails at boot instead of on the first upload.
+    ///
+    /// The boot ping uses `ListObjectsV2`, which requires the `s3:ListBucket` IAM
+    /// permission. A `403 Forbidden` answer whose body says `AccessDenied` — a policy
+    /// without `s3:ListBucket` — means the bucket is reachable, so it is logged as a
+    /// warning and startup continues. A 403 whose body names bad credentials
+    /// (`InvalidAccessKeyId`, `SignatureDoesNotMatch`, `ExpiredToken`,
+    /// `InvalidClientTokenId`) is a configuration error and fails startup.
     ///
     /// # Examples
     ///
@@ -174,7 +200,7 @@ impl S3StorageService {
             "Initializing S3 storage service from environment"
         );
 
-        if let (Some(ak), Some(sk)) = (access_key, secret_key) {
+        let service = if let (Some(ak), Some(sk)) = (access_key, secret_key) {
             let endpoint = endpoint_url
                 .clone()
                 .unwrap_or_else(|| format!("https://s3.{region_str}.amazonaws.com"));
@@ -186,10 +212,11 @@ impl S3StorageService {
                     format!("https://{bucket}.s3.{region_str}.amazonaws.com")
                 }
             });
-            Ok(Self::new(bucket, pub_prefix, endpoint, region_str, ak, sk).await)
+            Self::new(bucket, pub_prefix, endpoint, region_str, ak, sk).await
         } else {
             let mut loader = aws_config::defaults(BehaviorVersion::latest())
-                .region(Region::new(region_str.clone()));
+                .region(Region::new(region_str.clone()))
+                .timeout_config(request_timeouts());
             if let Some(ref url) = endpoint_url {
                 loader = loader.endpoint_url(url);
             }
@@ -241,13 +268,49 @@ impl S3StorageService {
                 }
             });
 
-            Ok(Self {
+            Self {
                 client,
                 presign_client,
                 bucket,
                 public_url_prefix: pub_prefix.trim_end_matches('/').to_string(),
-            })
+            }
+        };
+
+        // Fail fast at boot: a dead endpoint or bad credentials would otherwise
+        // surface only on the first upload (mirrors notify's from_env handshake).
+        // A 403 that only means "no s3:ListBucket" is not a failure: least-privilege
+        // policies must not block boot.
+        let endpoint_desc = endpoint_url.as_deref().unwrap_or("default AWS endpoint");
+        match tokio::time::timeout(Duration::from_secs(5), service.test_connection()).await {
+            Ok(Ok(())) => {}
+            Ok(Err(StorageError::Forbidden(_))) => {
+                tracing::warn!(
+                    bucket = %service.bucket,
+                    "S3 boot check returned 403 Forbidden: the bucket is reachable but the \
+                     credentials may lack the s3:ListBucket permission; continuing without \
+                     a full boot check"
+                );
+            }
+            Ok(Err(StorageError::Configuration(detail))) => {
+                // `test_connection` only reports Configuration for credentials S3 rejected.
+                return Err(StorageError::Configuration(format!(
+                    "{detail} - check the credentials for {endpoint_desc} (AWS_ACCESS_KEY_ID, \
+                     AWS_SECRET_ACCESS_KEY)"
+                )));
+            }
+            Ok(Err(e)) => {
+                return Err(StorageError::Configuration(format!(
+                    "S3 boot check against {endpoint_desc} failed: {e} - check S3_BUCKET, \
+                     S3_ENDPOINT_URL, AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY"
+                )));
+            }
+            Err(_) => {
+                return Err(StorageError::Configuration(format!(
+                    "S3 connection to {endpoint_desc} timed out after 5s"
+                )));
+            }
         }
+        Ok(service)
     }
 }
 
@@ -255,36 +318,31 @@ impl S3StorageService {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_sanitize_endpoint() {
-        let bucket = "my-bucket";
+    /// The SDK ships with a connect timeout only, so both constructors must wire in a
+    /// read timeout — otherwise an endpoint that accepts TCP and stops answering hangs
+    /// health probes and uploads forever.
+    #[tokio::test]
+    async fn new_wires_request_timeouts() {
+        let service = tokio::time::timeout(
+            Duration::from_secs(10),
+            S3StorageService::new(
+                "my-bucket".into(),
+                "http://localhost:9000".into(),
+                "http://localhost:9000".into(),
+                "us-east-1".into(),
+                "test-key".into(),
+                "test-secret".into(),
+            ),
+        )
+        .await
+        .expect("constructing the client must not hang");
 
-        // Path-style (e.g. MinIO): strips trailing bucket and trailing slashes
-        assert_eq!(
-            sanitize_endpoint("http://localhost:9000", bucket, true),
-            "http://localhost:9000"
-        );
-        assert_eq!(
-            sanitize_endpoint("http://localhost:9000/", bucket, true),
-            "http://localhost:9000"
-        );
-        assert_eq!(
-            sanitize_endpoint("http://localhost:9000/my-bucket", bucket, true),
-            "http://localhost:9000"
-        );
-        assert_eq!(
-            sanitize_endpoint("http://localhost:9000/my-bucket/", bucket, true),
-            "http://localhost:9000"
-        );
-
-        // Virtual-hosted AWS endpoint: preserved
-        assert_eq!(
-            sanitize_endpoint("https://s3.us-east-1.amazonaws.com", bucket, false),
-            "https://s3.us-east-1.amazonaws.com"
-        );
-        assert_eq!(
-            sanitize_endpoint("https://cdn.example.com/", bucket, false),
-            "https://cdn.example.com"
-        );
+        let timeouts = service
+            .client
+            .config()
+            .timeout_config()
+            .expect("timeout config must be wired into the S3 client");
+        assert_eq!(timeouts.connect_timeout(), Some(Duration::from_secs(3)));
+        assert_eq!(timeouts.read_timeout(), Some(Duration::from_secs(30)));
     }
 }

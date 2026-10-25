@@ -30,7 +30,9 @@
 //! `X-Amz-Security-Token` (if using STS), and `X-Amz-Signature`.
 
 use crate::{error::StorageError, s3::S3StorageService, traits::StorageService};
-use aws_sdk_s3::{presigning::PresigningConfig, primitives::ByteStream};
+use aws_sdk_s3::{
+    error::ProvideErrorMetadata, presigning::PresigningConfig, primitives::ByteStream,
+};
 use bytes::Bytes;
 use std::time::Duration;
 
@@ -147,16 +149,53 @@ impl StorageService for S3StorageService {
     }
 
     async fn test_connection(&self) -> Result<(), StorageError> {
+        // `HeadBucket` is a HEAD request, so its error body is empty: a 403 carries no
+        // error code and "wrong credentials" and "policy without s3:ListBucket" are
+        // indistinguishable. `ListObjectsV2` is a GET (same `s3:ListBucket` permission,
+        // same LIST billing class) and answers with an XML `<Code>`, so probe with
+        // `max-keys=1` to keep the listing to a single key.
         self.client
-            .head_bucket()
+            .list_objects_v2()
             .bucket(&self.bucket)
+            .max_keys(1)
             .send()
             .await
             .map_err(|e| {
-                StorageError::S3(format!(
-                    "Failed to connect to storage bucket '{}': {e}",
-                    self.bucket
-                ))
+                let status = e.raw_response().map(|r| r.status().as_u16());
+                let code = e.as_service_error().and_then(|err| err.code());
+                // The SDK's `Display` is a flat "service error"; the error code is the
+                // reliable detail, so it becomes a typed error rather than a suffix
+                // callers have to string-match.
+                let msg = match code {
+                    Some(code) => {
+                        format!(
+                            "Failed to connect to storage bucket '{}': {code}",
+                            self.bucket
+                        )
+                    }
+                    None => format!("Failed to connect to storage bucket '{}': {e}", self.bucket),
+                };
+                match (status, code) {
+                    // Wrong or expired credentials answer 403 too, but the body names
+                    // them — that is bad configuration, not a reachable bucket.
+                    (
+                        _,
+                        Some(
+                            "InvalidAccessKeyId"
+                            | "SignatureDoesNotMatch"
+                            | "ExpiredToken"
+                            | "InvalidClientTokenId",
+                        ),
+                    ) => StorageError::Configuration(msg),
+                    // Missing bucket: `NoSuchBucket` in the body, or a bare 404 from a
+                    // server that does not bother to send one.
+                    (Some(404), _) | (_, Some("NoSuchBucket")) => StorageError::NotFound(msg),
+                    // Reachable but not permitted: a least-privilege policy without
+                    // `s3:ListBucket` (`AccessDenied`), or a gateway that answers 403
+                    // without a parseable body. Both mean "the bucket is there".
+                    (Some(403), _) | (_, Some("AccessDenied")) => StorageError::Forbidden(msg),
+                    _ => StorageError::S3(msg),
+                }
             })?;
 
         Ok(())

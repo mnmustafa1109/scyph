@@ -44,7 +44,7 @@
 //! ```rust,ignore
 //! use scyph_auth::{
 //!     AuthCacheService, AuthExtractorState, AuthUser,
-//!     create_token, hash_password_async, verify_password_async,
+//!     create_token, hash_password_async, jwt_secret_from_env, verify_password_async,
 //!     RoleRouterExt,
 //! };
 //! use secrecy::SecretString;
@@ -53,6 +53,8 @@
 //! // 1. Build your app state implementing AuthExtractorState
 //! #[derive(Clone)]
 //! struct AppState {
+//!     // Fill with `jwt_secret_from_env()?` — it reads JWT_SECRET and refuses
+//!     // values shorter than 32 bytes instead of signing forgeable tokens.
 //!     jwt_secret: SecretString,
 //!     cache: Arc<AuthCacheService<UserProfile>>,
 //! }
@@ -105,7 +107,7 @@ pub use error::AuthError;
 pub use extractor::{AuthExtractorState, AuthUser, OptionalAuthUser};
 
 #[doc(inline)]
-pub use jwt::{JwtError, create_token, verify_token};
+pub use jwt::{JwtError, create_token, jwt_secret_from_env, verify_token};
 
 #[doc(inline)]
 pub use middleware::{AllowedRoles, require_roles_layer};

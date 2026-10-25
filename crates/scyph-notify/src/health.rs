@@ -9,7 +9,12 @@
 //! This ensures that transient network issues with external vendor endpoints (e.g. SMTP server timeout or Google FCM API degradation)
 //! do not cause Kubernetes `/readyz` endpoints to mark API instances un-ready, keeping core HTTP request traffic flowing.
 
+// Gated like the impls below: with neither transport feature this module holds no code.
+#[cfg(any(feature = "email", feature = "fcm"))]
 use scyph_health::{HealthFailure, HealthRegistry};
+
+#[cfg(any(feature = "email", feature = "fcm"))]
+use std::time::Duration;
 
 #[cfg(feature = "email")]
 use crate::email::LettreSMTPService;
@@ -35,6 +40,8 @@ impl LettreSMTPService {
     /// Checks SMTP connection health with a custom component identifier name and readiness requirement.
     ///
     /// Executes an active SMTP test connection against the underlying transport pool.
+    /// The probe is bounded at 5s so a relay that accepts TCP and stalls mid-handshake
+    /// (lettre's per-command timeout is 60s) cannot stall the caller's probe loop.
     ///
     /// # Arguments
     ///
@@ -45,12 +52,17 @@ impl LettreSMTPService {
         let transport = self.transport().clone();
         registry
             .check(name, required, async move {
-                match transport.test_connection().await {
-                    Ok(true) => Ok(()),
-                    Ok(false) => Err(HealthFailure::Transient(
+                match tokio::time::timeout(Duration::from_secs(5), transport.test_connection())
+                    .await
+                {
+                    Err(_) => Err(HealthFailure::Transient(
+                        "SMTP health probe timed out after 5s".to_string(),
+                    )),
+                    Ok(Ok(true)) => Ok(()),
+                    Ok(Ok(false)) => Err(HealthFailure::Transient(
                         "SMTP test connection returned negative response".to_string(),
                     )),
-                    Err(e) => Err(HealthFailure::Transient(e.to_string())),
+                    Ok(Err(e)) => Err(HealthFailure::Transient(e.to_string())),
                 }
             })
             .await;
@@ -70,9 +82,15 @@ impl FcmPushService {
         self.check_health_named(registry, "fcm_push", false).await;
     }
 
+    // shortcut: the two 5s bounds below have no test — `send_fcm_request` hardcodes
+    // fcm.googleapis.com and the service needs real GCP credentials, so no fake
+    // endpoint can be injected; upgrade when the FCM base URL becomes configurable.
     /// Checks FCM push notification service health with a custom component identifier name and readiness requirement.
     ///
     /// Tests OAuth2 bearer token acquisition and performs a `"validate_only": true` dry-run request against Google FCM API.
+    /// Both steps are bounded at 5s — neither the token fetch nor the FCM client sets a
+    /// timeout — so a stalled endpoint costs one tick instead of freezing the caller's
+    /// sequential probe loop (and `/readyz`'s view of every dependency after it).
     ///
     /// # Arguments
     ///
@@ -80,10 +98,21 @@ impl FcmPushService {
     /// * `name` - Custom component name (e.g., `"primary_fcm"`).
     /// * `required` - If `true`, a health failure will mark the entire registry status as degraded/unhealthy.
     pub async fn check_health_named(&self, registry: &HealthRegistry, name: &str, required: bool) {
-        let token_res = self
-            .auth()
-            .token(&["https://www.googleapis.com/auth/firebase.messaging"])
-            .await;
+        let token_res = match tokio::time::timeout(
+            Duration::from_secs(5),
+            self.auth()
+                .token(&["https://www.googleapis.com/auth/firebase.messaging"]),
+        )
+        .await
+        {
+            Ok(Ok(token)) => Ok(token),
+            Ok(Err(e)) => Err(HealthFailure::Fatal(format!(
+                "Failed to acquire FCM OAuth token: {e}"
+            ))),
+            Err(_) => Err(HealthFailure::Transient(
+                "FCM OAuth token request timed out after 5s".to_string(),
+            )),
+        };
 
         match token_res {
             Ok(token) => {
@@ -96,23 +125,29 @@ impl FcmPushService {
 
                 registry
                     .check(name, required, async move {
-                        crate::util::send_fcm_request(
-                            &client,
-                            &project_id,
-                            token.as_str(),
-                            &test_payload,
+                        match tokio::time::timeout(
+                            Duration::from_secs(5),
+                            crate::util::send_fcm_request(
+                                &client,
+                                &project_id,
+                                token.as_str(),
+                                &test_payload,
+                            ),
                         )
                         .await
+                        {
+                            Ok(Ok(_)) => Ok(()),
+                            Ok(Err(e)) => Err(HealthFailure::Transient(e.to_string())),
+                            Err(_) => Err(HealthFailure::Transient(
+                                "FCM health probe timed out after 5s".to_string(),
+                            )),
+                        }
                     })
                     .await;
             }
-            Err(e) => {
+            Err(failure) => {
                 registry
-                    .check(name, required, async move {
-                        Err(HealthFailure::Fatal(format!(
-                            "Failed to acquire FCM OAuth token: {e}"
-                        )))
-                    })
+                    .check(name, required, async move { Err(failure) })
                     .await;
             }
         }

@@ -19,7 +19,7 @@ use thiserror::Error;
 ///
 /// | Variant | HTTP Status | Typical Cause |
 /// |---|---|---|
-/// | [`Configuration`](Self::Configuration) | 400 Bad Request | Missing `S3_BUCKET` or invalid env var |
+/// | [`Configuration`](Self::Configuration) | 400 Bad Request | Missing `S3_BUCKET`, invalid env var, or bad S3 credentials found by the boot check |
 /// | [`InvalidFile`](Self::InvalidFile) | 400 Bad Request | Missing field, wrong field name, no filename |
 /// | [`UnsupportedMediaType`](Self::UnsupportedMediaType) | 422 Unprocessable Entity | MIME type not in allowlist or magic byte mismatch |
 /// | [`FileTooLarge`](Self::FileTooLarge) | 422 Unprocessable Entity | File exceeds `FileConfig::max_size()` |
@@ -27,6 +27,7 @@ use thiserror::Error;
 /// | [`ValidationError`](Self::ValidationError) | 422 Unprocessable Entity | Structured field-level validation failures |
 /// | [`NotFound`](Self::NotFound) | 404 Not Found | Object key not in bucket or memory store |
 /// | [`Presign`](Self::Presign) | 500 Internal Server Error | Signature calculation failure |
+/// | [`Forbidden`](Self::Forbidden) | 500 Internal Server Error | S3 answered 403 `AccessDenied`: credentials lack permission for the bucket (it is reachable) |
 /// | [`S3`](Self::S3) | 500 Internal Server Error | S3 SDK transmission/auth error |
 /// | [`Internal`](Self::Internal) | 500 Internal Server Error | Unclassified internal failure |
 ///
@@ -52,8 +53,9 @@ use thiserror::Error;
 pub enum StorageError {
     /// Missing, empty, or unparseable configuration settings or environment variables.
     ///
-    /// Examples: `S3_BUCKET` is not set, `S3_REGION` contains whitespace, or
-    /// a required credential is missing from the environment.
+    /// Examples: `S3_BUCKET` is not set, `S3_REGION` contains whitespace, a
+    /// required credential is missing from the environment, or the `from_env()`
+    /// boot check finds that the configured S3 credentials are rejected.
     #[error("Configuration error: {0}")]
     Configuration(String),
 
@@ -113,10 +115,24 @@ pub enum StorageError {
     #[error("Presign error: {0}")]
     Presign(String),
 
+    /// S3 answered `403 Forbidden` with `AccessDenied`: the bucket is reachable, but the
+    /// credentials may not perform the probe's action.
+    ///
+    /// Returned by [`StorageService::test_connection`](crate::traits::StorageService::test_connection)
+    /// when the bucket is reachable but the policy lacks the required permission (e.g. a
+    /// least-privilege policy without `s3:ListBucket`), or when an S3-compatible gateway
+    /// answers `403` without a parseable error body. Wrong credentials are reported as
+    /// [`Configuration`](Self::Configuration) instead, so a typo can be told apart from a
+    /// deliberate least-privilege policy.
+    /// Typed so callers can classify the failure without string-matching the message.
+    #[error("S3 access denied: {0}")]
+    Forbidden(String),
+
     /// AWS S3 SDK transmission, authentication, or network operation error.
     ///
-    /// Covers connection timeouts, permission denied (403), bucket not found (404 at bucket
-    /// level), throttling (503), and other S3-specific transport errors.
+    /// Covers connection timeouts, throttling (503), and other S3-specific transport errors.
+    /// A `403 Forbidden` bucket answer is returned as [`Forbidden`](Self::Forbidden), and a 403
+    /// that names bad credentials as [`Configuration`](Self::Configuration), instead.
     #[error("S3 storage error: {0}")]
     S3(String),
 
@@ -167,6 +183,7 @@ impl From<StorageError> for AppError {
             }
             StorageError::NotFound(msg) => AppError::NotFound(msg),
             StorageError::Presign(msg) => AppError::internal(format!("Presigning error: {msg}")),
+            StorageError::Forbidden(msg) => AppError::internal(format!("S3 access denied: {msg}")),
             StorageError::S3(msg) => AppError::internal(format!("S3 storage error: {msg}")),
             StorageError::Internal(msg) => AppError::internal(msg),
         }

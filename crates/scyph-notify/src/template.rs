@@ -24,7 +24,8 @@ impl TemplateEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`NotifyError::Template`] if syntax error occurs during template compilation.
+    /// Returns [`NotifyError::Template`] if a syntax error occurs during template
+    /// compilation, or if the glob matched no templates (see [`from_glob`](Self::from_glob)).
     pub fn from_env() -> Result<Self, NotifyError> {
         let glob = env::var("TEMPLATES_DIR").unwrap_or_else(|_| "templates/**/*".to_string());
         Self::from_glob(&glob)
@@ -52,10 +53,17 @@ impl TemplateEngine {
     ///
     /// # Errors
     ///
-    /// Returns [`NotifyError::Template`] if loading or parsing templates fails.
+    /// Returns [`NotifyError::Template`] if loading or parsing templates fails, or if the
+    /// glob matched no templates — a missing directory walks to an empty set without
+    /// error, which would otherwise boot an engine that fails every render at request time.
     pub fn from_glob(glob: &str) -> Result<Self, NotifyError> {
         let mut tera = Tera::default();
         tera.load_from_glob(glob)?;
+        if tera.get_template_names().next().is_none() {
+            return Err(NotifyError::Template(tera::Error::message(format!(
+                "glob `{glob}` matched no templates"
+            ))));
+        }
         Ok(Self { tera })
     }
 

@@ -205,6 +205,11 @@ pub trait StorageService: Send + Sync + 'static {
     ///
     /// # Errors
     ///
-    /// Returns [`StorageError::S3`] or [`StorageError::Configuration`] if the bucket cannot be reached.
+    /// Returns [`StorageError::Forbidden`] when the bucket answers `403 AccessDenied` (reachable
+    /// but the policy lacks the required permission), [`StorageError::NotFound`] when it answers
+    /// `404 NoSuchBucket` (missing bucket), [`StorageError::Configuration`] when S3 names bad
+    /// credentials (`InvalidAccessKeyId`, `SignatureDoesNotMatch`, `ExpiredToken`,
+    /// `InvalidClientTokenId`), and [`StorageError::S3`] for other failures — so callers classify
+    /// the failure by variant instead of string-matching the message.
     fn test_connection(&self) -> impl Future<Output = Result<(), StorageError>> + Send;
 }

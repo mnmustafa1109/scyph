@@ -135,6 +135,9 @@ lettre = { version = "0.11.23", default-features = false, features = [
   "smtp-transport",
   "rustls-tls",
   "tokio1-rustls",
+  # Reuse SMTP connections for sends and health probes (a probe without the pool
+  # opens a fresh TCP + STARTTLS + AUTH handshake and QUITs it every tick).
+  "pool",
 ] }
 tera = { version = "2.4.0", features = ["glob_fs"] }
 gcp_auth = "0.12.7"

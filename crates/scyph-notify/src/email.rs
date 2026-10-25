@@ -5,7 +5,7 @@
 //! `LettreSMTPService` maintains a single, persistent [`lettre::AsyncSmtpTransport`] instance.
 //! All email dispatches reuse this underlying transport connection pool rather than opening a new TCP/TLS socket on every send operation.
 
-use std::env;
+use std::{env, time::Duration};
 
 use lettre::{
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
@@ -38,10 +38,13 @@ impl LettreSMTPService {
     /// - `SMTP_FROM` (e.g. `"noreply@example.com"`)
     ///
     /// Performs an active SMTP handshake test during initialization to verify network reachability and authentication credentials.
+    /// The handshake is bounded at 5s so a relay that accepts TCP and stalls cannot hold boot
+    /// (lettre's own timeout is 60s per command).
     ///
     /// # Errors
     ///
-    /// Returns [`NotifyError::Configuration`] if environment variables are missing, invalid, or if the SMTP connection test fails.
+    /// Returns [`NotifyError::Configuration`] if environment variables are missing, invalid, if the
+    /// relay does not answer within 5s, or if the SMTP connection test fails.
     pub async fn from_env() -> Result<Self, NotifyError> {
         let host = env::var("SMTP_HOST")
             .map_err(|_| NotifyError::Configuration("SMTP_HOST must be set".into()))?;
@@ -66,7 +69,18 @@ impl LettreSMTPService {
             .credentials(creds)
             .build();
 
-        let connected = transport.test_connection().await?;
+        // Bounded like the health probe: lettre's only timeout is 60s per command, so a
+        // relay that accepts TCP and then stalls mid-handshake would hold boot for a minute.
+        let connected =
+            match tokio::time::timeout(Duration::from_secs(5), transport.test_connection()).await {
+                Ok(Ok(connected)) => connected,
+                Ok(Err(e)) => return Err(e.into()),
+                Err(_) => {
+                    return Err(NotifyError::Configuration(format!(
+                        "SMTP server at {host}:{port} did not answer within 5s"
+                    )));
+                }
+            };
 
         if !connected {
             return Err(NotifyError::Configuration(
@@ -162,5 +176,89 @@ impl EmailService for LettreSMTPService {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[cfg(feature = "health")]
+    use scyph_health::{HealthRegistry, Status};
+
+    // shortcut: this helper is duplicated in scyph-storage/tests/common and scyph-db/tests/common;
+    // merging needs a shared test crate (a layer), so it stays inlined here until that exists.
+    /// Binds a loopback port and accepts connections forever without ever reading or
+    /// writing, so the client's handshake hangs — what a stalled relay looks like. The
+    /// sockets are held open on purpose: dropping them would close the connection and
+    /// produce a fast error instead of a hang.
+    async fn spawn_hung_server() -> std::net::SocketAddr {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let mut held = Vec::new();
+            while let Ok((sock, _)) = listener.accept().await {
+                held.push(sock);
+            }
+        });
+        addr
+    }
+
+    /// The boot handshake must fail fast: lettre's only timeout is 60s per command, so
+    /// without a bound a stalled relay holds startup open for a minute.
+    #[tokio::test]
+    async fn from_env_handshake_is_bounded_when_relay_stalls() {
+        let addr = spawn_hung_server().await;
+
+        // Safe: this test binary never reads or writes SMTP_* anywhere else.
+        unsafe {
+            env::set_var("SMTP_HOST", "127.0.0.1");
+            env::set_var("SMTP_PORT", addr.port().to_string());
+            env::set_var("SMTP_USERNAME", "user");
+            env::set_var("SMTP_PASSWORD", "secret");
+            env::set_var("SMTP_FROM", "boot-probe@example.com");
+        }
+
+        let err = tokio::time::timeout(Duration::from_secs(10), LettreSMTPService::from_env())
+            .await
+            .expect("boot must not hang on a stalled relay")
+            .err()
+            .expect("a stalled relay must fail the boot check");
+        assert!(
+            err.to_string().contains("did not answer within 5s"),
+            "the boot check must be bounded by the 5s timeout: {err}"
+        );
+    }
+
+    /// A relay that accepts TCP and then stops answering must cost one bounded probe:
+    /// lettre's only timeout is 60s per command, which would stall a sequential probe
+    /// loop (and `/readyz`'s view of the other dependencies) for minutes.
+    #[cfg(feature = "health")]
+    #[tokio::test]
+    async fn health_probe_is_bounded_when_relay_stalls() {
+        let addr = spawn_hung_server().await;
+
+        let service = LettreSMTPService {
+            transport: AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous("127.0.0.1")
+                .port(addr.port())
+                .build(),
+            from: "health-probe@example.com".to_string(),
+        };
+        let registry = HealthRegistry::new();
+
+        tokio::time::timeout(Duration::from_secs(10), service.check_health(&registry))
+            .await
+            .expect("a stalled relay must cost one bounded probe, not hang the loop");
+        let snap = registry.snapshot().await.get("smtp_email").unwrap().clone();
+        assert!(matches!(snap.status, Status::Sick));
+        assert!(
+            snap.details
+                .as_deref()
+                .unwrap_or_default()
+                .contains("timed out after 5s"),
+            "the probe must be bounded by the 5s timeout, not by another error: {:?}",
+            snap.details
+        );
     }
 }
