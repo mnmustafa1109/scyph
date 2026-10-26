@@ -129,9 +129,9 @@ where
         match &link_env().allowed_hosts {
             Some(allowed_hosts) => {
                 let host_without_port = host.split(':').next().unwrap_or(host);
-                let is_allowed = allowed_hosts
-                    .iter()
-                    .any(|a| a.eq_ignore_ascii_case(host) || a.eq_ignore_ascii_case(host_without_port));
+                let is_allowed = allowed_hosts.iter().any(|a| {
+                    a.eq_ignore_ascii_case(host) || a.eq_ignore_ascii_case(host_without_port)
+                });
                 if !is_allowed {
                     return Err(AppError::BadRequest(
                         "Untrusted Host header rejected".to_string(),

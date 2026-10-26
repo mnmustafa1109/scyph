@@ -103,10 +103,8 @@ impl CedarEntityBuilder {
         }
         match EntityUid::from_str(&format!("{}::\"{}\"", target_type, target_id)) {
             Ok(target_uid) => {
-                self.attrs.insert(
-                    key.into(),
-                    RestrictedExpression::new_entity_uid(target_uid),
-                );
+                self.attrs
+                    .insert(key.into(), RestrictedExpression::new_entity_uid(target_uid));
             }
             Err(e) => {
                 self.error = Some(CedarError::RequestBuild(e.to_string()));

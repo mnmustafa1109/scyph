@@ -7,7 +7,7 @@
 //! # Examples
 //!
 //! ```rust
-//! use scyph_abac::cedar::{CedarAuthorizer, CedarEntityBuilder, CedarType, IntoCedarEntity};
+//! use scyph_abac::cedar::{CedarAuthorizer, CedarEntityBuilder, CedarError, CedarType, IntoCedarEntity};
 //! use cedar_policy::Entity;
 //! use std::collections::HashMap;
 //! use uuid::Uuid;
