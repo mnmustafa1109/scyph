@@ -54,6 +54,25 @@ impl FileConfig for TestConfig {
     }
 }
 
+#[tokio::test]
+async fn test_delete_many_with_retry() {
+    use std::sync::Arc;
+    let storage = Arc::new(InMemoryStorageService::new());
+    storage
+        .store("a", "text/plain", Bytes::from_static(b"a"))
+        .await
+        .unwrap();
+    storage
+        .store("b", "text/plain", Bytes::from_static(b"b"))
+        .await
+        .unwrap();
+    assert_eq!(storage.count(), 2);
+
+    scyph_storage::delete_many_with_retry(storage.clone(), vec!["a".to_string(), "b".to_string()]);
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    assert_eq!(storage.count(), 0);
+}
+
 #[test]
 fn test_magic_bytes_validation() {
     let png_bytes = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00];

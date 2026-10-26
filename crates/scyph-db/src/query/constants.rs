@@ -34,6 +34,9 @@ pub const CLOSE_GROUP: &str = ")";
 /// SQL constant for case-insensitive LIKE comparison.
 pub const ILIKE: &str = " ILIKE ";
 
+/// SQL fragment making the LIKE escape character explicit (backslash).
+pub const ESCAPE_BACKSLASH: &str = r#" ESCAPE '\'"#;
+
 /// SQL constant for ORDER BY sorting.
 pub const ORDER_BY: &str = " ORDER BY ";
 

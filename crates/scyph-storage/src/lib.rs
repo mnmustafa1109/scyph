@@ -100,7 +100,7 @@ pub use multipart::{
 };
 
 #[doc(inline)]
-pub use background::delete_with_retry;
+pub use background::{delete_many_with_retry, delete_with_retry};
 
 #[doc(inline)]
 pub use traits::StorageService;

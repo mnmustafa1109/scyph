@@ -70,11 +70,14 @@ use crate::AbacPolicy;
 pub struct FilterBuilder(pub(crate) QueryBuilder<Postgres>);
 
 impl FilterBuilder {
-    /// Creates a new [`FilterBuilder`] initialized with a starting SQL query fragment string.
+    /// Creates a new [`FilterBuilder`] initialized with a starting SQL query fragment.
+    ///
+    /// `init` must be a `&'static str`, so dynamic or user-supplied SQL is rejected
+    /// at compile time.
     ///
     /// # Arguments
     ///
-    /// * `init` - Starting SQL string fragment (e.g. `"SELECT * FROM users WHERE "`).
+    /// * `init` - Trusted static starting SQL fragment (e.g. `"SELECT * FROM users WHERE "`).
     ///
     /// # Examples
     ///
@@ -83,22 +86,21 @@ impl FilterBuilder {
     ///
     /// let filter = FilterBuilder::new("SELECT * FROM users WHERE active = true");
     /// ```
-    pub fn new(init: impl Into<String>) -> Self {
-        Self(QueryBuilder::new(init.into()))
+    pub fn new(init: &'static str) -> Self {
+        Self(QueryBuilder::new(init))
     }
 
     /// Appends a raw static SQL fragment string to the query.
     ///
+    /// `sql` must be a `&'static str`, so dynamic or user-supplied fragments are
+    /// rejected at compile time. Use [`push_bind`](Self::push_bind) or
+    /// [`push_uuid`](Self::push_uuid) for runtime values.
+    ///
     /// # Arguments
     ///
-    /// * `sql` - Raw SQL string fragment to append.
-    ///
-    /// # Security Note
-    ///
-    /// Only pass trusted static SQL strings or column names to `push`. Never pass raw user inputs
-    /// to `push` directly; use [`push_bind`](Self::push_bind) or [`push_uuid`](Self::push_uuid) instead.
-    pub fn push(&mut self, sql: impl Into<String>) -> &mut Self {
-        self.0.push(sql.into());
+    /// * `sql` - Trusted static SQL fragment to append.
+    pub fn push(&mut self, sql: &'static str) -> &mut Self {
+        self.0.push(sql);
         self
     }
 

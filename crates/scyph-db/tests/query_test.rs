@@ -79,6 +79,17 @@ fn test_apply_search() {
 }
 
 #[test]
+fn test_apply_search_escapes() {
+    let mut qb = QueryBuilder::<Postgres>::new("SELECT * FROM users WHERE 1=1");
+    let search = SearchParams {
+        q: Some("50%_done".to_string()),
+    };
+    qb.apply_search::<UserSearchField>(&search);
+    let sql = qb.sql().as_str().to_string();
+    assert!(sql.contains("ESCAPE"));
+}
+
+#[test]
 fn test_apply_search_empty_whitespace() {
     let mut qb = QueryBuilder::<Postgres>::new("SELECT * FROM users WHERE 1=1");
     let search = SearchParams {

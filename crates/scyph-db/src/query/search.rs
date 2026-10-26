@@ -22,7 +22,8 @@ use sqlx::{Postgres, QueryBuilder};
 use strum::IntoEnumIterator;
 
 use super::constants::{
-    AND_OPEN_GROUP, CLOSE_GROUP, ILIKE, OR_DELIMITER, WILDCARD, escape_like_pattern,
+    AND_OPEN_GROUP, CLOSE_GROUP, ESCAPE_BACKSLASH, ILIKE, OR_DELIMITER, WILDCARD,
+    escape_like_pattern,
 };
 
 /// Extension trait for appending full-text search ILIKE filters to a [`QueryBuilder`].
@@ -116,6 +117,7 @@ impl ApplySearch for QueryBuilder<Postgres> {
                     self.push(field_str);
                     self.push(ILIKE);
                     self.push_bind(format!("{WILDCARD}{escaped}{WILDCARD}"));
+                    self.push(ESCAPE_BACKSLASH);
                 }
                 self.push(CLOSE_GROUP);
             }

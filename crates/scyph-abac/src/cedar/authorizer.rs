@@ -9,7 +9,8 @@ use scyph_core::{Action, AppError, Claims};
 use std::str::FromStr;
 use tracing::{debug, warn};
 
-use super::{entity::IntoCedarEntity, error::CedarError};
+use super::entity::{CedarEntityBuilder, IntoCedarEntity};
+use super::error::CedarError;
 
 /// Evaluator wrapper for executing AWS Cedar policy rules against application entities.
 pub struct CedarAuthorizer {
@@ -169,6 +170,10 @@ impl CedarAuthorizer {
 
     /// Evaluates authorization using string UIDs for principal type and ID when a full principal entity model is unavailable.
     ///
+    /// The principal is registered as an attribute-less entity when possible; if the schema
+    /// requires principal attributes (or registration fails), evaluation falls back to the
+    /// resource-only entity set, so the request is not turned into a 500.
+    ///
     /// # Type Parameters
     ///
     /// * `R` - Resource entity model type implementing [`IntoCedarEntity`].
@@ -196,12 +201,39 @@ impl CedarAuthorizer {
             .map_err(|e| AppError::BadRequest(e.to_string()))?;
 
         let resource_uid = resource.to_entity_uid()?;
-        let entities =
-            Entities::from_entities(vec![resource.to_cedar_entity()?], self.schema.as_ref())
-                .map_err(|e| AppError::Internal {
-                    source: Box::new(e),
-                    context: "Entities build failed".into(),
-                })?;
+        // Include the principal as an (attribute-less) entity so policies can
+        // reference `principal` even when only a UID is available. Policies that
+        // need principal attributes should use `authorize`/`check` with a full
+        // principal model instead. If the schema requires principal attributes
+        // (or the principal entity otherwise cannot be registered), fall back to
+        // the previous resource-only set so a request is not turned into a 500.
+        let resource_entity = resource.to_cedar_entity()?;
+        let entities = match CedarEntityBuilder::new(principal_type, principal_id)
+            .build()
+            .ok()
+            .and_then(|principal_entity| {
+                Entities::from_entities(
+                    vec![principal_entity, resource_entity.clone()],
+                    self.schema.as_ref(),
+                )
+                .ok()
+            }) {
+            Some(e) => e,
+            None => {
+                warn!(
+                    principal_type = %principal_type,
+                    principal_id = %principal_id,
+                    "Cedar principal could not be registered (schema may require attributes); \
+                     falling back to resource-only entities"
+                );
+                Entities::from_entities(vec![resource_entity], self.schema.as_ref()).map_err(
+                    |e| AppError::Internal {
+                        source: Box::new(e),
+                        context: "Entities build failed".into(),
+                    },
+                )?
+            }
+        };
 
         self.is_authorized(
             &principal,
