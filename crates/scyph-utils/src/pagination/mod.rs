@@ -41,8 +41,8 @@
 //! struct Item { id: Uuid, name: String }
 //!
 //! let mut items = vec![
-//!     Item { id: Uuid::new_v4(), name: "Alpha".into() },
-//!     Item { id: Uuid::new_v4(), name: "Beta".into() },
+//!     Item { id: Uuid::nil(), name: "Alpha".into() },
+//!     Item { id: Uuid::nil(), name: "Beta".into() },
 //! ];
 //!
 //! // Limit=20, fetched 2 items → no next page

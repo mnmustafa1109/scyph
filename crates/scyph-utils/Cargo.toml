@@ -6,7 +6,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "HMAC webhooks, background worker task loops, cursor pagination, and Redis API idempotency for Axum"
+description = "HMAC webhooks, background worker task loops, cursor pagination, Redis API idempotency, and in-memory/Valkey Bloom filters for Axum"
 
 [dependencies]
 scyph-core = { path = "../scyph-core", version = "0.1.6" }

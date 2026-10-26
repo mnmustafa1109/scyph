@@ -183,9 +183,10 @@ pub mod prelude {
 
     #[cfg(feature = "utils")]
     pub use scyph_utils::{
-        Cursor, IdempotencyCheck, IdempotencyConfig, IdempotencyError, IdempotencyStore,
-        PageParams, PaginationError, VerifiedWebhook, WebhookConfig, WebhookError, WorkerError,
-        WorkerHandle, spawn_worker, spawn_worker_cancel, verify_raw_webhook, verify_webhook,
+        BloomFilter, Cursor, IdempotencyCheck, IdempotencyConfig, IdempotencyError,
+        IdempotencyStore, PageParams, PaginationError, SharedBloomFilter, ValkeyBloomError,
+        ValkeyBloomFilter, VerifiedWebhook, WebhookConfig, WebhookError, WorkerError, WorkerHandle,
+        spawn_worker, spawn_worker_cancel, verify_raw_webhook, verify_webhook,
         verify_webhook_header,
     };
 
@@ -265,8 +266,9 @@ pub use scyph_ratelimit::{
 
 #[cfg(feature = "utils")]
 pub use scyph_utils::{
-    IdempotencyError, PaginationError, VerifiedWebhook, WebhookConfig, WebhookError, WorkerError,
-    WorkerHandle, verify_raw_webhook, verify_webhook, verify_webhook_header,
+    BloomFilter, IdempotencyError, PaginationError, SharedBloomFilter, ValkeyBloomError,
+    ValkeyBloomFilter, VerifiedWebhook, WebhookConfig, WebhookError, WorkerError, WorkerHandle,
+    verify_raw_webhook, verify_webhook, verify_webhook_header,
 };
 
 #[cfg(feature = "extractors")]

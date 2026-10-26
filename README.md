@@ -81,7 +81,7 @@ Scyph is organized as a unified workspace of decoupled crates. You can import th
 | **[`scyph-realtime`](crates/scyph-realtime)** | [![crates.io](https://img.shields.io/crates/v/scyph-realtime.svg)](https://crates.io/crates/scyph-realtime) | `realtime` | Redis Pub/Sub WebSocket broadcaster with per-session bounded message queues |
 | **[`scyph-storage`](crates/scyph-storage)** | [![crates.io](https://img.shields.io/crates/v/scyph-storage.svg)](https://crates.io/crates/scyph-storage) | `storage`, `s3`, `image` | AWS S3 & MinIO streaming multipart upload extractors & thumbnail generation |
 | **[`scyph-telemetry`](crates/scyph-telemetry)** | [![crates.io](https://img.shields.io/crates/v/scyph-telemetry.svg)](https://crates.io/crates/scyph-telemetry) | `telemetry` | Non-blocking tracing, UUIDv7 request ID tracking, auto-meta JSON injection |
-| **[`scyph-utils`](crates/scyph-utils)** | [![crates.io](https://img.shields.io/crates/v/scyph-utils.svg)](https://crates.io/crates/scyph-utils) | `utils` | HMAC webhook verification, background worker tasks, Redis idempotency |
+| **[`scyph-utils`](crates/scyph-utils)** | [![crates.io](https://img.shields.io/crates/v/scyph-utils.svg)](https://crates.io/crates/scyph-utils) | `utils` | HMAC webhook verification, background worker tasks, Redis idempotency, Bloom filter (in-memory + Valkey/Redis) |
 
 ---
 
@@ -134,6 +134,42 @@ async fn hello_handler(RequestId(req_id): RequestId) -> ApiResponse<String> {
 
 ---
 
+## 🌸 Bloom Filters
+
+`utils` includes an in-memory `BloomFilter` and a durable `ValkeyBloomFilter`.
+Use them as fast "definitely not seen" checks; keep the database unique
+constraint as the source of truth.
+
+```rust
+use scyph::prelude::*;
+
+// In-memory, warmed from an iterator.
+let emails = vec!["a@example.com".to_string(), "b@example.com".to_string()];
+let seen = BloomFilter::from_iter(0.01, emails);
+assert!(seen.contains(&"a@example.com".to_string()));
+
+// Shared across Axum tasks.
+let shared = SharedBloomFilter::new(1_000_000, 0.01);
+shared.insert(&"user@example.com");
+assert!(shared.contains(&"user@example.com"));
+```
+
+```rust
+use scyph::prelude::*;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Durable and shared across processes.
+    let seen = ValkeyBloomFilter::from_env("crm:emails", 1_000_000, 0.01)?;
+    seen.ping().await?;
+    seen.add(&"user@example.com").await?;
+    assert!(seen.contains(&"user@example.com").await?);
+    Ok(())
+}
+```
+
+---
+
 ## 🎛️ Feature Flags
 
 | Feature | Default | Description |
@@ -146,7 +182,7 @@ async fn hello_handler(RequestId(req_id): RequestId) -> ApiResponse<String> {
 | `health` | Yes | Kubernetes liveness/readiness endpoint registries |
 | `telemetry` | Yes | Non-blocking tracing, UUIDv7 request IDs, and auto-meta response injection |
 | `extractors` | Yes | Sanitized and validated JSON body, query, and path extractors |
-| `utils` | Yes | HMAC webhooks, background worker tasks, Redis idempotency keys |
+| `utils` | Yes | HMAC webhooks, background worker tasks, Redis idempotency keys, Bloom filters (in-memory + Valkey/Redis) |
 | `abac` | No | Attribute-Based Access Control policies and SQL filter builder |
 | `cedar` | No | Amazon Cedar policy engine evaluation in `scyph-abac` |
 | `notify` | No | Notification abstractions |

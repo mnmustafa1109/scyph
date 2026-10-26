@@ -5,6 +5,7 @@
 //!
 //! ## Overview
 //!
+//! - **[`bloom`]**: Probabilistic set membership filters — in-memory ([`BloomFilter`], [`SharedBloomFilter`]) and Valkey/Redis-backed ([`ValkeyBloomFilter`]).
 //! - **[`idempotency`]**: Redis-backed API request deduplication, atomic key reservation, nil-safe cache reads, and response caching.
 //! - **[`pagination`]**: Base64 URL-safe UUID cursor pagination helpers and Axum query parameter extractors.
 //! - **[`webhook`]**: Constant-time HMAC-SHA256 signature verification supporting both direct digest webhooks (GitHub, Shopify) and timestamped replay-safe signatures (Stripe, Svix) with typed Axum extractor ([`VerifiedWebhook`]).
@@ -65,6 +66,9 @@
 //! }
 //! ```
 
+/// Probabilistic set membership filters (in-memory and Valkey/Redis-backed).
+pub mod bloom;
+
 /// Redis-backed API idempotency store and configuration.
 pub mod idempotency;
 
@@ -76,6 +80,9 @@ pub mod webhook;
 
 /// Background task worker loop manager.
 pub mod worker;
+
+#[doc(inline)]
+pub use bloom::{BloomFilter, SharedBloomFilter, ValkeyBloomError, ValkeyBloomFilter};
 
 #[doc(inline)]
 pub use idempotency::{IdempotencyCheck, IdempotencyConfig, IdempotencyError, IdempotencyStore};
