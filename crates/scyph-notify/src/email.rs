@@ -22,20 +22,24 @@ use crate::{
 
 /// SMTP email delivery service implementation using `lettre`.
 ///
-/// Wraps a persistent StartTLS-relayed [`AsyncSmtpTransport`] pool and default `from` sender email address.
+/// Wraps a persistent StartTLS-relayed [`AsyncSmtpTransport`] pool, the default `From` sender,
+/// and an optional `Reply-To` header.
 /// Reuses transport connections across all send operations.
 pub struct LettreSMTPService {
     transport: AsyncSmtpTransport<Tokio1Executor>,
     from: String,
+    reply_to: Option<Mailbox>,
 }
 
 impl LettreSMTPService {
     /// Constructs a [`LettreSMTPService`] instance by reading environment variables:
     /// - `SMTP_HOST` (e.g. `"smtp.mailgun.org"`)
     /// - `SMTP_PORT` (e.g. `587`)
-    /// - `SMTP_USERNAME` (e.g. `"postmaster@mg.example.com"`)
-    /// - `SMTP_PASSWORD` (sensitive, wrapped in [`SecretString`])
-    /// - `SMTP_FROM` (e.g. `"noreply@example.com"`)
+    /// - `SMTP_USER` (e.g. `"postmaster@mg.example.com"`)
+    /// - `SMTP_PASS` (sensitive, wrapped in [`SecretString`])
+    /// - `FROM_EMAIL` (e.g. `"noreply@example.com"`), optionally paired with
+    ///   `FROM_NAME` (rendered as `"Name <email>"`)
+    /// - `REPLY_TO_EMAIL` (optional; sets the `Reply-To` header on outgoing mail)
     ///
     /// Performs an active SMTP handshake test during initialization to verify network reachability and authentication credentials.
     /// The handshake is bounded at 5s so a relay that accepts TCP and stalls cannot hold boot
@@ -54,14 +58,22 @@ impl LettreSMTPService {
             .map_err(|e| {
                 NotifyError::Configuration(format!("SMTP_PORT must be a valid u16: {e}"))
             })?;
-        let username = env::var("SMTP_USERNAME")
-            .map_err(|_| NotifyError::Configuration("SMTP_USERNAME must be set".into()))?;
+        let username = env::var("SMTP_USER")
+            .map_err(|_| NotifyError::Configuration("SMTP_USER must be set".into()))?;
         let password = SecretString::from(
-            env::var("SMTP_PASSWORD")
-                .map_err(|_| NotifyError::Configuration("SMTP_PASSWORD must be set".into()))?,
+            env::var("SMTP_PASS")
+                .map_err(|_| NotifyError::Configuration("SMTP_PASS must be set".into()))?,
         );
-        let from = env::var("SMTP_FROM")
-            .map_err(|_| NotifyError::Configuration("SMTP_FROM must be set".into()))?;
+        let email = env::var("FROM_EMAIL")
+            .map_err(|_| NotifyError::Configuration("FROM_EMAIL must be set".into()))?;
+        let from = match env::var("FROM_NAME") {
+            Ok(name) if !name.trim().is_empty() => format!("{name} <{email}>"),
+            _ => email,
+        };
+        let reply_to = match env::var("REPLY_TO_EMAIL") {
+            Ok(addr) if !addr.trim().is_empty() => Some(addr.parse::<Mailbox>()?),
+            _ => None,
+        };
 
         let creds = Credentials::new(username, password.expose_secret().to_string());
         let transport = AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&host)?
@@ -88,7 +100,11 @@ impl LettreSMTPService {
             ));
         }
 
-        Ok(Self { transport, from })
+        Ok(Self {
+            transport,
+            from,
+            reply_to,
+        })
     }
 
     /// Exposes a reference to the inner persistent [`AsyncSmtpTransport`].
@@ -126,6 +142,10 @@ impl EmailService for LettreSMTPService {
                 .from(from_mailbox.clone())
                 .to(to_mailbox)
                 .subject(&msg.subject);
+            let builder = match &self.reply_to {
+                Some(reply_to) => builder.reply_to(reply_to.clone()),
+                None => builder,
+            };
 
             let email = if let Some(text) = &msg.text {
                 builder.multipart(
@@ -193,13 +213,15 @@ mod tests {
     async fn from_env_handshake_is_bounded_when_relay_stalls() {
         let addr = scyph_test_support::spawn_hung_server().await;
 
-        // Safe: this test binary never reads or writes SMTP_* anywhere else.
+        // Safe: this test binary never reads or writes SMTP_*/FROM_* anywhere else.
         unsafe {
             env::set_var("SMTP_HOST", "127.0.0.1");
             env::set_var("SMTP_PORT", addr.port().to_string());
-            env::set_var("SMTP_USERNAME", "user");
-            env::set_var("SMTP_PASSWORD", "secret");
-            env::set_var("SMTP_FROM", "boot-probe@example.com");
+            env::set_var("SMTP_USER", "user");
+            env::set_var("SMTP_PASS", "secret");
+            env::set_var("FROM_EMAIL", "boot-probe@example.com");
+            env::set_var("FROM_NAME", "Boot Probe");
+            env::set_var("REPLY_TO_EMAIL", "replies@example.com");
         }
 
         let err = tokio::time::timeout(Duration::from_secs(10), LettreSMTPService::from_env())
@@ -226,6 +248,7 @@ mod tests {
                 .port(addr.port())
                 .build(),
             from: "health-probe@example.com".to_string(),
+            reply_to: None,
         };
         let registry = HealthRegistry::new();
 
