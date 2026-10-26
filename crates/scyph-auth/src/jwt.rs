@@ -18,6 +18,9 @@
 //!   accidentally appearing in log output, debug formatting, or error messages.
 //! - Tokens include a `jti` (JWT ID) claim. Use [`AuthCacheService::blacklist_token`] to
 //!   revoke individual tokens before their natural expiration.
+//! - Set `JWT_ISSUER` to stamp every token with an `iss` claim and require a matching
+//!   `iss` on verification. Unset (the default) keeps tokens issuer-free and
+//!   verification issuer-agnostic, preserving the pre-`JWT_ISSUER` contract.
 //! - Always set a short expiration (`exp`) on access tokens (e.g., 15–60 minutes).
 //!   Use a separate refresh token flow for long-lived sessions.
 //!
@@ -128,9 +131,19 @@ fn validate_jwt_secret(secret: &str) -> Result<(), JwtError> {
     Ok(())
 }
 
+/// Optional issuer from `JWT_ISSUER`: when set, [`create_token`] stamps the
+/// `iss` claim and [`verify_token`] requires a matching value.
+fn jwt_issuer_from_env() -> Option<String> {
+    std::env::var("JWT_ISSUER")
+        .ok()
+        .map(|iss| iss.trim().to_string())
+        .filter(|iss| !iss.is_empty())
+}
+
 /// Encodes and signs a claims struct into a compact JWT string.
 ///
 /// Uses standard HMAC-SHA256 (HS256) signing with the provided secret key.
+/// When `JWT_ISSUER` is set, the token is stamped with that value as its `iss` claim.
 ///
 /// # Arguments
 ///
@@ -173,17 +186,35 @@ fn validate_jwt_secret(secret: &str) -> Result<(), JwtError> {
 /// let token = create_token(&claims, &secret).unwrap();
 /// ```
 pub fn create_token<C: Claims>(claims: &C, secret: &SecretString) -> Result<String, JwtError> {
-    encode(
-        &Header::default(),
-        claims,
-        &EncodingKey::from_secret(secret.expose_secret().as_bytes()),
-    )
-    .map_err(JwtError::Encoding)
+    // JWT_ISSUER (optional) stamps the `iss` claim; verify_token requires the
+    // same value, so signing and verification always agree within one process.
+    match jwt_issuer_from_env() {
+        None => encode(
+            &Header::default(),
+            claims,
+            &EncodingKey::from_secret(secret.expose_secret().as_bytes()),
+        )
+        .map_err(JwtError::Encoding),
+        Some(issuer) => {
+            let mut payload = serde_json::to_value(claims)
+                .map_err(jsonwebtoken::errors::Error::from)
+                .map_err(JwtError::Encoding)?;
+            payload["iss"] = serde_json::Value::String(issuer);
+            encode(
+                &Header::default(),
+                &payload,
+                &EncodingKey::from_secret(secret.expose_secret().as_bytes()),
+            )
+            .map_err(JwtError::Encoding)
+        }
+    }
 }
 
 /// Decodes and verifies a compact JWT string into typed claims [`TokenData<C>`].
 ///
 /// Validates the token signature and verifies that the token expiration (`exp`) timestamp has not passed.
+/// When `JWT_ISSUER` is set, the token must also carry a matching `iss` claim (tokens
+/// issued before the variable was set are rejected and their holders must re-authenticate).
 ///
 /// # Arguments
 ///
@@ -233,10 +264,15 @@ pub fn verify_token<C: Claims>(
     token: &str,
     secret: &SecretString,
 ) -> Result<TokenData<C>, JwtError> {
-    let validation = Validation {
+    let mut validation = Validation {
         validate_exp: true,
         ..Validation::default()
     };
+    // JWT_ISSUER (optional): when set, tokens must carry a matching `iss` claim.
+    if let Some(issuer) = jwt_issuer_from_env() {
+        validation.set_issuer(&[issuer]);
+        validation.required_spec_claims.insert("iss".into());
+    }
     decode::<C>(
         token,
         &DecodingKey::from_secret(secret.expose_secret().as_bytes()),
