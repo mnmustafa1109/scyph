@@ -101,6 +101,59 @@ pub enum DbError {
     Migration(#[from] sqlx::migrate::MigrateError),
 }
 
+/// Returns `true` when the given `sqlx` error is a PostgreSQL unique-constraint
+/// violation (SQLSTATE `23505`).
+///
+/// Convenience helper for mapping duplicate-key errors to `409 Conflict` without
+/// string-matching the driver message.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use scyph_db::{DbError, is_unique_violation};
+/// use scyph_core::AppError;
+///
+/// async fn insert_user(pool: &sqlx::PgPool, email: &str) -> Result<(), AppError> {
+///     match sqlx::query!("INSERT INTO users (email) VALUES ($1)", email)
+///         .execute(pool)
+///         .await
+///     {
+///         Ok(_) => Ok(()),
+///         Err(e) if is_unique_violation(&e) => Err(AppError::Conflict("email taken".into())),
+///         Err(e) => Err(DbError::Sqlx(e).into()),
+///     }
+/// }
+/// ```
+pub fn is_unique_violation(err: &sqlx::Error) -> bool {
+    matches!(err, sqlx::Error::Database(db) if db.code().as_deref() == Some("23505"))
+}
+
+impl DbError {
+    /// Returns `true` when this error is a PostgreSQL unique-constraint
+    /// violation (SQLSTATE `23505`).
+    ///
+    /// Convenience for mapping duplicate-key errors to `409 Conflict` without
+    /// unwrapping the inner `sqlx::Error` by hand.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use scyph_db::DbError;
+    /// use scyph_core::AppError;
+    ///
+    /// fn map(err: DbError) -> AppError {
+    ///     if err.is_unique_violation() {
+    ///         AppError::Conflict("duplicate key".into())
+    ///     } else {
+    ///         err.into()
+    ///     }
+    /// }
+    /// ```
+    pub fn is_unique_violation(&self) -> bool {
+        matches!(self, DbError::Sqlx(e) if is_unique_violation(e))
+    }
+}
+
 impl From<DbError> for AppError {
     /// Converts any [`DbError`] into an [`AppError::internal`] error.
     ///

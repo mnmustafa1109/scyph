@@ -57,6 +57,9 @@
 
 #![warn(missing_docs)]
 
+/// Fire-and-forget object deletion with a single retry.
+pub mod background;
+
 /// Storage error type definitions and RFC 7807 problem details conversions.
 pub mod error;
 
@@ -95,6 +98,9 @@ pub use memory::InMemoryStorageService;
 pub use multipart::{
     ExtractedFile, FileConfig, FileExtractor, MultiFileExtractor, OptionalFileExtractor,
 };
+
+#[doc(inline)]
+pub use background::delete_with_retry;
 
 #[doc(inline)]
 pub use traits::StorageService;
