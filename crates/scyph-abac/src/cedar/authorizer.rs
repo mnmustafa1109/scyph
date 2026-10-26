@@ -143,13 +143,13 @@ impl CedarAuthorizer {
         action_name: &str,
         resource: &R,
     ) -> Result<(), AppError> {
-        let principal_uid = principal.to_entity_uid();
-        let resource_uid = resource.to_entity_uid();
+        let principal_uid = principal.to_entity_uid()?;
+        let resource_uid = resource.to_entity_uid()?;
         let action = EntityUid::from_str(&format!("Action::\"{}\"", action_name))
             .map_err(|e| AppError::BadRequest(e.to_string()))?;
 
         let entities = Entities::from_entities(
-            vec![principal.to_cedar_entity(), resource.to_cedar_entity()],
+            vec![principal.to_cedar_entity()?, resource.to_cedar_entity()?],
             self.schema.as_ref(),
         )
         .map_err(|e| AppError::Internal {
@@ -195,9 +195,9 @@ impl CedarAuthorizer {
         let action = EntityUid::from_str(&format!("Action::\"{}\"", action_name))
             .map_err(|e| AppError::BadRequest(e.to_string()))?;
 
-        let resource_uid = resource.to_entity_uid();
+        let resource_uid = resource.to_entity_uid()?;
         let entities =
-            Entities::from_entities(vec![resource.to_cedar_entity()], self.schema.as_ref())
+            Entities::from_entities(vec![resource.to_cedar_entity()?], self.schema.as_ref())
                 .map_err(|e| AppError::Internal {
                     source: Box::new(e),
                     context: "Entities build failed".into(),

@@ -16,7 +16,7 @@
 //! impl IntoCedarEntity for User {
 //!     fn entity_type() -> &'static str { "User" }
 //!     fn entity_id(&self) -> String { self.name.clone() }
-//!     fn to_cedar_entity(&self) -> Entity {
+//!     fn to_cedar_entity(&self) -> Result<Entity, CedarError> {
 //!         CedarEntityBuilder::new("User", &self.name)
 //!             .attr_string("role", &self.role)
 //!             .build()
@@ -32,7 +32,7 @@
 //! impl IntoCedarEntity for Document {
 //!     fn entity_type() -> &'static str { "Document" }
 //!     fn entity_id(&self) -> String { self.id.to_string() }
-//!     fn to_cedar_entity(&self) -> Entity {
+//!     fn to_cedar_entity(&self) -> Result<Entity, CedarError> {
 //!         CedarEntityBuilder::new("Document", &self.id.to_string())
 //!             .attr_bool("is_public", self.is_public)
 //!             .build()

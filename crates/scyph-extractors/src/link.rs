@@ -123,15 +123,24 @@ where
             return Err(AppError::BadRequest("Malformed Host header".to_string()));
         }
 
-        // 3. If ALLOWED_HOSTS is defined, validate host against whitelist
-        if let Some(allowed_hosts) = &link_env().allowed_hosts {
-            let host_without_port = host.split(':').next().unwrap_or(host);
-            let is_allowed = allowed_hosts
-                .iter()
-                .any(|a| a.eq_ignore_ascii_case(host) || a.eq_ignore_ascii_case(host_without_port));
-            if !is_allowed {
+        // 3. ALLOWED_HOSTS must be configured when falling back to a request
+        //    header; trusting an arbitrary Host header enables host-header
+        //    injection. Require explicit configuration in that case.
+        match &link_env().allowed_hosts {
+            Some(allowed_hosts) => {
+                let host_without_port = host.split(':').next().unwrap_or(host);
+                let is_allowed = allowed_hosts
+                    .iter()
+                    .any(|a| a.eq_ignore_ascii_case(host) || a.eq_ignore_ascii_case(host_without_port));
+                if !is_allowed {
+                    return Err(AppError::BadRequest(
+                        "Untrusted Host header rejected".to_string(),
+                    ));
+                }
+            }
+            None => {
                 return Err(AppError::BadRequest(
-                    "Untrusted Host header rejected".to_string(),
+                    "ALLOWED_HOSTS or APP_BASE_URL must be configured to build links from a request host".to_string(),
                 ));
             }
         }

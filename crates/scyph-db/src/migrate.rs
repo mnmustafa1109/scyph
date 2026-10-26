@@ -190,7 +190,11 @@ async fn run_cascade(pool: &PgPool, path: &Path, label: &str) -> Result<(), DbEr
     // 1. Run root directory if it contains SQL files
     if has_sql_files(path) {
         info!(path = ?path, "Running root {label}");
-        let migrator = sqlx::migrate::Migrator::new(path).await?;
+        let mut migrator = sqlx::migrate::Migrator::new(path).await?;
+        // Stages partition one logical history in the shared `_sqlx_migrations`
+        // table, so every stage must tolerate applied versions that other
+        // stages resolved (sqlx defaults to erroring on those).
+        migrator.set_ignore_missing(true);
         migrator.run(pool).await?;
         info!("Root {label} completed");
     }
@@ -199,7 +203,8 @@ async fn run_cascade(pool: &PgPool, path: &Path, label: &str) -> Result<(), DbEr
     let common_path = path.join("common");
     if common_path.exists() && has_sql_files(&common_path) {
         info!(path = ?common_path, "Running common {label}");
-        let migrator = sqlx::migrate::Migrator::new(common_path.as_path()).await?;
+        let mut migrator = sqlx::migrate::Migrator::new(common_path.as_path()).await?;
+        migrator.set_ignore_missing(true);
         migrator.run(pool).await?;
         info!("Common {label} completed");
     }
@@ -209,7 +214,8 @@ async fn run_cascade(pool: &PgPool, path: &Path, label: &str) -> Result<(), DbEr
         && has_sql_files(&env_path)
     {
         info!(app_env = %raw_env, path = ?env_path, "Running environment {label}");
-        let migrator = sqlx::migrate::Migrator::new(env_path.as_path()).await?;
+        let mut migrator = sqlx::migrate::Migrator::new(env_path.as_path()).await?;
+        migrator.set_ignore_missing(true);
         migrator.run(pool).await?;
         info!(app_env = %raw_env, "Environment {label} completed");
     }
