@@ -21,6 +21,9 @@
 //! - Set `JWT_ISSUER` to stamp every token with an `iss` claim and require a matching
 //!   `iss` on verification. Unset (the default) keeps tokens issuer-free and
 //!   verification issuer-agnostic, preserving the pre-`JWT_ISSUER` contract.
+//! - Set `JWT_EXPIRATION` (seconds) to make token lifetime configurable per
+//!   environment: [`jwt_expiration_from_env()`] turns it (default 24h) into the
+//!   offset your claims builder adds to "now" for the `exp` claim.
 //! - Always set a short expiration (`exp`) on access tokens (e.g., 15–60 minutes).
 //!   Use a separate refresh token flow for long-lived sessions.
 //!
@@ -138,6 +141,40 @@ fn jwt_issuer_from_env() -> Option<String> {
         .ok()
         .map(|iss| iss.trim().to_string())
         .filter(|iss| !iss.is_empty())
+}
+
+/// Returns the default token validity in **seconds** for building `exp` claims,
+/// read from the optional `JWT_EXPIRATION` environment variable (default: 86_400 = 24 hours).
+///
+/// Keeps token lifetime configurable per environment instead of hardcoded at the
+/// mint site — add it to the current Unix timestamp when constructing claims:
+///
+/// ```rust
+/// use scyph_auth::jwt_expiration_from_env;
+///
+/// let lifetime = jwt_expiration_from_env().expect("JWT_EXPIRATION must parse");
+/// let exp = chrono::Utc::now().timestamp() + lifetime;
+/// # let _ = exp;
+/// ```
+///
+/// # Errors
+///
+/// Returns [`JwtError::Config`] when `JWT_EXPIRATION` is set but not a positive integer.
+pub fn jwt_expiration_from_env() -> Result<i64, JwtError> {
+    const DEFAULT_SECS: i64 = 86_400;
+    let raw = match std::env::var("JWT_EXPIRATION") {
+        Ok(raw) => raw,
+        Err(_) => return Ok(DEFAULT_SECS),
+    };
+    let secs: i64 = raw.trim().parse().map_err(|_| {
+        JwtError::Config("JWT_EXPIRATION must be a positive number of seconds".into())
+    })?;
+    if secs <= 0 {
+        return Err(JwtError::Config(
+            "JWT_EXPIRATION must be a positive number of seconds".into(),
+        ));
+    }
+    Ok(secs)
 }
 
 /// Encodes and signs a claims struct into a compact JWT string.

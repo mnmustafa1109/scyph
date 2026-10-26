@@ -107,7 +107,7 @@ pub use error::AuthError;
 pub use extractor::{AuthExtractorState, AuthUser, OptionalAuthUser};
 
 #[doc(inline)]
-pub use jwt::{JwtError, create_token, jwt_secret_from_env, verify_token};
+pub use jwt::{JwtError, create_token, jwt_expiration_from_env, jwt_secret_from_env, verify_token};
 
 #[doc(inline)]
 pub use middleware::{AllowedRoles, require_roles_layer};
